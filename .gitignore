@@ -1,0 +1,40 @@
+# Python and development tools
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Secrets and local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private financial data must live outside the checkout
+*.duckdb
+*.duckdb.*
+*.sqlite
+*.sqlite3
+*.db
+data/
+backups/
+exports/
+source-documents/
+media/
+staticfiles/
+*.log
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

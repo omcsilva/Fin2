@@ -1,0 +1,27 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Fin2 · Identificadores e cotações{% endblock %}
+{% block content %}
+<h1>Identificadores e cotações</h1>
+<section class="panel"><h2>Capturas externas separadas</h2>
+<p>Últimas 50 capturas do lote completo, independentemente dos filtros abaixo. Não alteram os preços legados nem a alocação. Aceita significa apenas que passou nas verificações técnicas de ticker, moeda, preço e data; não comprova atualidade ou identidade econômica.</p>
+<div class="table-wrap"><table><thead><tr><th>Ativo</th><th>Preço / horário do provedor</th><th>Validação</th><th>Evidência</th></tr></thead><tbody>
+{% for item in captures %}<tr><td><a href="{% url 'record' item.source_record_id %}">{{ item.requested_symbol }}</a></td><td>{{ item.price|default_if_none:'—' }} {{ item.currency|default_if_none:'' }}<br>{{ item.quoted_at|date:'d/m/Y H:i:s O' }}</td><td>{% if item.status == 'accepted' %}Aceita{% else %}Rejeitada: {{ item.reason }}{% endif %}</td><td><a href="{% url 'quote-response' item.capture_id %}">Resposta original brapi (JSON)</a><br>Captura: {{ item.captured_at|date:'d/m/Y H:i:s O' }}</td></tr>
+{% empty %}<tr><td colspan="4">Nenhuma captura externa neste lote.</td></tr>{% endfor %}</tbody></table></div></section>
+<p>Inventário de ativos do lote{% if selected_collection %} vinculados à carteira {{ selected_collection.name }}{% endif %}, incluindo posições encerradas. Origem dos preços: snapshot do Fin1. Nenhuma consulta a APIs é executada nesta página. O ano selecionado não transforma o cadastro atual em histórico de cotações.</p>
+<p class="notice">Os identificadores ainda não foram validados. A integração configurada no Fin1 não comprova a origem efetiva de cada preço. Valores, moedas e multiplicadores são preservados sem conversão; a alocação continua usando a referência legada.</p>
+<section class="panel"><h2>Cobertura do lote completo</h2>
+<p>{{ identifiers }} identificadores candidatos · {{ duplicates }} ocorrências em campos com valores repetidos entre ativos.</p>
+<ul>{% for item in quality %}<li>{{ item.label }}: {{ item.count }}</li>{% endfor %}</ul></section>
+<form method="get" class="filters"><input type="hidden" name="batch" value="{{ batch.batch_id }}"><input type="hidden" name="portfolio" value="{{ portfolio_filter }}"><input type="hidden" name="year" value="{{ year_filter }}">
+<label>Ativo, código ou CNPJ <input name="q" value="{{ term }}" maxlength="200"></label>
+<label>Integração legada <select name="provider"><option value="">Todas</option>{% for item in providers %}<option value="{{ item.configured_provider }}" {% if provider_filter == item.configured_provider %}selected{% endif %}>{{ item.configured_provider }}</option>{% endfor %}</select></label><button type="submit">Filtrar</button></form>
+<div class="table-wrap"><table><thead><tr><th>Ativo / evidência</th><th>Identificadores não validados</th><th>Integração configurada</th><th>Preço legado</th><th>Data / qualidade</th></tr></thead><tbody>
+{% for item in rows %}<tr><td><a href="{% url 'record' item.source_record_id %}">{{ item.name|default:'Sem nome' }}</a><br>#{{ item.legacy_id }}</td>
+<td>Abreviação: {{ item.symbol|default:'—' }}<br>Código: {{ item.legacy_code|default:'—' }}<br>CNPJ: {{ item.legacy_cnpj|default:'—' }}{% if item.duplicate_identifiers %}<br><strong>Identificador repetido: revisar</strong>{% endif %}</td>
+<td>{% if item.provider_record_id %}<a href="{% url 'record' item.provider_record_id %}">{{ item.configured_provider|default:'Sem plugin' }}</a>{% else %}Não informada{% endif %}<br>Multiplicador configurado: {{ item.configured_multiplier|default_if_none:'—' }}</td>
+<td>{{ item.legacy_price|default_if_none:'—' }} {{ item.currency|default:'Sem moeda' }}</td>
+<td>{{ item.price_date|date:'d/m/Y'|default:'Sem data' }}<br>{{ item.quality_label }}<br>Capturado em {{ item.captured_at|date:'d/m/Y H:i' }}</td></tr>
+{% empty %}<tr><td colspan="5">Nenhum ativo encontrado.</td></tr>{% endfor %}</tbody></table></div>
+{% include 'dashboard/pagination.html' %}
+<p>A captura registra a importação do snapshot, não o horário de consulta ao provedor. A idade é calculada em relação à data de referência do lote. O Fin1 preserva apenas o último preço no cadastro; esta tela não reconstrói um histórico diário nem unifica ativos entre lotes.</p>
+{% endblock %}
