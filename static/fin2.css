@@ -266,7 +266,7 @@ td{padding-block:6.5px}
 .submenu{padding-block:2px}
 .main-menu .submenu a{padding-block:5px}
 nav.panel>a{padding-block:4px}
-.status-bar{min-height:23px}
+.status-bar{min-height:23px;padding-inline:1.25vw}
 .status-bar>span{padding-block:3.5px}
 
 /* Compact controls without changing text size or horizontal spacing. */
