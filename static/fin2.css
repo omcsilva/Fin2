@@ -281,3 +281,26 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="h
 /* Content-sized tables stay at the left edge of their scrollable panel. */
 table{width:max-content;min-width:0;max-width:none;margin-inline:0;table-layout:auto}
 th,td{padding:3px 6px;white-space:nowrap;overflow-wrap:normal;word-break:normal}
+
+/* Style trial: light tables and form controls within the dark dashboard. */
+@font-face{font-family:Inter;src:url('fonts/inter/InterVariable.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+@font-face{font-family:Inter;src:url('fonts/inter/InterVariable-Italic.woff2') format('woff2');font-style:italic;font-weight:100 900;font-display:swap}
+body,h1,h2,h3,h4,h5,h6{font-family:Inter,Tahoma,sans-serif;font-optical-sizing:auto}
+table,table th,table td,table .sort-button,form :is(input,select,textarea,button,.button),input::file-selector-button{font-family:Inter,Tahoma,sans-serif;font-optical-sizing:auto}
+table{color-scheme:light;--muted:#394957;--green:#005266;color:#101820;background:#fff;border:1px solid #8193a5}
+table th{color:#142331;background:#c3d0dd;border-bottom:2px solid #71869a;font-weight:700}
+table td{border-bottom-color:#aab9c7}
+table tbody tr:nth-child(even){background:#e1e9f1}
+table tbody tr:hover{background:#bdddec}
+table tfoot{background:#c3d0dd;color:#142331;font-weight:700}
+table a{color:#005266}
+table .sort-button:hover{color:#004c5b;background:transparent}
+table :is(a,button,input,select):focus-visible{outline-color:#007589}
+:is(form,.global-filters,.flow-review) :is(input,select,textarea){color-scheme:light;color:#202c39;background:#f8fafc;border-color:#a5b5c5;accent-color:#007589}
+form input::placeholder,form textarea::placeholder{color:#657487;opacity:1}
+form select option{background:#f8fafc;color:#202c39}
+form button:not(.sort-button),form .button,input::file-selector-button{color:#243746;background:linear-gradient(#f7fafc,#dce5ee);border-color:#a5b5c5;box-shadow:inset 0 1px 0 #fff}
+form button:not(.sort-button):hover,form .button:hover,input::file-selector-button:hover{background:#d0e5ef;color:#123b4a}
+form button:not(.sort-button):active{background:#bfd7e3;box-shadow:inset 0 1px 3px #6f8b9c66}
+form :is(input,select,textarea,button):focus-visible{outline-color:#007589}
+form :is(input,select,textarea,button):disabled{opacity:.65;cursor:not-allowed}
