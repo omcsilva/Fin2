@@ -1,0 +1,16 @@
+{% extends 'dashboard/base.html' %}{% block content %}
+<p class="eyebrow">CADASTROS / HISTÓRICO PRESERVADO</p><h1>{{ catalog_title }}</h1>
+<nav class="panel">{% for key,definition in catalog_kinds %}<a href="{% url 'catalog-kind' key %}?{{ global_query }}">{{ definition.0 }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</nav>
+<p>Alterações são auditadas. Os registros originais do Fin1 permanecem intactos. Vínculos de cadastros existentes não podem ser trocados nesta tela.</p>
+{% if catalog_error %}<div class="note" role="alert">{{ catalog_error }}</div>{% endif %}
+{% if catalog_saved %}<div class="note" role="status">Cadastro salvo.</div>{% endif %}
+{% if catalog_writable %}<section class="panel"><h2>{% if catalog_selected %}Editar cadastro{% else %}Novo cadastro{% endif %}</h2>
+{% if catalog_selected.image %}<img src="{% url 'catalog-image' catalog_selected.image.hash %}" alt="Imagem de {{ catalog_selected.payload.nome }}" width="160" height="120" style="object-fit:contain;max-width:100%">{% endif %}
+<form method="post" data-confirm-submit="Confirmar este cadastro?">{% csrf_token %}
+<input type="hidden" name="request_key" value="{{ catalog_request_key }}"><input type="hidden" name="revision" value="{{ catalog_revision }}">
+<div class="form-grid">{{ catalog_form.as_p }}</div><button type="submit">Salvar</button>
+{% if catalog_selected %}<a href="{% url 'catalog-kind' catalog_kind %}?{{ global_query }}">Novo cadastro</a>{% endif %}</form>
+{% if catalog_history %}<details><summary>Histórico de alterações</summary><ul>{% for item in catalog_history %}<li>Revisão {{ item.revision }} · {{ item.created_at|date:'d/m/Y H:i:s' }}</li>{% endfor %}</ul></details>{% endif %}</section>{% endif %}
+<section class="panel table-wrap"><table><thead><tr>{% if catalog_has_images %}<th>Imagem</th>{% endif %}{% for label in catalog_columns %}<th>{{ label }}</th>{% endfor %}<th>Origem</th><th>Ação</th></tr></thead><tbody>
+{% for item in catalog_items %}<tr>{% if catalog_has_images %}<td>{% if item.image %}<img src="{% url 'catalog-image' item.image.hash %}" alt="Imagem de {{ item.payload.nome }}" width="48" height="48" loading="lazy" style="object-fit:contain">{% else %}—{% endif %}</td>{% endif %}{% for cell in item.cells %}<td>{{ cell }}</td>{% endfor %}<td>{% if item.revision %}Fin2 · revisão {{ item.revision }}{% else %}Fin1 preservado{% endif %}</td><td><a href="{% url 'catalog-kind' catalog_kind %}?{{ global_query }}&amp;edit={{ item.record_id }}">Abrir</a></td></tr>{% empty %}<tr><td>Nenhum cadastro.</td></tr>{% endfor %}
+</tbody></table></section>{% endblock %}

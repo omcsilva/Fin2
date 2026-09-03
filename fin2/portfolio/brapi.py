@@ -25,7 +25,7 @@ class NoRedirect(HTTPRedirectHandler):
 def validate_mapping(connection, record_id, symbol):
     if not re.fullmatch(r'[A-Z]{4}[0-9]{1,2}', symbol):
         raise ValueError('Ticker fora do formato suportado')
-    row = connection.execute('SELECT batch_id,symbol,currency,configured_provider,configured_multiplier FROM market.asset_catalog WHERE source_record_id=?', [record_id]).fetchone()
+    row = connection.execute('SELECT batch_id,symbol,currency,configured_provider,configured_multiplier FROM market.asset_catalog_effective WHERE source_record_id=?', [record_id]).fetchone()
     if not row or row[1] != symbol or row[2] not in ('REAL','BRL') or row[3] != 'atuBrAPI':
         raise ValueError('Ativo, ticker, moeda ou provedor incompatível com o cadastro legado')
     try:
@@ -34,7 +34,7 @@ def validate_mapping(connection, record_id, symbol):
         raise ValueError('Multiplicador ausente ou inválido') from None
     if unit != 1:
         raise ValueError('Somente multiplicador 1 é suportado')
-    count = connection.execute('SELECT count(*) FROM market.asset_catalog WHERE batch_id=? AND upper(trim(symbol))=?', [row[0],symbol]).fetchone()[0]
+    count = connection.execute('SELECT count(*) FROM market.asset_catalog_effective WHERE batch_id=? AND upper(trim(symbol))=?', [row[0],symbol]).fetchone()[0]
     if count != 1:
         raise ValueError('Ticker ambíguo no lote')
 

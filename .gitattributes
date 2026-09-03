@@ -1,0 +1,6 @@
+*.sh text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+*.py text eol=lf
+# Migration checksums cover exact bytes; never convert line endings.
+warehouse/migrations/*.sql -text whitespace=cr-at-eol,-blank-at-eof

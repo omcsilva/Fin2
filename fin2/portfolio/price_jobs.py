@@ -52,16 +52,16 @@ def run(database,job_id,batch_id,collection_id=None,fetcher=_fetch_many):
         try:
             _set(database,job_id,status='running',started_at=datetime.now(timezone.utc),message='Selecionando ativos compatíveis')
             with connect(database) as db:
-                rows=db.execute("""SELECT a.source_record_id,a.symbol FROM market.asset_catalog a
+                rows=db.execute("""SELECT a.source_record_id,a.symbol FROM market.asset_catalog_effective a
                   WHERE a.batch_id=? AND a.configured_provider='atuBrAPI' AND a.currency IN ('REAL','BRL')
                     AND try_cast(a.configured_multiplier AS DECIMAL(28,10))=1
                     AND regexp_full_match(a.symbol,'[A-Z]{4}[0-9]{1,2}')
                     AND (? IS NULL OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm
                       ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
                       WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND pm.collection_id=?))
-                    AND 1=(SELECT count(*) FROM market.asset_catalog x WHERE x.batch_id=a.batch_id AND upper(trim(x.symbol))=a.symbol)
+                    AND 1=(SELECT count(*) FROM market.asset_catalog_effective x WHERE x.batch_id=a.batch_id AND upper(trim(x.symbol))=a.symbol)
                   ORDER BY a.symbol""",[batch_id,collection_id,collection_id]).fetchall()
-                total=db.execute("""SELECT count(*) FROM market.asset_catalog a WHERE a.batch_id=? AND (? IS NULL OR EXISTS(
+                total=db.execute("""SELECT count(*) FROM market.asset_catalog_effective a WHERE a.batch_id=? AND (? IS NULL OR EXISTS(
                   SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
                   WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND pm.collection_id=?))""",[batch_id,collection_id,collection_id]).fetchone()[0]
             _set(database,job_id,target_count=len(rows),skipped_count=max(total-len(rows),0),message=f'Atualizando {len(rows)} ativos compatíveis')

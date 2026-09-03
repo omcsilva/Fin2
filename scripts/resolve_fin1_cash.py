@@ -60,6 +60,28 @@ def apply(database, batch):
             if len(documents)!=len(statement_paths): raise ValueError(f"Missing APEX statements: {documents}")
             for document_id,_ in documents:
                 db.execute("insert into document_record_link values (?,?,?) on conflict do nothing",[document_id,account_record,'account_statement'])
+            statement_balances={
+                'ANEXOS/APXMC/202307_APEX Marcos.pdf':('2023-07-01','2023-07-31','0.00','20577.70'),
+                'ANEXOS/APXMC/202308_APEX Marcos.pdf':('2023-08-01','2023-08-31','20577.70','10989.69'),
+                'ANEXOS/APXMC/202309_APEX Marcos.pdf':('2023-09-01','2023-09-30','10989.69','18632.45'),
+                'ANEXOS/APXMC/202311_APEX Marcos.pdf':('2023-11-01','2023-11-30','18632.45','32626.75'),
+                'ANEXOS/APXMC/202312_APEX Marcos.pdf':('2023-12-01','2023-12-31','32626.75','42620.54'),
+                'ANEXOS/APXMC/202401_APEX Marcos.pdf':('2024-01-01','2024-01-31','42620.54','42789.29'),
+                'ANEXOS/APXMC/202402_APEX Marcos.pdf':('2024-02-01','2024-02-29','42789.29','42876.79'),
+            }
+            for document_id,source_path in documents:
+                start,end,opening,closing=statement_balances[source_path]
+                observation_id=hashlib.sha256(f'{batch}:statement_balance:{account_record}:{document_id}'.encode()).hexdigest()
+                db.execute("""INSERT INTO ledger.statement_balance_observation
+                  (observation_id,batch_id,account_record_id,document_id,period_start,period_end,
+                   currency,opening_balance,closing_balance,note)
+                  VALUES (?,?,?,?,?,?, 'DOLAR',?,?,?)
+                  ON CONFLICT (batch_id,account_record_id,document_id) DO UPDATE SET
+                    period_start=excluded.period_start,period_end=excluded.period_end,
+                    currency=excluded.currency,opening_balance=excluded.opening_balance,
+                    closing_balance=excluded.closing_balance,note=excluded.note,recorded_at=now()""",
+                  [observation_id,batch,account_record,document_id,start,end,opening,closing,
+                   'Saldo da conta de caixa transcrito do resumo mensal do extrato APEX.'])
             put(db,batch,'account',account,'pending','incomplete_statement_history',None,
                 'O histórico do Fin1 soma 12.666,49, mas o extrato APEX de fevereiro de 2024 fecha o caixa em 42.876,79; não há eventos suficientes para derivar o saldo.',
                 {'legacy_balance':'0','entry_count':14,'source_value_sum':'12666.49','running_mismatches':0,

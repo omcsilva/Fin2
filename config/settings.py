@@ -14,6 +14,10 @@ if not SECRET_KEY:
         raise RuntimeError("Set FIN2_SECRET_KEY when FIN2_DEBUG=0")
     SECRET_KEY = secrets.token_urlsafe(48)
 ALLOWED_HOSTS = os.environ.get("FIN2_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
+CSRF_TRUSTED_ORIGINS = [value for value in os.environ.get("FIN2_CSRF_TRUSTED_ORIGINS", "").split(",") if value]
+CSRF_COOKIE_SECURE = os.environ.get("FIN2_SECURE_COOKIES", "0") == "1"
+# Production Gunicorn binds to loopback; the trusted proxy replaces this header.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if not DEBUG else None
 INSTALLED_APPS = ["django.contrib.staticfiles"]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -26,7 +30,10 @@ DATABASES = {}
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "templates"],
-              "APP_DIRS": False, "OPTIONS": {"context_processors": ["django.template.context_processors.request"]}}]
+              "APP_DIRS": False, "OPTIONS": {
+                  "context_processors": ["django.template.context_processors.request"],
+                  "libraries": {"fin2_format": "fin2.dashboard.templatetags.fin2_format"},
+              }}]
 LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Sao_Paulo"
 USE_TZ = True
@@ -36,6 +43,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DATA_DIR = Path(os.environ.get("FIN2_DATA_DIR", str(Path.home() / "Fin2-private" / "development"))).resolve()
 WAREHOUSE_PATH = DATA_DIR / "fin2.duckdb"
 DOCUMENT_ROOT = DATA_DIR / "documents"
+CATALOG_IMAGE_ROOT = DATA_DIR / "catalog-images"
 WRITE_ENABLED = os.environ.get("FIN2_WRITE_ENABLED", "1" if DEBUG else "0") == "1"
 X_FRAME_OPTIONS = "SAMEORIGIN"
 SECURE_CONTENT_TYPE_NOSNIFF = True

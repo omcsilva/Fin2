@@ -51,10 +51,19 @@ O [primeiro adaptador brapi](brapi.md) permite captura pontual offline com
 validação e resposta original preservada, exibida separadamente no dashboard.
 O inventário legado descrito acima permanece inalterado.
 
+A migração `0025_asset_provider_overrides.sql` permite registrar mapeamentos
+revisados sem alterar o cadastro importado. `market.asset_catalog_effective`
+aplica o provedor, ticker e multiplicador decididos sobre o inventário legado e
+mantém a justificativa. O INRD11 foi o primeiro caso: ticker e ISIN
+`BRINRDCTF002` foram conferidos nos registros da B3, e uma captura brapi atual
+foi aceita. A brapi recusou o endpoint histórico para esse ticker; portanto,
+nenhuma série diária parcial ou sintética foi criada.
+
 ## Escopo restante
 
-Validar o mapeamento ativo/provedor e a unidade de cada cotação, começando por
-um adaptador limitado. Não usar `fin1_tipo` como taxonomia de ativos: esse
+Continuar validando o mapeamento ativo/provedor e a unidade de cada cotação.
+O Brasilprev Ciclo de Vida 2030 I ainda exige identificação inequívoca do fundo
+e extrato do plano antes de receber preço. Não usar `fin1_tipo` como taxonomia de ativos: esse
 cadastro descreve modalidades de remuneração. Cotações externas deverão ter
 resposta original preservada, data efetiva, moeda e identidade verificadas,
 deduplicação e armazenamento separado das observações legadas. Câmbio,

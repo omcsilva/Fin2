@@ -163,3 +163,108 @@ button, .button { font-weight: 650; }
 @media(max-width:900px){.status-bar{padding:0}.status-segment:last-child{display:none}.price-update-form{order:4}.status-bar>span{padding:7px 9px}}
 @media(max-width:600px){.price-update-form{order:2;margin-left:auto}.status-bar{overflow-x:auto}#price-job-status{min-width:180px}.status-segment{font-size:9px}}
 .form-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:16px;margin-bottom:20px}.form-grid label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:12px}.form-grid input,.form-grid select{min-width:0;width:100%}.form-grid .wide{grid-column:span 2}@media(max-width:900px){.form-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}}
+.history-filter fieldset{display:flex;flex-wrap:wrap;gap:8px 18px;max-width:1100px;border:1px solid var(--line);border-radius:7px;padding:12px 16px}.history-filter legend{padding:0 7px;color:var(--muted);font-size:11px}.history-filter label{display:flex;flex-direction:row;align-items:center;gap:6px;color:var(--ink)}.history-filter input{min-width:0;width:auto}.chart-panel{padding:14px 20px}.history-chart{width:100%;min-width:620px;max-height:480px}.history-chart line{stroke:#40516a;stroke-width:1}.history-chart polyline{fill:none;stroke-width:2.2;vector-effect:non-scaling-stroke}.history-chart text{fill:var(--muted);font:11px Consolas,monospace}.chart-legend{display:flex;flex-wrap:wrap;gap:15px;font:12px Consolas,monospace}.chart-legend i,.series-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.currency-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin:24px 0}.currency-card{padding:22px 24px;background:linear-gradient(145deg,#142236,#0e1825);border:1px solid var(--line);border-top:2px solid var(--green);border-radius:10px}.currency-card>div{display:flex;justify-content:space-between;gap:15px;color:var(--green);font:650 12px Consolas,monospace}.currency-card small{color:var(--muted);font-weight:400}.currency-card>strong{display:block;margin:15px 0;font:500 34px Consolas,monospace}.currency-card dl{display:grid;grid-template-columns:1fr auto;margin:0;font-size:12px}.currency-card dt,.currency-card dd{padding:5px 0;margin:0;border-bottom:1px solid var(--line)}.currency-card dt{color:var(--muted)}.currency-card dd{text-align:right;font-family:Consolas,monospace}.currency-card>a{display:block;margin-top:14px;font-size:11px}.compact-stats{margin:0 0 22px}.compact-stats article{padding:14px 16px}.compact-stats strong{font-size:25px}
+.sort-button{display:inline-flex;align-items:center;gap:5px;padding:0;border:0;background:none;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit}.sort-button:hover{background:none;color:var(--green)}.sort-button[data-direction="asc"]::after{content:"▲";font-size:8px}.sort-button[data-direction="desc"]::after{content:"▼";font-size:8px}.table-summary{display:flex;justify-content:space-between;gap:16px;margin:-10px 0 12px;color:var(--muted);font-size:11px}
+.main-menu{overflow:visible}.menu-group{position:relative;flex:0 0 auto}.menu-group summary{display:flex;align-items:center;min-height:33px;padding:0 34px 0 16px;position:relative;cursor:pointer;list-style:none;color:#f0f3f5;background:linear-gradient(180deg,#697075 0%,#4d5459 12%,#353b40 52%,#262b2f 54%,#454b50 100%);border-top:1px solid #92989c;border-left:1px solid #747a7e;border-right:1px solid #161a1d;border-bottom:2px solid #111518;font:600 11px/1 Consolas,'Cascadia Code',monospace;text-shadow:0 1px 1px #000;box-shadow:inset 0 1px 0 #ffffff38,inset 0 -1px 0 #0008,0 2px 2px #0007}.menu-group summary::-webkit-details-marker{display:none}.menu-group summary::after{content:"▾";position:absolute;right:14px;color:#b9c2c7}.menu-group[open] summary{color:#fff;box-shadow:inset 0 -2px 0 var(--green)}.menu-group[open] summary::after{content:"▴";color:var(--green)}.submenu{position:absolute;z-index:50;top:100%;left:0;min-width:190px;padding:4px;background:#282e32;border:1px solid #6d7478;border-top:0;box-shadow:0 10px 22px #000b}.main-menu .submenu a{display:block;min-height:0;padding:10px 13px;color:#edf2f5;background:linear-gradient(180deg,#4b5257,#30363a);border:0;border-bottom:1px solid #171b1e;box-shadow:inset 0 1px 0 #ffffff18;font:600 11px/1.2 Consolas,'Cascadia Code',monospace}.main-menu .submenu a:hover,.main-menu .submenu a:focus-visible{color:var(--green);background:#202d33;text-decoration:none}.main-menu .submenu a:last-child{border-bottom:0}@media(max-width:800px){.main-menu{flex-wrap:wrap}.menu-group summary{padding-left:13px}.submenu{min-width:170px}}
+.performance-columns{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:24px}@media(max-width:950px){.performance-columns{grid-template-columns:1fr}}
+.review-list{display:grid;gap:12px}.flow-review{padding:14px;border:1px solid var(--line);border-radius:7px;background:#0c1523}.flow-review>div{display:flex;justify-content:space-between;gap:16px;margin-bottom:10px}.flow-review small{color:var(--muted);white-space:nowrap}.flow-review form{display:grid;grid-template-columns:minmax(170px,.8fr) minmax(260px,2fr) auto;gap:9px}.flow-review input,.flow-review select{min-width:0;width:100%;padding:8px}.flow-review button{padding:8px 13px}@media(max-width:800px){.flow-review>div{display:block}.flow-review small{display:block;white-space:normal}.flow-review form{grid-template-columns:1fr}}
+.calculation-exclusions{margin-top:18px;color:var(--muted);font-size:12px}.calculation-exclusions summary{cursor:pointer;color:var(--green)}.calculation-exclusions li{margin:5px 0}
+
+/* Keep tabular values intact; scroll their panel instead of wrapping cells. */
+.table-wrap{max-width:100%;overflow-x:auto}
+table{table-layout:auto}
+th,td,th *,td *{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+.table-wrap:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+nav.panel{overflow-x:auto;flex-wrap:nowrap;white-space:nowrap}
+nav.panel>a{flex-shrink:0}
+.main-menu a,.menu-group summary,button,.button{white-space:nowrap}
+
+/* Compact content sections: half the previous margins, padding and gutters. */
+main{padding:14px 2.5vw 30px}
+.context{margin-bottom:19px}
+.hero{padding:14px 15px;margin-bottom:18px;gap:17.5px}
+.hero-note{padding:6px 0 6px 21px}
+.panel{padding:12.5px;margin-bottom:12px}
+.section-title{gap:8px;margin-bottom:5px}
+h1{margin:6px 0 10px}
+h2{margin-bottom:9px}
+h3{margin-top:14px}
+.eyebrow{margin:12px 0 6px}
+.stats{gap:9px;margin:12px 0}
+.stats article{padding:12px 14px}
+.columns{gap:12px}
+.note{padding:8px;margin-top:12px}
+.filters{gap:8px;margin:12.5px 0}
+.form-grid{gap:8px;margin-bottom:10px}
+.history-filter fieldset{padding:6px 8px}
+.chart-panel{padding:7px 10px}
+.currency-cards{gap:9px;margin:12px 0}
+.currency-card{padding:11px 12px}
+.compact-stats{margin:0 0 11px}
+.compact-stats article{padding:7px 8px}
+.performance-columns{margin-top:12px}
+.review-list{gap:6px}
+.flow-review{padding:7px}
+.calculation-exclusions{margin-top:9px}
+@media(max-width:800px){
+  .context{margin-bottom:11px}
+  .hero{padding:10px}
+  .stats{gap:5px}
+  .stats article{padding:8px}
+  .panel{padding:8.5px}
+  .chart-panel{padding:7px 10px}
+  .compact-stats article{padding:7px 8px}
+}
+
+/* Additional vertical density; horizontal dimensions remain unchanged. */
+header{padding:5px 1.25vw}
+main{max-width:none;padding:3.5px 1.25vw 7.5px}
+.context{margin-bottom:9.5px}
+.hero{padding-top:3.5px;padding-bottom:3.5px;margin-bottom:9px;row-gap:8.75px}
+.hero-note{padding-top:1.5px;padding-bottom:1.5px}
+.panel{padding-top:3.125px;padding-bottom:3.125px;margin-bottom:6px}
+.section-title{row-gap:4px;margin-bottom:2.5px}
+h1{margin-top:3px;margin-bottom:5px}
+h2{margin-bottom:4.5px}
+h3{margin-top:7px}
+main p:not([class]){margin-block:.5em}
+.eyebrow{margin-top:6px;margin-bottom:3px}
+.stats{row-gap:4.5px;margin-block:6px}
+.stats article{padding-block:3px}
+.columns{row-gap:6px}
+.note{padding-block:2px;margin-top:6px}
+.filters{row-gap:4px;margin-block:6.25px}
+.form-grid{row-gap:4px;margin-bottom:5px}
+.history-filter fieldset{padding-block:1.5px;row-gap:4px}
+.chart-panel{padding-block:1.75px}
+.currency-cards{row-gap:4.5px;margin-block:6px}
+.currency-card{padding-block:2.75px}
+.compact-stats{margin-top:0;margin-bottom:5.5px}
+.compact-stats article{padding-block:1.75px}
+.performance-columns{margin-top:6px}
+.review-list{row-gap:3px}
+.flow-review{padding-block:1.75px}
+.calculation-exclusions{margin-top:4.5px}
+th{padding-block:7.5px}
+td{padding-block:6.5px}
+.fields dt,.fields dd{padding-block:6px}
+.document-link{padding-block:6.5px}
+.issue-line{padding-block:7px}
+@media(max-width:800px){
+  .context{margin-bottom:5.5px}
+  .hero{padding-block:2.5px}
+  .stats{row-gap:2.5px}
+  .stats article{padding-block:2px}
+  .panel{padding-block:2.125px}
+  .chart-panel,.compact-stats article{padding-block:1.75px}
+}
+
+/* Menu spacing comes from minimum heights, rather than vertical padding. */
+.main-menu{min-height:24px}
+.main-menu>a,.menu-group summary{min-height:23px}
+.submenu{padding-block:2px}
+.main-menu .submenu a{padding-block:5px}
+nav.panel>a{padding-block:4px}
+.status-bar{min-height:23px}
+.status-bar>span{padding-block:3.5px}

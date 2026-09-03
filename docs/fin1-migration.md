@@ -12,11 +12,19 @@ are outside scope. Existing provenance and document links remain part of the
 audit trail and must not be discarded.
 
 The private final reconciliation report confirms 260 applications, 2,379
-movements and 2,428 cash entries. Five quantity discrepancies, six cash checks
-with a difference or absent legacy balance, four unassigned cash entries and
-368 running-balance differences remain unresolved. Canonical financial
-normalization and resolution of those exceptions are the remaining migration
-work before general write mode.
+movements and 2,428 cash entries. All five quantity discrepancies now have
+audited canonical decisions. “Reais em espécie” was a manual earmarked-cash
+control whose latest movement explicitly closed both `em_carteira` and
+`financeiro`; its stale application quantity was therefore overridden to zero
+without changing the imported record. Cash decisions are complete except for
+APEX Marcos (Banco Inter): seven preserved monthly statements prove that the
+ledger history is incomplete, but no statement after February 2024 is
+available to establish a current canonical balance.
+
+The XP Bancos FIC FIRF CP application is also canonically closed. Its imported
+25 February 2025 redemption and matching withholding-tax entry explicitly set
+the legacy running position and financial amount to zero, although the source
+omitted the redeemed quantity and left the application aggregate unchanged.
 
 ## Inputs needed
 

@@ -30,6 +30,7 @@ backups/
 exports/
 source-documents/
 media/
+tmp/
 staticfiles/
 *.log
 

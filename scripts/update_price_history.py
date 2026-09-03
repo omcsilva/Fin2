@@ -9,7 +9,7 @@ def run(database,batch,range_name):
   migrate(db)
   rows=db.execute("""select a.source_record_id,a.symbol,
    min(coalesce(m.trade_date,m.settlement_date)) filter(where o.quantity_multiplier>0 and abs(m.source_quantity)>0) first_investment
-   from market.asset_catalog a
+   from market.asset_catalog_effective a
    join portfolio.application ap on ap.batch_id=a.batch_id and ap.asset_id=a.legacy_id
    join portfolio.movement m on m.batch_id=ap.batch_id and m.application_id=ap.legacy_id and m.settlement_date is not null
    left join portfolio.operation o on o.batch_id=m.batch_id and o.legacy_id=m.operation_id

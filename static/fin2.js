@@ -34,3 +34,68 @@
   });
   poll();
 })();
+
+// Make overflowing data panels reachable for keyboard scrolling as well.
+document.querySelectorAll('.table-wrap').forEach(panel => {
+  panel.tabIndex = 0;
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-label', 'Tabela com rolagem horizontal');
+});
+
+document.querySelectorAll('form[data-confirm-submit]').forEach(form => {
+  form.addEventListener('submit',event => {
+    if (!window.confirm(form.dataset.confirmSubmit)) event.preventDefault();
+    else form.querySelectorAll('button[type="submit"]').forEach(button => button.disabled=true);
+  });
+});
+
+(() => {
+  const account=document.querySelector('[data-entry-account]');
+  const application=document.querySelector('[data-entry-application]');
+  const currency=document.querySelector('[data-entry-currency]');
+  if (!account || !application || !currency) return;
+  const refresh=() => {
+    const selected=account.selectedOptions[0];
+    [...application.options].forEach(option => {
+      if (!option.value) return;
+      option.hidden=account.value && option.dataset.account!==selected?.dataset.accountId;
+      if (option.hidden && option.selected) application.value='';
+    });
+    const code=selected?.dataset.currency?.toUpperCase();
+    if (code) currency.value=({REAL:'BRL',DOL:'USD',DOLAR:'USD'}[code]||code);
+  };
+  account.addEventListener('change',refresh);refresh();
+})();
+
+(() => {
+  document.querySelectorAll('form[data-table-controls]').forEach(form => {
+    const sort=form.querySelector('input[name="sort"]');
+    const direction=form.querySelector('input[name="dir"]');
+    const current=sort?.value;
+    document.querySelectorAll('[data-table="'+form.dataset.tableControls+'"] [data-sort]').forEach(button => {
+      if (button.dataset.sort===current) {
+        button.dataset.direction=direction.value;
+        button.setAttribute('aria-sort',direction.value==='desc'?'descending':'ascending');
+      }
+      button.addEventListener('click',() => {
+        const same=sort.value===button.dataset.sort;
+        sort.value=button.dataset.sort;
+        direction.value=same&&direction.value==='asc'?'desc':'asc';
+        form.submit();
+      });
+    });
+  });
+})();
+
+(() => {
+  const groups=[...document.querySelectorAll('.menu-group')];
+  groups.forEach(group => group.addEventListener('toggle',() => {
+    if (group.open) groups.forEach(other => { if (other!==group) other.open=false; });
+  }));
+  document.addEventListener('click',event => {
+    if (!event.target.closest('.menu-group')) groups.forEach(group => group.open=false);
+  });
+  document.addEventListener('keydown',event => {
+    if (event.key==='Escape') groups.forEach(group => group.open=false);
+  });
+})();

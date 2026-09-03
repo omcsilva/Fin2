@@ -1,6 +1,8 @@
 # Deployment and security plan
 
-This is a deployment design, not a ready-to-run installation guide. Service files, environment variable names, proxy configuration, and application entry points are not implemented yet.
+The deployment below was the initial design. Production is now installed on
+`t1django.lan`; see [current deployment and recovery procedures](production.md)
+for the actual paths, services and verified results. Templates live in `deploy/`.
 
 ## Target
 

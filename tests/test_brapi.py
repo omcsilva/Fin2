@@ -55,6 +55,9 @@ class BrapiTests(unittest.TestCase):
                 c.execute("UPDATE source_record SET payload=json_merge_patch(payload, '{\"multiplicador\":100}') WHERE table_name='fin1_webscrap'")
                 with self.assertRaisesRegex(ValueError,'multiplicador 1'):
                     validate_mapping(c,record,'PETR4')
+                c.execute("""INSERT INTO market.asset_provider_override
+                  VALUES (?,'atuBrAPI','PETR4',1,'reviewed test mapping','{}',now())""",[record])
+                validate_mapping(c,record,'PETR4')
             import os
             os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings')
             import django

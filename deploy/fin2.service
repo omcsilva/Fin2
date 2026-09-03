@@ -1,0 +1,23 @@
+[Unit]
+Description=Fin2 investment dashboard
+After=network.target
+
+[Service]
+User=fin2
+Group=fin2
+WorkingDirectory=/opt/fin2
+EnvironmentFile=/etc/fin2/fin2.env
+ExecStart=/opt/fin2/.venv/bin/gunicorn --bind 127.0.0.1:8020 --workers 1 --threads 4 --timeout 120 --graceful-timeout 120 --access-logfile - --error-logfile - config.wsgi:application
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=150
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/fin2
+
+[Install]
+WantedBy=multi-user.target
