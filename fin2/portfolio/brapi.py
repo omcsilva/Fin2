@@ -11,6 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 from warehouse.database import connect, migrate
+from config.environment import load_dotenv
 
 ENDPOINT = 'https://brapi.dev/api/v2/stocks/quote'
 LIMIT = 1024 * 1024
@@ -64,6 +65,7 @@ def parse_quote(body, symbol, captured_at):
 
 
 def fetch(symbol):
+    load_dotenv()
     headers = {'Accept':'application/json','User-Agent':'Fin2/0.1'}
     token = os.environ.get('BRAPI_TOKEN')
     if token:

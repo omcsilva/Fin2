@@ -9,11 +9,12 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
-from django.shortcuts import render
-from django.views.decorators.http import require_safe, require_POST
+from django.shortcuts import redirect, render
+from django.views.decorators.http import require_http_methods, require_safe, require_POST
 
 from warehouse.repositories.dashboard import Unavailable, query, reader
 from fin2.portfolio.price_jobs import create as create_price_job
+from fin2.portfolio.manual_ledger import create as create_manual_event, reverse as reverse_event
 
 ISSUES = {
     "account_mismatch": "Contas divergentes", "cash_without_account": "Lançamento sem conta",
@@ -297,24 +298,70 @@ def cash(request,connection):
         raise Http404('Conta inválida')
     currency=request.GET.get('currency','')[:20]
     data.update(account_filter=account,currency_filter=currency)
-    data['currencies']=query(connection,'SELECT DISTINCT currency FROM portfolio.cash_check WHERE batch_id=? ORDER BY currency',[batch])
+    data['currencies']=query(connection,'SELECT DISTINCT currency FROM ledger.cash_dashboard WHERE batch_id=? ORDER BY currency',[batch])
     scope="""(?='' OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id WHERE ap.batch_id=c.batch_id AND ap.account_id=c.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))"""
-    data['accounts']=query(connection,"SELECT c.* FROM portfolio.cash_check c WHERE c.batch_id=? AND (?='' OR currency=?) AND "+scope+" ORDER BY currency,name",[batch,currency,currency,data['portfolio_filter'],data['portfolio_filter']])
-    data['unassigned']=connection.execute("SELECT count(*) FROM portfolio.cash_detail WHERE batch_id=? AND account_id IS NULL AND (?='' OR year(settlement_date)=CAST(? AS INTEGER))",[batch,data['year_filter'],data['year_filter'] or '0']).fetchone()[0]
+    data['accounts']=query(connection,"SELECT c.* FROM ledger.cash_dashboard c WHERE c.batch_id=? AND (?='' OR currency=?) AND "+scope+" ORDER BY currency,name",[batch,currency,currency,data['portfolio_filter'],data['portfolio_filter']])
+    data['unassigned']=connection.execute("""SELECT count(*) FROM portfolio.cash_detail d
+      LEFT JOIN ledger.reconciliation_decision r ON r.batch_id=d.batch_id
+        AND r.subject_type='cash_entry' AND r.subject_id=d.legacy_id
+      WHERE d.batch_id=? AND d.account_id IS NULL
+        AND coalesce(r.resolution,'')<>'duplicate_source_row'
+        AND (?='' OR year(d.settlement_date)=CAST(? AS INTEGER))""",
+      [batch,data['year_filter'],data['year_filter'] or '0']).fetchone()[0]
     data['period_summary']=query(connection,"""SELECT c.currency,count(d.legacy_id) entry_count,
       sum(d.signed_value) FILTER(WHERE d.signed_value>0) credits,
       -sum(d.signed_value) FILTER(WHERE d.signed_value<0) debits,sum(d.signed_value) net_flow
-      FROM portfolio.cash_check c LEFT JOIN portfolio.cash_detail d ON d.batch_id=c.batch_id AND d.account_id=c.legacy_id
+      FROM ledger.cash_dashboard c LEFT JOIN ledger.cash_entry_dashboard d ON d.batch_id=c.batch_id AND d.account_id=c.account_id
         AND (?='' OR year(d.settlement_date)=CAST(? AS INTEGER))
       WHERE c.batch_id=? AND (?='' OR c.currency=?) AND """+scope+" GROUP BY c.currency ORDER BY c.currency",
       [data['year_filter'],data['year_filter'] or '0',batch,currency,currency,data['portfolio_filter'],data['portfolio_filter']])
     if account:
-        selected=query(connection,'SELECT c.* FROM portfolio.cash_check c WHERE c.batch_id=? AND c.legacy_id=? AND '+scope,[batch,int(account),data['portfolio_filter'],data['portfolio_filter']])
+        selected=query(connection,'SELECT c.*,c.account_id AS legacy_id FROM ledger.cash_dashboard c WHERE c.batch_id=? AND c.account_id=? AND '+scope.replace('c.legacy_id','c.account_id'),[batch,int(account),data['portfolio_filter'],data['portfolio_filter']])
         if not selected:
             raise Http404('Conta não encontrada')
         data['selected']=selected[0]
-        data.update(paged(request,connection,"SELECT * FROM portfolio.cash_detail WHERE batch_id=? AND account_id=? AND (?='' OR year(settlement_date)=CAST(? AS INTEGER)) ORDER BY settlement_timestamp NULLS FIRST,legacy_id",[batch,int(account),data['year_filter'],data['year_filter'] or '0']))
+        data.update(paged(request,connection,"SELECT * FROM ledger.cash_entry_dashboard WHERE batch_id=? AND account_id=? AND (?='' OR year(settlement_date)=CAST(? AS INTEGER)) ORDER BY settlement_timestamp NULLS FIRST,legacy_id",[batch,int(account),data['year_filter'],data['year_filter'] or '0']))
     return render(request,'dashboard/cash.html',data)
+
+
+@require_http_methods(['GET','POST'])
+def manual_events(request):
+    if not settings.WRITE_ENABLED:
+        return HttpResponse('Escrita desabilitada',status=403)
+    error=None
+    if request.method=='POST':
+        try:
+            create_manual_event(settings.WAREHOUSE_PATH,
+              account_record=request.POST.get('account',''),application_record=request.POST.get('application') or None,
+              event_type=request.POST.get('event_type',''),trade_date=request.POST.get('trade_date') or None,
+              settlement_date=request.POST.get('settlement_date',''),currency=request.POST.get('currency',''),
+              quantity=request.POST.get('quantity') or None,amount=request.POST.get('amount',''),
+              description=request.POST.get('description',''))
+            return redirect('manual-events')
+        except ValueError as exc: error=str(exc)
+    try:
+        with reader(settings.WAREHOUSE_PATH) as connection:
+            data=context(request,connection)
+            batch=data['batch']['batch_id']
+            data['accounts']=query(connection,'select source_record_id,name from portfolio.account where batch_id=? order by name',[batch])
+            data['applications']=query(connection,'select source_record_id,name,account_id from portfolio.application where batch_id=? order by name',[batch])
+            data['manual_events']=query(connection,"""select m.*,a.name account_name,
+              exists(select 1 from ledger.manual_event r where r.reverses_event_id=m.event_id) reversed
+              from ledger.manual_event m left join portfolio.account a on a.source_record_id=m.account_source_record_id
+              order by m.created_at desc limit 100""")
+            data['write_error']=error
+            return render(request,'dashboard/manual_events.html',data,status=400 if error else 200)
+    except Unavailable:
+        return render(request,'dashboard/unavailable.html',status=503)
+
+
+@require_POST
+def reverse_manual_event(request,identifier):
+    if not settings.WRITE_ENABLED: return HttpResponse('Escrita desabilitada',status=403)
+    if not re.fullmatch(r'[a-f0-9]{32}',identifier): raise Http404
+    try: reverse_event(settings.WAREHOUSE_PATH,identifier,request.POST.get('description','Reversão'))
+    except ValueError as exc: return HttpResponse(str(exc),status=400)
+    return redirect('manual-events')
 
 
 @page_view

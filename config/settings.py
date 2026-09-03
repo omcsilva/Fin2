@@ -2,6 +2,9 @@
 import os
 from pathlib import Path
 import secrets
+from config.environment import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 DEBUG = os.environ.get("FIN2_DEBUG", "1") == "1"
@@ -33,6 +36,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DATA_DIR = Path(os.environ.get("FIN2_DATA_DIR", str(Path.home() / "Fin2-private" / "development"))).resolve()
 WAREHOUSE_PATH = DATA_DIR / "fin2.duckdb"
 DOCUMENT_ROOT = DATA_DIR / "documents"
+WRITE_ENABLED = os.environ.get("FIN2_WRITE_ENABLED", "1" if DEBUG else "0") == "1"
 X_FRAME_OPTIONS = "SAMEORIGIN"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

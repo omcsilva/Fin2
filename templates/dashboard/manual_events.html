@@ -1,0 +1,13 @@
+{% extends 'dashboard/base.html' %}{% block content %}
+<p class="eyebrow">LEDGER / ESCRITA AUDITÁVEL</p><h1>Lançamentos manuais</h1>
+<p class="lead">Novos eventos são imutáveis. Uma correção cria um evento compensatório vinculado ao original.</p>
+{% if write_error %}<div class="note">{{ write_error }}</div>{% endif %}
+<form class="panel entry-form" method="post">{% csrf_token %}<h2>Novo evento</h2>
+<div class="form-grid"><label>Conta<select name="account" required><option value="">Selecione</option>{% for a in accounts %}<option value="{{ a.source_record_id }}">{{ a.name|default:'Sem nome' }}</option>{% endfor %}</select></label>
+<label>Tipo<select name="event_type" required><option value="deposit">Depósito</option><option value="withdrawal">Retirada</option><option value="buy">Compra</option><option value="sell">Venda</option><option value="income">Rendimento</option><option value="fee">Taxa</option><option value="tax">Imposto</option><option value="adjustment">Ajuste</option></select></label>
+<label>Aplicação (opcional)<select name="application"><option value="">Nenhuma</option>{% for a in applications %}<option value="{{ a.source_record_id }}">{{ a.name|default:'Sem nome' }}</option>{% endfor %}</select></label>
+<label>Liquidação<input type="date" name="settlement_date" required></label><label>Negociação<input type="date" name="trade_date"></label>
+<label>Moeda<input name="currency" maxlength="10" value="BRL" required></label><label>Valor com sinal<input name="amount" inputmode="decimal" required></label>
+<label>Quantidade<input name="quantity" inputmode="decimal"></label><label class="wide">Descrição<input name="description" maxlength="500" required></label></div><button type="submit">Confirmar lançamento</button></form>
+<section class="panel table-wrap"><h2>Histórico manual</h2><table><thead><tr><th>Data</th><th>Conta</th><th>Tipo</th><th>Descrição</th><th class="number">Valor</th><th>Estado</th></tr></thead><tbody>{% for e in manual_events %}<tr><td>{{ e.settlement_date|date:'d/m/Y' }}</td><td>{{ e.account_name }}</td><td>{{ e.event_type }}</td><td>{{ e.description }}</td><td class="number">{{ e.amount|floatformat:'4' }}</td><td>{% if e.reverses_event_id %}Reversão{% elif e.reversed %}Revertido{% else %}<form method="post" action="{% url 'manual-event-reverse' e.event_id %}">{% csrf_token %}<button type="submit">Reverter</button></form>{% endif %}</td></tr>{% empty %}<tr><td colspan="6">Nenhum lançamento manual.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

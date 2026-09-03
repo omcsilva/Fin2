@@ -2,7 +2,21 @@
 
 ## Current status
 
-Fin1 uses Django and SQLite. Its remote source tree, three SQLite files, and attachment archive were inspected read-only on 2026-08-31. See the [initial analysis and mapping](fin1-analysis.md). A [verified development snapshot](fin1-backup.md) is available outside the repository. Its 5,654 source records and 298 documents have been imported into the [DuckDB audit layer](legacy-import.md), with 729 document links and a verified repeat import. Financial normalization, reconciliation, and production migration are still pending. A coordinated capture without writes is required before final cutover.
+Fin1 uses Django and SQLite. Its remote source tree, three SQLite files, and
+attachment archive were inspected read-only on 2026-08-31. Fin1 is now frozen
+in read-only mode, and a [verified final capture](fin1-backup.md) made on
+2026-09-02 is byte-for-byte identical in financial content to the development
+capture. Its 5,654 records, 298 documents and 729 links are the final imported
+audit lot. Future incremental synchronization and extra reimport-link machinery
+are outside scope. Existing provenance and document links remain part of the
+audit trail and must not be discarded.
+
+The private final reconciliation report confirms 260 applications, 2,379
+movements and 2,428 cash entries. Five quantity discrepancies, six cash checks
+with a difference or absent legacy balance, four unassigned cash entries and
+368 running-balance differences remain unresolved. Canonical financial
+normalization and resolution of those exceptions are the remaining migration
+work before general write mode.
 
 ## Inputs needed
 
