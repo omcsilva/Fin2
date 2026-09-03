@@ -3,5 +3,6 @@ Description=Fin2 offline verified backup
 
 [Service]
 Type=oneshot
+TimeoutStartSec=30min
 ExecStart=/bin/bash /opt/fin2/deploy/backup-fin2.sh
 UMask=0077
