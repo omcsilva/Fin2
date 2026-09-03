@@ -268,3 +268,16 @@ td{padding-block:6.5px}
 nav.panel>a{padding-block:4px}
 .status-bar{min-height:23px}
 .status-bar>span{padding-block:3.5px}
+
+/* Compact controls without changing text size or horizontal spacing. */
+select{padding-block:4px;line-height:1.3}
+button:not(.sort-button):not(.icon-button),.button{padding-block:5px;line-height:1.3}
+.global-filters select{padding-block:4px}
+.flow-review select{padding-block:4px}
+.flow-review button{padding-block:4px}
+.icon-button{width:28px;height:28px;min-width:28px}
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]){padding-block:4px;line-height:1.3}
+
+/* Content-sized tables stay at the left edge of their scrollable panel. */
+table{width:max-content;min-width:0;max-width:none;margin-inline:0;table-layout:auto}
+th,td{padding:3px 6px;white-space:nowrap;overflow-wrap:normal;word-break:normal}
