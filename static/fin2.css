@@ -261,7 +261,7 @@ td{padding-block:6.5px}
 }
 
 /* Menu spacing comes from minimum heights, rather than vertical padding. */
-.main-menu{min-height:24px}
+.main-menu{min-height:24px;padding-inline:1.25vw}
 .main-menu>a,.menu-group summary{min-height:23px}
 .submenu{padding-block:2px}
 .main-menu .submenu a{padding-block:5px}
