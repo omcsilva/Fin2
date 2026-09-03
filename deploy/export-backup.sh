@@ -4,7 +4,7 @@ set -euo pipefail
 umask 077
 snapshot=${1:?Snapshot directory required}
 name=$(basename "$snapshot")
-[[ "$name" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || { echo 'Invalid snapshot name'; exit 1; }
+[[ "$name" =~ ^(pre-update-)?[0-9]{8}T[0-9]{6}Z$ ]] || { echo 'Invalid snapshot name'; exit 1; }
 [[ "$(realpath "$snapshot")" = "/var/backups/fin2/$name" ]] || exit 1
 source /etc/fin2/backup.env
 [[ "${FIN2_BACKUP_RECIPIENT:-}" =~ ^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$ ]] || { echo 'Full public-key fingerprint required'; exit 1; }

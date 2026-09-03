@@ -27,6 +27,7 @@ systemctl stop fin2
 snapshot="/var/backups/fin2/pre-update-$(date -u +%Y%m%dT%H%M%SZ)"
 /opt/fin2/.venv/bin/python /opt/fin2/scripts/fin2_backup.py backup /var/lib/fin2 "$snapshot"
 install -m 600 /etc/fin2/fin2.env "$snapshot/fin2.env"
+(cd "$snapshot"; sha256sum fin2.env > config.sha256)
 systemctl cat fin2 > "$snapshot/fin2-service.txt"
 # Any failure from here leaves the service stopped for explicit recovery.
 runuser -u fin2 -- env FIN2_DATA_DIR=/var/lib/fin2 "$release/.venv/bin/python" -c 'from warehouse.database import connect,migrate; from pathlib import Path; db=connect(Path("/var/lib/fin2/fin2.duckdb")); c=db.__enter__(); migrate(c); db.__exit__(None,None,None)'

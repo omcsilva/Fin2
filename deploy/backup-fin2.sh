@@ -13,7 +13,7 @@ systemctl stop fin2.service
 snapshot="/var/backups/fin2/$(date -u +%Y%m%dT%H%M%SZ)"
 /opt/fin2/.venv/bin/python /opt/fin2/scripts/fin2_backup.py backup /var/lib/fin2 "$snapshot"
 install -m 600 /etc/fin2/fin2.env "$snapshot/fin2.env"
-sha256sum "$snapshot/fin2.env" > "$snapshot/config.sha256"
+(cd "$snapshot"; sha256sum fin2.env > config.sha256)
 # Restart before encryption/network transfer to minimize downtime.
 restart_service
 was_active=0

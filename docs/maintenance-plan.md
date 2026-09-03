@@ -5,14 +5,38 @@ Estado observado em 03/09/2026: volume de 7,8 GB com 3,6 GB livres,
 
 ## Retenção local proposta
 
-- Manter os 7 backups diários mais recentes.
-- Manter os 3 backups anteriores a atualizações mais recentes.
-- Manter as 3 releases mais recentes e sempre a release ativa.
+- Manter o backup local válido mais recente, considerando juntos os diários e os anteriores a atualizações.
+- Backups anteriores só podem ser candidatos se tiverem recibo de envio e o hash do arquivo no rpi5 for confirmado novamente.
+- Manter a release ativa e a anterior, identificada explicitamente; sem essa identificação, preservar todas.
 - Preservar diretórios desconhecidos, links e backups incompletos para inspeção.
 - Não excluir automaticamente a instalação inicial nem a restauração de teste.
 
 `scripts/retention_plan.py` produz somente uma prévia JSON e não remove arquivos.
 Recebe `--backups`, `--releases` e `--active`, todos caminhos explícitos.
+Recebe também `--previous` para a versão anterior e `--verify-external-ssh`
+para consultar os hashes no rpi5 usando a identidade dedicada. Sem confirmação
+externa, nenhum backup é candidato. Essa ferramenta continua apenas simulando.
+A execução fica separada em `scripts/apply_retention.py`; nenhum timer de
+limpeza foi instalado.
+
+O executor exige `--approved-plan ARQUIVO.json` e `--previous CAMINHO_DA_RELEASE`.
+Só executa no Linux, com os diretórios produtivos fixos e o lock compartilhado
+de backup/implantação. Obtém a release ativa pelo systemd, recalcula a prévia
+incluindo os hashes externos e recusa qualquer diferença em relação à aprovada.
+Antes da primeira exclusão, verifica limites dos caminhos, proteção das duas
+releases retidas e presença dos commits candidatos no Git. Uma falha aborta as
+remoções seguintes; arquivos já removidos dependem dos backups para recuperação.
+
+O exportador agora aceita snapshots `pre-update-*`. Novos backups guardam um
+checksum relativo da configuração, permitindo conferência fora do container.
+Snapshots antigos sem `config.sha256` precisam de revisão antes do envio;
+o exportador não inventa confirmação de integridade para eles.
+
+O usuário informou que a pasta do rpi5 já possui versionamento/backup no
+Backblaze. Não criar outra integração com a nuvem nem alterar sua retenção.
+A confirmação feita pelo Fin2 cobre a cópia no rpi5, não comprova o envio ao
+Backblaze. Backups antigos sem recibo (incluindo os anteriores a atualizações)
+precisam de envio e verificação antes de uma futura remoção local.
 A contagem não é uma garantia de espaço livre: medir o crescimento e emitir alerta
 antes de falta de espaço. Backups pré-atualização podem depender de código mais
 antigo; manter esse código no repositório Git e não executar garbage collection
