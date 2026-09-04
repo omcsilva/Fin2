@@ -445,7 +445,7 @@ def price_update_status(request):
         with reader(settings.WAREHOUSE_PATH) as connection:
             rows=query(connection,"SELECT * FROM price_update_job ORDER BY created_at DESC LIMIT 1")
             last=connection.execute("SELECT max(captured_at) FROM market.quote_capture WHERE status='accepted'").fetchone()[0]
-        if not rows:return JsonResponse({'status':'idle','message':'Nenhuma atualização executada','last_price_update':last})
+        if not rows:return JsonResponse({'status':'idle','message':'','last_price_update':last})
         result=rows[0];result['last_price_update']=last
         return JsonResponse(result)
     except Unavailable:

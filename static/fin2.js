@@ -13,7 +13,7 @@
       const response=await fetch(form.dataset.statusUrl,{headers:{Accept:'application/json'},cache:'no-store'});
       if (!response.ok) throw new Error();
       const job=await response.json();
-      status.textContent=job.message || 'Sistema pronto';
+      status.textContent=job.message || '';
       last.textContent=formatDate(job.last_price_update);
       const active=job.status==='queued'||job.status==='running';
       button.disabled=active;button.textContent=active?'◌':'⟳';
