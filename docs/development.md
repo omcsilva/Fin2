@@ -1,32 +1,41 @@
-# Development conventions
+# Desenvolvimento
 
-## Scaffold status
+O desenvolvimento oficial usa Debian no WSL2, aproximando o runtime local do
+Debian de produção. O repositório fica em /home/mcsil/projects/Fin2.
 
-The offline DuckDB ingestion layer and read-only Django dashboard are implemented; see [ingestion commands](legacy-import.md) and [dashboard setup](dashboard.md). Do not run Django ORM migrations or create an application SQLite database. SQLite files are used only as legacy inputs and synthetic test fixtures.
+## Execução
 
-`requirements.txt` pins the tested dependencies. `manage.py`, settings, routing, and WSGI are present. Packaging metadata and production deployment remain pending.
+~~~bash
+cd /home/mcsil/projects/Fin2
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python manage.py check
+.venv/bin/python manage.py runserver 0.0.0.0:8020 --noreload
+~~~
 
-## Boundaries
+Acesse <http://127.0.0.1:8020/fin2/>. O ambiente local usa favicon-DEV.ico;
+produção usa favicon-PRD.ico.
 
-- HTTP views call services; services use repositories for persistence.
-- Keep SQL parameterized and in the warehouse layer. Never interpolate user input into SQL.
-- Keep financial arithmetic out of templates and provider adapters.
-- Adapters normalize source data into a shared draft format; validation precedes commit.
-- Warehouse schema migrations are separate from Django ORM migrations.
-- Do not introduce auth, admin, sessions, SQLite, Celery, or Redis without revisiting the recorded architecture.
+FIN2_DATA_DIR aponta para o diretório privado com fin2.duckdb, documents/ e
+catalog-images/. O arquivo .env pode fornecer BRAPI_TOKEN e não é versionado.
 
-## Data handling
+## Regras
 
-Use synthetic fixtures in the repository. Keep real statements, exports, database files, API keys, and personal identifiers outside it. Review new files for private data even when `.gitignore` is present; generic CSV/XLSX/PDF files are not globally ignored so synthetic fixtures and public documentation remain possible.
+- Não criar SQLite nem executar migrações do ORM Django.
+- Manter SQL parametrizado e escritas transacionais.
+- Não abrir o mesmo DuckDB para escrita em processos independentes.
+- Validar todo arquivo antes da confirmação da importação.
+- Manter extratos, bancos, documentos, tokens e dados pessoais fora do Git.
+- Não introduzir autenticação, Celery, Redis ou outro banco sem rever a arquitetura.
 
-## Verification as features arrive
+## Verificação
 
-- Django checks and request smoke tests for the application shell.
-- Mutation/CSRF tests without auth or sessions.
-- Repository transaction rollback, migration checksums, and write serialization tests.
-- Import duplicate detection, preview/commit parity, failure rollback, and reversal tests.
-- Decimal arithmetic, currency conversion, corporate actions, and reconciliation fixtures.
-- Prefix routing and static assets under `/fin2/`.
-- Backup restore and a resource smoke test in the intended LXC.
+~~~bash
+.venv/bin/python manage.py check
+.venv/bin/python -m unittest discover -s tests -q
+git diff --check
+~~~
 
-Add tests for implemented behavior rather than assertions about empty directories. Document commands and observed results as the runnable application becomes available.
+Mudanças visuais devem ser verificadas no navegador local. A promoção usa o
+procedimento de [atualização por Git](git-deployment.md), que cria uma release,
+faz backup, aplica migrações e ativa o commit exato.

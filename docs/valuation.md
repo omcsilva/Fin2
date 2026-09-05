@@ -42,4 +42,4 @@ Foram produzidos oito grupos de alocação por moeda/classe. Esses valores não 
 
 A atualização foi aplicada após parar a árvore do servidor local e preservar `fin2-before-valuation.duckdb` no diretório privado. O servidor foi reiniciado em `127.0.0.1:8020`. O cabeçalho aprovado foi preservado e nenhum dado do Fin1 foi corrigido.
 
-Próximo passo: definir identificadores canônicos e fontes de mercado por tipo de ativo, com datas/proveniência, antes de atualizar as cotações e introduzir conversão cambial. As divergências de quantidade continuam pendentes de revisão documental.
+Estado atual: as cinco divergências de quantidade foram resolvidas por decisões auditadas. A brapi atualiza os ativos configurados para esse mecanismo, enquanto ativos NENHUM aguardam outra fonte ou entrada manual. Permanecem pendentes a normalização das moedas legadas, a conversão cambial e a reconciliação final dos valores.

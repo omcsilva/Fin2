@@ -1,13 +1,19 @@
-# Application packages
+# Pacotes da aplicação
 
-| Package | Responsibility |
+| Pacote | Responsabilidade |
 | --- | --- |
-| dashboard | Views, filters, and display of service results |
-| portfolio | Master data, asset identifiers, accounts, and product terms |
-| transactions | Canonical ledger validation, manual entry, and adjustments |
-| imports | Fin1/file adapters, preview, validation, deduplication, and batch lifecycle |
-| market_data | Price, currency, and benchmark provider normalization |
-| analytics | Holdings, allocation, returns, income, and reconciliation |
-| tax | Cost basis, realized results, and versioned calculation rules |
+| dashboard | Views, filtros, formulários e apresentação |
+| portfolio | Cadastros, ledger, preços, cálculos e trabalhos assíncronos |
+| transactions | Limites reservados para serviços de eventos |
+| imports | Fin1, arquivos genéricos, adaptadores e proveniência |
+| market_data | Limites reservados para normalização de provedores |
+| analytics | Limites reservados para serviços analíticos |
+| tax | Limites reservados para regras fiscais versionadas |
 
-`imports/fin1.py` implements offline ingestion; `imports/report.py` exports private exceptions. `portfolio/prepare.py` validates typed financial projections and exports quantity discrepancies. `dashboard/views.py` provides read-only pages, including positions. The editable ledger and other calculation packages remain pending. See [positions](../docs/positions.md), [ingestion commands](../docs/legacy-import.md), and [dashboard instructions](../docs/dashboard.md).
+A implementação atual concentra parte dos serviços financeiros em
+fin2/portfolio e as consultas HTTP em fin2/dashboard/views.py. O ledger
+editável, os cálculos, a atualização de preços e a implantação estão ativos.
+
+Consulte [modo de escrita](../docs/write-mode.md),
+[preços](../docs/price-updates.md), [interface](../docs/dashboard.md) e
+[roteiro](../docs/roadmap.md).
