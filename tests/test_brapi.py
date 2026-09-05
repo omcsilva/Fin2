@@ -1,12 +1,12 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import sqlite3
 import unittest
 from unittest.mock import patch
 
-from fin2.portfolio.brapi import capture, parse_quote, validate_mapping, fetch
-from fin2.portfolio.price_jobs import run as run_price_job
+from fin2.portfolio.brapi import capture, parse_quote, parse_latest_close, validate_mapping, fetch
+from fin2.portfolio.price_jobs import cancel as cancel_price_job,run as run_price_job
 from tests import test_fin1_import as fixtures
 from warehouse.database import connect
 
@@ -19,6 +19,14 @@ def response(**overrides):
     return json.dumps({'results':[{'requestedSymbol':'PETR4','symbol':'PETR4','changed':False,'data':data}]}).encode()
 
 
+def history_response(symbol='PETR4'):
+    return json.dumps({'results':[{'requestedSymbol':symbol,'symbol':symbol,'changed':False,'data':{
+        'usedInterval':'1d','historicalDataPrice':[
+            {'date':int(datetime(2026,8,28,tzinfo=timezone.utc).timestamp()),'close':11.5},
+            {'date':int(datetime(2026,8,29,tzinfo=timezone.utc).timestamp()),'close':12.34},
+        ]}}]}).encode()
+
+
 class BrapiTests(unittest.TestCase):
     def test_invalid_quotes_fail_closed(self):
         self.assertEqual(parse_quote(response(),'PETR4',NOW)[0],Decimal('12.3456789012'))
@@ -28,6 +36,11 @@ class BrapiTests(unittest.TestCase):
                      response().replace(b'false',b'true'),response().replace(b'PETR4',b'PETR3')):
             with self.subTest(body=body), self.assertRaises(ValueError):
                 parse_quote(body,'PETR4',NOW)
+
+    def test_latest_daily_close_uses_newest_trading_date(self):
+        price,currency,quoted_at=parse_latest_close(history_response(),'PETR4',NOW)
+        self.assertEqual((price,currency),(Decimal('12.34'),'BRL'))
+        self.assertEqual(quoted_at.date(),datetime(2026,8,29,tzinfo=timezone.utc).date())
 
     def test_snapshot_mapping_capture_rejection_and_dedup(self):
         f=fixtures.ImportTests();f.setUp()
@@ -95,16 +108,56 @@ class BrapiTests(unittest.TestCase):
             job='b'*64
             with connect(f.database) as db:
                 db.execute("INSERT INTO price_update_job(job_id,batch_id,status,created_at,message) VALUES(?,?,'queued',?,'test')",[job,batch,NOW])
-            def fake(symbols):
-                self.assertEqual(symbols,['PETR4'])
-                return response(),NOW
-            run_price_job(f.database,job,batch,fetcher=fake)
+            def fake(symbol):
+                self.assertEqual(symbol,'PETR4')
+                return history_response(),NOW
+            run_price_job(f.database,job,batch,fetcher=fake,today=NOW.date())
             with connect(f.database) as db:
                 state=db.execute('SELECT status,target_count,accepted_count,rejected_count,failed_count FROM price_update_job WHERE job_id=?',[job]).fetchone()
                 self.assertEqual(state,('completed',1,1,0,0))
-                self.assertEqual(db.execute('SELECT price FROM market.latest_external_price').fetchone()[0],Decimal('12.3456789012'))
+                self.assertEqual(db.execute('SELECT price FROM market.latest_external_price').fetchone()[0],Decimal('12.34'))
+                self.assertEqual(db.execute('SELECT count(*) FROM market.daily_close').fetchone()[0],2)
                 from fin2.dashboard.views import valuation_query
                 sql,params=valuation_query({'analysis_cutoff':NOW.date(),'batch':{'batch_id':batch},'portfolio_filter':'','year_filter':''})
                 selected=db.execute('SELECT legacy_price,price_source FROM ('+sql+") WHERE asset_id=1",params).fetchone()
-                self.assertEqual(selected,(Decimal('12.3456789012'),'brapi_v2'))
+                self.assertEqual(selected,(Decimal('12.34'),'brapi_v2'))
+                second='c'*64
+                db.execute("INSERT INTO price_update_job(job_id,batch_id,status,created_at,message) VALUES(?,?, 'queued',?,'test')",[second,batch,NOW])
+            run_price_job(f.database,second,batch,fetcher=lambda symbol:self.fail('ativo consultado duas vezes no mesmo dia'),today=NOW.date())
+            with connect(f.database) as db:
+                self.assertEqual(db.execute('SELECT status,target_count,accepted_count FROM price_update_job WHERE job_id=?',[second]).fetchone(),('completed',1,1))
+                db.execute("UPDATE market.daily_close SET close=99 WHERE trading_date=DATE '2026-08-28'")
+                third='d'*64
+                tomorrow=NOW+timedelta(days=1)
+                db.execute("INSERT INTO price_update_job(job_id,batch_id,status,created_at,message) VALUES(?,?, 'queued',?,'test')",[third,batch,tomorrow])
+            run_price_job(f.database,third,batch,fetcher=lambda symbol:(history_response(),tomorrow),today=tomorrow.date())
+            with connect(f.database) as db:
+                self.assertEqual(db.execute('SELECT count(*) FROM market.asset_price_query_success').fetchone()[0],2)
+                self.assertEqual(db.execute("SELECT close FROM market.daily_close WHERE trading_date=DATE '2026-08-28'").fetchone()[0],Decimal('99'))
+                self.assertEqual(db.execute('SELECT count(*) FROM market.daily_close').fetchone()[0],2)
+                fourth='e'*64
+                later=NOW+timedelta(days=2)
+                db.execute("INSERT INTO price_update_job(job_id,batch_id,status,created_at,message) VALUES(?,?, 'queued',?,'test')",[fourth,batch,later])
+            def cancel_during_request(symbol):
+                self.assertTrue(cancel_price_job(f.database)[1])
+                return history_response(),later
+            run_price_job(f.database,fourth,batch,fetcher=cancel_during_request,today=later.date())
+            with connect(f.database) as db:
+                state=db.execute('SELECT status,accepted_count FROM price_update_job WHERE job_id=?',[fourth]).fetchone()
+                self.assertEqual(state,('cancelled',1))
+                self.assertEqual(db.execute('SELECT count(*) FROM market.asset_price_query_success').fetchone()[0],3)
+                last_success=db.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
+                db.execute("""INSERT INTO market.asset_provider_override
+                  VALUES (?,'atuBrAPI','INVALID',1,'invalid test mapping','{}',now())
+                  ON CONFLICT(source_record_id) DO UPDATE SET symbol=excluded.symbol""",[db.execute('SELECT source_record_id FROM market.asset_catalog').fetchone()[0]])
+                fifth='f'*64;after=NOW+timedelta(days=3)
+                db.execute("INSERT INTO price_update_job(job_id,batch_id,status,created_at,message) VALUES(?,?, 'queued',?,'test')",[fifth,batch,after])
+            run_price_job(f.database,fifth,batch,fetcher=lambda symbol:self.fail('ticker inválido não deve ser consultado'),today=after.date())
+            with connect(f.database) as db:
+                finished=db.execute('SELECT status,message FROM price_update_job WHERE job_id=?',[fifth]).fetchone()
+                self.assertEqual(finished[0],'completed');self.assertIn('alterados para NENHUM',finished[1])
+                self.assertNotEqual(db.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0],last_success)
+                record=db.execute('SELECT source_record_id FROM market.asset_catalog').fetchone()[0]
+                self.assertEqual(db.execute('SELECT method FROM market.asset_price_update_method').fetchone()[0],'NENHUM')
+                self.assertEqual(db.execute('SELECT status FROM market.price_update_job_asset WHERE job_id=?',[fifth]).fetchone()[0],'disabled')
         finally:f.tearDown()

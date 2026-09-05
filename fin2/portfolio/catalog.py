@@ -102,6 +102,9 @@ def save(database,*,batch,kind,values,record_id=None,revision=0,request_key):
               [record_id,batch,'fin1_'+kind,legacy_id,json.dumps(payload),new_revision])
             db.execute('''insert into catalog.audit(audit_id,record_id,revision,before_payload,after_payload,request_key)
               values (?,?,?,?,?,?)''',[uuid4().hex,record_id,new_revision,json.dumps(before) if before else None,json.dumps(payload),request_key])
+            if kind=='ativo':
+                db.execute("""insert into market.asset_price_update_method(source_record_id,method)
+                  values (?,'BRAPI') on conflict do nothing""",[record_id])
             db.execute('COMMIT')
         except Exception:db.execute('ROLLBACK');raise
     return record_id

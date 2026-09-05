@@ -84,6 +84,11 @@ class DashboardTests(unittest.TestCase):
 
     def test_invalid_resource_and_filters(self):
         self.assertEqual(self.client.get('/fin2/cotacoes/').status_code,200)
+        captures=self.client.get('/fin2/cotacoes/capturas/')
+        self.assertEqual(captures.status_code,200)
+        self.assertIn('Cobertura completa',captures.content.decode())
+        coverage=self.client.get('/fin2/cotacoes/')
+        self.assertIn('Capturas externas',coverage.content.decode())
         self.assertEqual(self.client.get('/fin2/cotacoes/', {'provider':"';DROP TABLE source_record;--",'q':'<script>'}).status_code,200)
         self.assertEqual(self.client.get('/fin2/cotacoes/?batch=invalid').status_code,404)
         self.assertEqual(self.client.get("/fin2/documentos/invalid/").status_code,404)
@@ -126,6 +131,7 @@ class DashboardTests(unittest.TestCase):
     def test_no_post_without_csrf(self):
         self.assertEqual(self.client.post("/fin2/").status_code,403)
         self.assertEqual(self.client.post('/fin2/cotacoes/atualizar/').status_code,403)
+        self.assertEqual(self.client.post('/fin2/cotacoes/atualizar/cancelar/').status_code,403)
         self.assertEqual(self.client.post('/fin2/relatorios/fluxos/invalid/classificar/').status_code,403)
 
     def test_cash_flow_decision_validates_identifier(self):
@@ -135,15 +141,21 @@ class DashboardTests(unittest.TestCase):
           'csrfmiddlewaretoken':token,'category':'income','rationale':'Conferido no documento'})
         self.assertEqual(response.status_code,400)
 
+    @patch('fin2.dashboard.views.cancel_price_job',return_value=('a'*64,True))
     @patch('fin2.dashboard.views.create_price_job',return_value=('a'*64,True))
-    def test_background_price_job_start_and_status(self, create_job):
+    def test_background_price_job_start_and_status(self, create_job, cancel_job):
         page=self.client.get('/fin2/')
         self.assertIn('Atualizar preços',page.content.decode())
+        self.assertIn('/fin2/cotacoes/atualizar/cancelar/',page.content.decode())
         token=self.client.cookies['csrftoken'].value
         response=self.client.post('/fin2/cotacoes/atualizar/',{'csrfmiddlewaretoken':token})
         self.assertEqual(response.status_code,202)
         self.assertTrue(response.json()['created'])
         create_job.assert_called_once()
+        cancelled=self.client.post('/fin2/cotacoes/atualizar/cancelar/',{'csrfmiddlewaretoken':token})
+        self.assertEqual(cancelled.status_code,200)
+        self.assertTrue(cancelled.json()['cancelled'])
+        cancel_job.assert_called_once()
         status=self.client.get('/fin2/cotacoes/atualizacao/')
         self.assertEqual(status.status_code,200)
         self.assertEqual(status.json()['status'],'idle')

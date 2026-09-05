@@ -15,7 +15,8 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods, require_safe, require_POST
 
 from warehouse.repositories.dashboard import Unavailable, query, reader
-from fin2.portfolio.price_jobs import create as create_price_job
+from fin2.portfolio.price_jobs import (create as create_price_job,cancel as cancel_price_job,
+  recover_interrupted,set_update_method)
 from fin2.portfolio.manual_ledger import (create as create_manual_event,reverse as reverse_event,
   create_transfer,reverse_transfer,correct as correct_event)
 from fin2.portfolio.cash_flow_decisions import create as create_cash_flow_decision
@@ -72,7 +73,7 @@ def context(request, connection, batch_id=None):
         raise Http404('Ano não encontrado')
     global_query = urlencode({k:v for k,v in [('batch',selected),('portfolio',portfolio),('year',year)] if v})
     selected_collection = next((c for c in collections if str(c['legacy_id'])==portfolio),None)
-    latest_price_update=connection.execute("SELECT max(captured_at) FROM market.quote_capture WHERE status='accepted'").fetchone()[0]
+    latest_price_update=connection.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
     latest_job=query(connection,"SELECT * FROM price_update_job ORDER BY created_at DESC LIMIT 1")
     return {"batches": batches, "batch": batch, "collections":collections,
             "portfolio_filter":portfolio,"selected_collection":selected_collection,
@@ -133,7 +134,8 @@ def valuation_query(data):
         CASE WHEN ?='' THEN p.legacy_delta END AS legacy_delta,
         coalesce(ep.price,p.legacy_price) AS legacy_price,
         coalesce(CAST(ep.quoted_at AS DATE),p.price_date) AS price_date,
-        CASE WHEN ep.price IS NOT NULL THEN 'brapi_v2' ELSE 'fin1_snapshot' END AS price_source
+        CASE WHEN ep.price IS NOT NULL THEN 'brapi_v2' ELSE 'fin1_snapshot' END AS price_source,
+        ep.captured_at AS price_consulted_at
       FROM portfolio.position p JOIN annual y ON y.batch_id=p.batch_id AND y.application_id=p.legacy_id
       LEFT JOIN ledger.reconciliation_decision d ON d.batch_id=p.batch_id
         AND d.subject_type='application' AND d.subject_id=p.legacy_id
@@ -385,13 +387,9 @@ def prices(request, connection):
     batch = data['batch']['batch_id']
     term = request.GET.get('q', '')[:200]
     provider = request.GET.get('provider', '')[:100]
-    order,state=table_order(request,{'asset':'a.name','symbol':'a.symbol','provider':'a.configured_provider','price':'a.legacy_price','date':'a.price_date','quality':'p.quality'},'asset')
+    order,state=table_order(request,{'asset':'a.name','symbol':'a.symbol','provider':'a.configured_provider','price':'coalesce(ep.price,a.legacy_price)','date':'coalesce(CAST(ep.quoted_at AS DATE),a.price_date)','quality':'p.quality'},'asset')
     data.update(term=term, provider_filter=provider,**state)
     asset_scope="""(?='' OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))"""
-    data['captures'] = query(connection, '''SELECT c.capture_id,c.requested_symbol,c.captured_at,c.quoted_at,c.price,c.currency,c.status,c.reason,c.source_record_id
-        FROM market.quote_capture c JOIN source_record r ON r.record_id=c.source_record_id
-        JOIN market.asset_catalog_effective a ON a.source_record_id=r.record_id
-        WHERE r.batch_id=? AND '''+asset_scope+' ORDER BY c.captured_at DESC,c.capture_id LIMIT 50', [batch,data['portfolio_filter'],data['portfolio_filter']])
     data['providers'] = query(connection, "SELECT DISTINCT configured_provider FROM market.asset_catalog_effective a WHERE batch_id=? AND nullif(trim(configured_provider),'') IS NOT NULL AND "+asset_scope+" ORDER BY configured_provider", [batch,data['portfolio_filter'],data['portfolio_filter']])
     data['quality'] = query(connection, 'SELECT quality,count(*) AS count FROM market.price_observation p JOIN market.asset_catalog a ON a.source_record_id=p.source_record_id WHERE p.batch_id=? AND '+asset_scope+' GROUP BY quality ORDER BY quality', [batch,data['portfolio_filter'],data['portfolio_filter']])
     labels = {'missing_price':'Sem preço','invalid_price':'Preço inválido','missing_currency':'Sem moeda',
@@ -401,9 +399,15 @@ def prices(request, connection):
     data['identifiers'] = connection.execute('SELECT count(*) FROM market.identifier_candidate i JOIN market.asset_catalog a ON a.source_record_id=i.source_record_id WHERE i.batch_id=? AND '+asset_scope, [batch,data['portfolio_filter'],data['portfolio_filter']]).fetchone()[0]
     data['duplicates'] = connection.execute('SELECT count(*) FROM market.identifier_candidate i JOIN market.asset_catalog a ON a.source_record_id=i.source_record_id WHERE i.batch_id=? AND i.occurrences>1 AND '+asset_scope, [batch,data['portfolio_filter'],data['portfolio_filter']]).fetchone()[0]
     data.update(paged(request, connection, """
-        SELECT a.*,p.quality,p.age_at_cutoff_days,p.captured_at,
+        SELECT a.*,p.quality,p.age_at_cutoff_days,p.captured_at,u.method update_method,
+          coalesce(ep.price,a.legacy_price) display_price,
+          coalesce(CAST(ep.quoted_at AS DATE),a.price_date) display_price_date,
+          CASE WHEN ep.price IS NOT NULL THEN 'brapi_v2' ELSE 'fin1_snapshot' END display_price_source,
+          ep.captured_at last_successful_query_at,
           (SELECT count(*) FROM market.identifier_candidate i WHERE i.source_record_id=a.source_record_id AND i.occurrences>1) AS duplicate_identifiers
         FROM market.asset_catalog_effective a JOIN market.price_observation p ON p.observation_id=a.source_record_id
+        JOIN market.asset_price_update_method u ON u.source_record_id=a.source_record_id
+        LEFT JOIN market.latest_external_price ep ON ep.source_record_id=a.source_record_id
         WHERE a.batch_id=? AND (?='' OR a.configured_provider=?)
           AND (?='' OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))
           AND (?='' OR concat_ws(' ',a.name,a.symbol,a.legacy_code,a.legacy_cnpj) ILIKE ?)
@@ -412,6 +416,21 @@ def prices(request, connection):
     for row in data['rows']:
         row['quality_label'] = labels[row['quality']]
     return render(request, 'dashboard/prices.html', data)
+
+
+@page_view
+def quote_captures(request,connection):
+    data=context(request,connection);batch=data['batch']['batch_id']
+    portfolio=data['portfolio_filter']
+    data['captures']=query(connection,"""SELECT c.capture_id,c.requested_symbol,c.captured_at,c.quoted_at,
+      c.price,c.currency,c.status,c.reason,c.source_record_id,a.name
+      FROM market.quote_capture c JOIN source_record r ON r.record_id=c.source_record_id
+      JOIN market.asset_catalog_effective a ON a.source_record_id=r.record_id
+      WHERE r.batch_id=? AND (?='' OR EXISTS(SELECT 1 FROM portfolio.application ap
+        JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
+        WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))
+      ORDER BY c.captured_at DESC,c.capture_id LIMIT 50""",[batch,portfolio,portfolio])
+    return render(request,'dashboard/quote_captures.html',data)
 
 
 @page_view
@@ -432,11 +451,32 @@ def start_price_update(request):
         with reader(settings.WAREHOUSE_PATH) as connection:
             data=context(request,connection)
             batch=data['batch']['batch_id']
-            collection=int(data['portfolio_filter']) if data['portfolio_filter'] else None
-        job_id,created=create_price_job(settings.WAREHOUSE_PATH,batch,collection)
+        job_id,created=create_price_job(settings.WAREHOUSE_PATH,batch,None)
         return JsonResponse({'job_id':job_id,'created':created},status=202)
     except (Unavailable,OSError):
         return JsonResponse({'error':'Banco indisponível para atualização'},status=503)
+
+
+@require_POST
+def cancel_price_update(request):
+    try:
+        job_id,cancelled=cancel_price_job(settings.WAREHOUSE_PATH)
+        return JsonResponse({'job_id':job_id,'cancelled':cancelled})
+    except (Unavailable,OSError):
+        return JsonResponse({'error':'Banco indisponível para cancelamento'},status=503)
+
+
+@require_POST
+def price_update_method(request,identifier):
+    try:
+        with reader(settings.WAREHOUSE_PATH) as connection:
+            data=context(request,connection);batch=data['batch']['batch_id']
+        set_update_method(settings.WAREHOUSE_PATH,batch,identifier,request.POST.get('method',''))
+        return redirect('/fin2/cotacoes/?'+data['global_query'])
+    except ValueError as error:
+        return HttpResponse(str(error),status=400)
+    except Unavailable:
+        return HttpResponse('Banco indisponível',status=503)
 
 
 @require_safe
@@ -444,8 +484,11 @@ def price_update_status(request):
     try:
         with reader(settings.WAREHOUSE_PATH) as connection:
             rows=query(connection,"SELECT * FROM price_update_job ORDER BY created_at DESC LIMIT 1")
-            last=connection.execute("SELECT max(captured_at) FROM market.quote_capture WHERE status='accepted'").fetchone()[0]
+            last=connection.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
         if not rows:return JsonResponse({'status':'idle','message':'','last_price_update':last})
+        if rows[0]['status'] in ('queued','running') and recover_interrupted(settings.WAREHOUSE_PATH,rows[0]['job_id']):
+            with reader(settings.WAREHOUSE_PATH) as connection:
+                rows=query(connection,"SELECT * FROM price_update_job WHERE job_id=?",[rows[0]['job_id']])
         result=rows[0];result['last_price_update']=last
         return JsonResponse(result)
     except Unavailable:

@@ -188,6 +188,10 @@ def import_snapshot(snapshot, database, as_of):
             for relative, document_id in documents.items():
                 if not connection.execute("SELECT 1 FROM document_record_link WHERE document_id=? LIMIT 1", [document_id]).fetchone():
                     issue("unclassified_document", path=relative)
+            connection.execute("""INSERT INTO market.asset_price_update_method(source_record_id,method)
+              SELECT record_id,'BRAPI' FROM source_record
+              WHERE batch_id=? AND database_name='db.sqlite3' AND table_name='fin1_ativo'
+              ON CONFLICT DO NOTHING""",[batch])
             # A source changed during import must never produce a committed batch.
             if verify(snapshot) != manifest:
                 raise ValueError("Manifest changed during import")

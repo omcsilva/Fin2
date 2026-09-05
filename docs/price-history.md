@@ -1,5 +1,11 @@
 # Série histórica de fechamentos
 
+> **Situação atual:** novas cargas históricas de ativos pela brapi estão
+> desativadas. O provedor é usado para consultar o fechamento diário mais
+> recente, um ativo por vez, e completar datas ausentes dentro da mesma resposta
+> de três meses. O conteúdo abaixo documenta a carga histórica
+> anterior e as séries que permanecem preservadas no banco.
+
 A migração `0013_daily_close_history.sql` cria `market.daily_close`, com uma linha
 por ativo, provedor e data de pregão. A série guarda moeda, fechamento,
 fechamento ajustado, captura de origem e instante de captura. Não são criadas

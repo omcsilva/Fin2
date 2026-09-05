@@ -1,43 +1,24 @@
 """Single-process background quote jobs with durable progress."""
 from datetime import datetime, timezone
 import hashlib
-import json
-import re
 import threading
-from urllib.parse import urlencode
+import time
+from zoneinfo import ZoneInfo
 
-from fin2.portfolio.brapi import ENDPOINT, LIMIT, NoRedirect, capture
+from fin2.portfolio.brapi import fetch_latest_close, capture_latest_close, validate_mapping
 from warehouse.database import connect
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, build_opener
 
 JOB_LOCK = threading.Lock()
 START_LOCK = threading.Lock()
 ACTIVE_JOB_IDS = set()
-CHUNK_SIZE = 20
+CANCELLED_JOB_IDS = set()
+LOCAL_ZONE=ZoneInfo('America/Sao_Paulo')
+QUERY_INTERVAL_SECONDS=5
 
 
-def _fetch_many(symbols):
-    headers={'Accept':'application/json','User-Agent':'Fin2/0.1'}
-    import os
-    token=os.environ.get('BRAPI_TOKEN')
-    if token: headers['Authorization']='Bearer '+token
-    url=ENDPOINT+'?'+urlencode({'symbols':','.join(symbols)})
-    try:
-        with build_opener(NoRedirect()).open(Request(url,headers=headers),timeout=30) as response:
-            body=response.read(LIMIT+1)
-            if len(body)>LIMIT: raise ValueError('Resposta excede 1 MiB')
-            return body,datetime.now(timezone.utc)
-    except HTTPError as error:
-        code=error.code;error.close();raise ValueError(f'brapi HTTP {code}') from None
-    except (URLError,TimeoutError): raise ValueError('Falha de conexão com brapi') from None
-
-
-def _single_response(body,symbol):
-    payload=json.loads(body)
-    matches=[r for r in payload.get('results',[]) if r.get('requestedSymbol')==symbol]
-    if len(matches)!=1: return body
-    return json.dumps({'results':matches},ensure_ascii=False,separators=(',',':')).encode()
+def _money(value):
+    rendered=f'{value:,.2f}'.replace(',','X').replace('.',',').replace('X','.')
+    return 'R$ '+rendered
 
 
 def _set(database,job_id,**values):
@@ -46,47 +27,120 @@ def _set(database,job_id,**values):
         db.execute(f'UPDATE price_update_job SET {columns} WHERE job_id=?',[*values.values(),job_id])
 
 
-def run(database,job_id,batch_id,collection_id=None,fetcher=_fetch_many):
+def _asset_set(database,job_id,record_id,**values):
+    columns=','.join(f'{key}=?' for key in values)
+    with connect(database) as db:
+        db.execute(f'UPDATE market.price_update_job_asset SET {columns} WHERE job_id=? AND source_record_id=?',
+                   [*values.values(),job_id,record_id])
+
+
+def run(database,job_id,batch_id,collection_id=None,fetcher=fetch_latest_close,sleeper=time.sleep,today=None):
     ACTIVE_JOB_IDS.add(job_id)
     with JOB_LOCK:
         try:
+            if job_id in CANCELLED_JOB_IDS:return
+            today=today or datetime.now(LOCAL_ZONE).date()
             _set(database,job_id,status='running',started_at=datetime.now(timezone.utc),message='Selecionando ativos compatíveis')
             with connect(database) as db:
-                rows=db.execute("""SELECT a.source_record_id,a.symbol FROM market.asset_catalog_effective a
-                  WHERE a.batch_id=? AND a.configured_provider='atuBrAPI' AND a.currency IN ('REAL','BRL')
-                    AND try_cast(a.configured_multiplier AS DECIMAL(28,10))=1
-                    AND regexp_full_match(a.symbol,'[A-Z]{4}[0-9]{1,2}')
+                rows=db.execute("""SELECT a.source_record_id,a.symbol,a.name,
+                    EXISTS(SELECT 1 FROM market.asset_price_query_success c WHERE c.source_record_id=a.source_record_id
+                      AND CAST(c.queried_at AT TIME ZONE 'America/Sao_Paulo' AS DATE)=?) current_today
+                  FROM market.asset_catalog_effective a
+                  JOIN market.asset_price_update_method u USING(source_record_id)
+                  WHERE a.batch_id=? AND u.method='BRAPI'
                     AND (? IS NULL OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm
                       ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
                       WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND pm.collection_id=?))
-                    AND 1=(SELECT count(*) FROM market.asset_catalog_effective x WHERE x.batch_id=a.batch_id AND upper(trim(x.symbol))=a.symbol)
-                  ORDER BY a.symbol""",[batch_id,collection_id,collection_id]).fetchall()
+                  ORDER BY coalesce(a.symbol,a.name),a.legacy_id""",[today,batch_id,collection_id,collection_id]).fetchall()
                 total=db.execute("""SELECT count(*) FROM market.asset_catalog_effective a WHERE a.batch_id=? AND (? IS NULL OR EXISTS(
                   SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
                   WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND pm.collection_id=?))""",[batch_id,collection_id,collection_id]).fetchone()[0]
-            _set(database,job_id,target_count=len(rows),skipped_count=max(total-len(rows),0),message=f'Atualizando {len(rows)} ativos compatíveis')
-            accepted=rejected=failed=0
-            for offset in range(0,len(rows),CHUNK_SIZE):
-                chunk=rows[offset:offset+CHUNK_SIZE]; symbols=[r[1] for r in chunk]
-                try: body,captured_at=fetcher(symbols)
-                except ValueError:
-                    failed+=len(chunk);_set(database,job_id,failed_count=failed,message=f'Falha no lote iniciado em {symbols[0]}');continue
+                if rows:
+                    db.executemany("""INSERT INTO market.price_update_job_asset
+                      (job_id,source_record_id,asset_name,symbol,method,status) VALUES (?,?,?,?, 'BRAPI','pending')""",
+                      [(job_id,record,symbol,name) for record,symbol,name,current in rows])
+            _set(database,job_id,target_count=len(rows),skipped_count=max(total-len(rows),0),message=f'Atualizando {len(rows)} ativos configurados para BRAPI')
+            accepted=rejected=failed=disabled=0;last_success=None;failures=[];queries=0
+            for record_id,symbol,name,current_today in rows:
+                label=f'{name} ({symbol})' if name and symbol and name!=symbol else (symbol or name or record_id[:8])
+                if current_today:
+                    accepted+=1
+                    _asset_set(database,job_id,record_id,status='already_current',message='Consulta bem-sucedida já realizada hoje')
+                    _set(database,job_id,accepted_count=accepted)
+                    continue
+                try:
+                    with connect(database) as db: validate_mapping(db,record_id,symbol or '')
+                except ValueError as error:
+                    if str(error)=='Ticker fora do formato suportado':
+                        disabled+=1
+                        set_update_method(database,batch_id,record_id,'NENHUM')
+                        _asset_set(database,job_id,record_id,method='NENHUM',status='disabled',
+                                   message='Mecanismo alterado automaticamente para NENHUM')
+                        _set(database,job_id,skipped_count=max(total-len(rows),0)+disabled,
+                             message=f'{label}: mecanismo alterado para NENHUM')
+                        continue
+                    failed+=1;failures.append(label)
+                    _asset_set(database,job_id,record_id,status='failed',message=str(error))
+                    _set(database,job_id,failed_count=failed,message=f'{label}: {error}')
+                    continue
+                if queries:
+                    sleeper(QUERY_INTERVAL_SECONDS)
+                queries+=1
+                if job_id in CANCELLED_JOB_IDS:return
+                _set(database,job_id,message=f'Consultando o último fechamento de {symbol}')
+                try: body,captured_at=fetcher(symbol)
+                except ValueError as error:
+                    if job_id in CANCELLED_JOB_IDS:return
+                    failed+=1;detail=str(error)
+                    message=f'{symbol}: {detail}'
+                    if any(f'HTTP {code}' in detail for code in (401,403,429)):
+                        failures.append(label)
+                        _asset_set(database,job_id,record_id,status='failed',message=detail,queried_at=datetime.now(timezone.utc))
+                        _set(database,job_id,status='failed',finished_at=datetime.now(timezone.utc),
+                             failed_count=failed,message='Falharam: '+', '.join(failures)+' · atualização interrompida')
+                        return
+                    failures.append(label)
+                    _asset_set(database,job_id,record_id,status='failed',message=detail,queried_at=datetime.now(timezone.utc))
+                    _set(database,job_id,failed_count=failed,message=message);continue
                 with connect(database) as db:
-                    for record_id,symbol in chunk:
-                        try:
-                            result=capture(db,record_id,symbol,_single_response(body,symbol),captured_at)
-                            if result['status']=='accepted': accepted+=1
-                            else: rejected+=1
-                        except (ValueError,json.JSONDecodeError): failed+=1
-                _set(database,job_id,accepted_count=accepted,rejected_count=rejected,failed_count=failed,
-                     message=f'{min(offset+len(chunk),len(rows))} de {len(rows)} processados')
-            status='completed' if accepted or not rows else 'failed'
+                    try: result=capture_latest_close(db,record_id,symbol,body,captured_at)
+                    except ValueError:
+                        if job_id in CANCELLED_JOB_IDS:return
+                        failed+=1;failures.append(label)
+                        _asset_set(database,job_id,record_id,status='failed',message='Resposta inválida',queried_at=captured_at)
+                        _set(database,job_id,failed_count=failed,message=f'{symbol}: resposta inválida');continue
+                if result['status']=='accepted':
+                    accepted+=1
+                    day=result['quoted_at'].astimezone(LOCAL_ZONE).strftime('%d/%m/%Y')
+                    last_success=f"{label}: {_money(result['price'])} — fechamento de {day}"
+                    if result['points_added']:
+                        last_success+=f" · {result['points_added']} fechamento(s) preenchido(s)"
+                    message=last_success
+                else:
+                    rejected+=1;failures.append(label);message=f'{symbol}: cotação rejeitada'
+                _asset_set(database,job_id,record_id,status='accepted' if result['status']=='accepted' else 'rejected',
+                           message=message,queried_at=captured_at)
+                _set(database,job_id,accepted_count=accepted,rejected_count=rejected,failed_count=failed,message=message)
+                if job_id in CANCELLED_JOB_IDS:return
+            all_ok=bool(rows) and accepted+disabled==len(rows) and not rejected and not failed
+            status='completed' if all_ok or not rows else 'failed'
+            if all_ok:
+                finished=datetime.now(timezone.utc)
+                with connect(database) as db:
+                    db.execute("UPDATE market.price_update_state SET last_successful_at=?,job_id=? WHERE state_key='assets'",[finished,job_id])
+                summary=(last_success+' · ' if last_success else '')+f'Concluído: {accepted} ativos atualizados'
+                if disabled:summary+=f', {disabled} alterados para NENHUM'
+            elif failures:
+                summary='Falharam: '+', '.join(failures)
+            else: summary='Nenhum ativo configurado para atualização BRAPI'
             _set(database,job_id,status=status,finished_at=datetime.now(timezone.utc),accepted_count=accepted,
-                 rejected_count=rejected,failed_count=failed,message=f'Concluído: {accepted} aceitos, {rejected} rejeitados, {failed} falhas')
+                 rejected_count=rejected,failed_count=failed,message=summary)
         except Exception:
-            _set(database,job_id,status='failed',finished_at=datetime.now(timezone.utc),message='Falha interna; consulte os logs do serviço')
+            if job_id not in CANCELLED_JOB_IDS:
+                _set(database,job_id,status='failed',finished_at=datetime.now(timezone.utc),message='Falha interna; consulte os logs do serviço')
         finally:
             ACTIVE_JOB_IDS.discard(job_id)
+            CANCELLED_JOB_IDS.discard(job_id)
 
 
 def create(database,batch_id,collection_id=None,runner=run):
@@ -101,3 +155,47 @@ def create(database,batch_id,collection_id=None,runner=run):
         ACTIVE_JOB_IDS.add(job_id)
         threading.Thread(target=runner,args=(database,job_id,batch_id,collection_id),daemon=True,name='fin2-price-update').start()
         return job_id,True
+
+
+def recover_interrupted(database,job_id):
+    """Fail an active-looking job that has no worker in this server process."""
+    if job_id in ACTIVE_JOB_IDS:
+        return False
+    with START_LOCK:
+        if job_id in ACTIVE_JOB_IDS:
+            return False
+        with connect(database) as db:
+            row=db.execute('SELECT status FROM price_update_job WHERE job_id=?',[job_id]).fetchone()
+            if not row or row[0] not in ('queued','running'):
+                return False
+            db.execute("""UPDATE price_update_job SET status='failed',finished_at=?,
+              message='Atualização interrompida pela reinicialização do serviço' WHERE job_id=?""",
+              [datetime.now(timezone.utc),job_id])
+            return True
+
+
+def cancel(database):
+    """Persist cancellation and signal the active worker without confirmation."""
+    with START_LOCK:
+        with connect(database) as db:
+            row=db.execute("SELECT job_id FROM price_update_job WHERE status IN ('queued','running') ORDER BY created_at DESC LIMIT 1").fetchone()
+            if not row:
+                return None,False
+            job_id=row[0]
+            CANCELLED_JOB_IDS.add(job_id)
+            db.execute("""UPDATE price_update_job SET status='cancelled',finished_at=?,
+              message='Atualização de preços cancelada' WHERE job_id=?""",
+              [datetime.now(timezone.utc),job_id])
+            return job_id,True
+
+
+def set_update_method(database,batch_id,record_id,method):
+    if method not in ('BRAPI','NENHUM'):
+        raise ValueError('Mecanismo de atualização inválido')
+    with connect(database) as db:
+        row=db.execute('SELECT 1 FROM market.asset_catalog_effective WHERE batch_id=? AND source_record_id=?',
+                       [batch_id,record_id]).fetchone()
+        if not row:raise ValueError('Ativo não encontrado')
+        db.execute("""INSERT INTO market.asset_price_update_method VALUES (?,?,now())
+          ON CONFLICT(source_record_id) DO UPDATE SET method=excluded.method,updated_at=excluded.updated_at""",
+          [record_id,method])

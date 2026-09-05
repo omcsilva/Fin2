@@ -6,8 +6,27 @@
   const last = document.querySelector('#last-price-update');
   const notification = document.querySelector('#async-notification');
   let previous = null;
+  let active = false;
   const formatDate = value => value ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : 'Nunca';
   const show = message => { notification.textContent=message; notification.hidden=false; window.setTimeout(()=>notification.hidden=true,8000); };
+  async function copyStatus() {
+    const message=status.textContent.trim();
+    if (!message) return;
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(message);
+      else {
+        const field=document.createElement('textarea');field.value=message;field.style.position='fixed';field.style.opacity='0';
+        document.body.appendChild(field);field.select();
+        if (!document.execCommand('copy')) throw new Error();
+        field.remove();
+      }
+      show('Mensagem copiada para a área de transferência.');
+    } catch { show('Não foi possível copiar a mensagem.'); }
+  }
+  status.addEventListener('click',copyStatus);
+  status.addEventListener('keydown',event => {
+    if (event.key==='Enter'||event.key===' ') { event.preventDefault();copyStatus(); }
+  });
   async function poll() {
     try {
       const response=await fetch(form.dataset.statusUrl,{headers:{Accept:'application/json'},cache:'no-store'});
@@ -15,22 +34,26 @@
       const job=await response.json();
       status.textContent=job.message || '';
       last.textContent=formatDate(job.last_price_update);
-      const active=job.status==='queued'||job.status==='running';
-      button.disabled=active;button.textContent=active?'◌':'⟳';
-      button.title=active?'Atualização de preços em andamento':'Atualizar preços';
+      active=job.status==='queued'||job.status==='running';
+      button.disabled=false;button.textContent=active?'■':'⟳';
+      button.title=active?'Cancelar atualização de preços':'Atualizar preços';
       button.setAttribute('aria-label',button.title);
-      if (previous && active===false && (job.status==='completed'||job.status==='failed') && previous!==job.status) show(job.message);
+      if (previous && active===false && (job.status==='completed'||job.status==='failed'||job.status==='cancelled') && previous!==job.status) show(job.message);
       previous=job.status;
-      window.setTimeout(poll,active?2000:15000);
+      window.setTimeout(poll,active?1000:15000);
     } catch { status.textContent='Estado da atualização indisponível'; button.disabled=false; window.setTimeout(poll,15000); }
   }
   form.addEventListener('submit',async event => {
-    event.preventDefault();button.disabled=true;button.textContent='◌';button.title='Iniciando atualização de preços';button.setAttribute('aria-label',button.title);status.textContent='Solicitando atualização';
+    event.preventDefault();
+    const cancelling=active;
+    button.disabled=true;button.textContent=cancelling?'■':'◌';
+    button.title=cancelling?'Cancelando atualização de preços':'Iniciando atualização de preços';button.setAttribute('aria-label',button.title);
+    status.textContent=cancelling?'Cancelando atualização de preços':'Solicitando atualização';
     try {
-      const response=await fetch(form.action,{method:'POST',body:new FormData(form),headers:{Accept:'application/json'}});
+      const response=await fetch(cancelling?form.dataset.cancelUrl:form.action,{method:'POST',body:new FormData(form),headers:{Accept:'application/json'}});
       if (!response.ok) throw new Error();
-      previous='queued';window.setTimeout(poll,300);
-    } catch { show('Não foi possível iniciar a atualização de preços.');button.disabled=false;button.textContent='⟳';button.title='Atualizar preços';button.setAttribute('aria-label',button.title); }
+      previous=cancelling?'running':'queued';window.setTimeout(poll,100);
+    } catch { show(cancelling?'Não foi possível cancelar a atualização de preços.':'Não foi possível iniciar a atualização de preços.');button.disabled=false;window.setTimeout(poll,300); }
   });
   poll();
 })();
