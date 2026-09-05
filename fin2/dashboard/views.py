@@ -386,11 +386,12 @@ def prices(request, connection):
     data = context(request, connection)
     batch = data['batch']['batch_id']
     term = request.GET.get('q', '')[:200]
-    provider = request.GET.get('provider', '')[:100]
+    method = request.GET.get('method', '')[:10]
+    if method not in ('', 'BRAPI', 'NENHUM'):
+        method = ''
     order,state=table_order(request,{'asset':'a.name','symbol':'a.symbol','provider':'a.configured_provider','price':'coalesce(ep.price,a.legacy_price)','date':'coalesce(CAST(ep.quoted_at AS DATE),a.price_date)','quality':'p.quality'},'asset')
-    data.update(term=term, provider_filter=provider,**state)
+    data.update(term=term, method_filter=method,**state)
     asset_scope="""(?='' OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))"""
-    data['providers'] = query(connection, "SELECT DISTINCT configured_provider FROM market.asset_catalog_effective a WHERE batch_id=? AND nullif(trim(configured_provider),'') IS NOT NULL AND "+asset_scope+" ORDER BY configured_provider", [batch,data['portfolio_filter'],data['portfolio_filter']])
     data['quality'] = query(connection, 'SELECT quality,count(*) AS count FROM market.price_observation p JOIN market.asset_catalog a ON a.source_record_id=p.source_record_id WHERE p.batch_id=? AND '+asset_scope+' GROUP BY quality ORDER BY quality', [batch,data['portfolio_filter'],data['portfolio_filter']])
     labels = {'missing_price':'Sem preço','invalid_price':'Preço inválido','missing_currency':'Sem moeda',
               'missing_date':'Sem data','future_price':'Posterior ao corte','stale_price':'Antiga (>30 dias)', 'available':'Disponível no corte'}
@@ -408,11 +409,11 @@ def prices(request, connection):
         FROM market.asset_catalog_effective a JOIN market.price_observation p ON p.observation_id=a.source_record_id
         JOIN market.asset_price_update_method u ON u.source_record_id=a.source_record_id
         LEFT JOIN market.latest_external_price ep ON ep.source_record_id=a.source_record_id
-        WHERE a.batch_id=? AND (?='' OR a.configured_provider=?)
+        WHERE a.batch_id=? AND (?='' OR u.method=?)
           AND (?='' OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))
           AND (?='' OR concat_ws(' ',a.name,a.symbol,a.legacy_code,a.legacy_cnpj) ILIKE ?)
         ORDER BY """+order+""",a.legacy_id
-        """, [batch,provider,provider,data['portfolio_filter'],data['portfolio_filter'],term,'%'+term+'%']))
+        """, [batch,method,method,data['portfolio_filter'],data['portfolio_filter'],term,'%'+term+'%']))
     for row in data['rows']:
         row['quality_label'] = labels[row['quality']]
     return render(request, 'dashboard/prices.html', data)
