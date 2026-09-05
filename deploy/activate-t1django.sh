@@ -6,7 +6,8 @@ install -m 600 /home/mcsil/fin2-deploy/fin2.env /etc/fin2/fin2.env
 chown -R fin2:fin2 /var/lib/fin2
 chmod 700 /var/lib/fin2
 find /opt/fin2/deploy -type f -exec sed -i 's/\r$//' {} +
-install -m 644 /opt/fin2/deploy/fin2.service /opt/fin2/deploy/fin2-backup.service /opt/fin2/deploy/fin2-backup.timer /etc/systemd/system/
+install -m 644 /opt/fin2/deploy/fin2.service /opt/fin2/deploy/fin2-backup.service /opt/fin2/deploy/fin2-backup.timer /opt/fin2/deploy/fin2-retention.service /opt/fin2/deploy/fin2-retention.timer /etc/systemd/system/
+install -m 755 /opt/fin2/deploy/retain-fin2.sh /usr/local/sbin/retain-fin2
 set -a
 source /etc/fin2/fin2.env
 set +a
@@ -21,5 +22,5 @@ nginx -t
 systemctl daemon-reload
 systemctl enable --now fin2.service
 systemctl reload nginx
-systemctl enable --now fin2-backup.timer
+systemctl enable --now fin2-backup.timer fin2-retention.timer
 systemctl is-active fin2 nginx fin2-backup.timer

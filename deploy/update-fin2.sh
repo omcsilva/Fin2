@@ -3,6 +3,8 @@
 set -euo pipefail
 umask 027
 revision=${1:?Usage: update-fin2.sh FULL_COMMIT_HASH}
+previous_revision=
+if [ -f /var/lib/fin2/deployed-revision ]; then previous_revision=$(cat /var/lib/fin2/deployed-revision); fi
 [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || { echo 'Use a full commit hash'; exit 1; }
 repository=/home/mcsil/fin2.git
 git -c safe.directory="$repository" --git-dir="$repository" cat-file -e "$revision^{commit}"
@@ -42,8 +44,20 @@ EOF
 cp -a /opt/fin2/staticfiles "$snapshot/staticfiles"
 cp -a "$release/staticfiles/." /opt/fin2/staticfiles/
 chmod -R a+rX /opt/fin2/staticfiles
+install -m 755 "$release/deploy/update-fin2.sh" /usr/local/sbin/update-fin2
+install -m 755 "$release/deploy/retain-fin2.sh" /usr/local/sbin/retain-fin2
+install -m 755 "$release/scripts/retention_plan.py" "$release/scripts/apply_retention.py" "$release/scripts/fin2_backup.py" /opt/fin2/scripts/
+install -m 644 "$release/deploy/fin2-retention.service" "$release/deploy/fin2-retention.timer" /etc/systemd/system/
 systemctl daemon-reload
+systemctl enable fin2-retention.timer
 systemctl start fin2
 curl --fail --retry 8 --retry-connrefused --retry-delay 1 http://127.0.0.1:8020/fin2/ -o /dev/null
+if [[ "$previous_revision" =~ ^[0-9a-f]{40}$ ]] && [ "$previous_revision" != "$revision" ]; then
+    printf '%s\n' "$previous_revision" > /var/lib/fin2/previous-deployed-revision
+fi
 printf '%s\n' "$revision" > /var/lib/fin2/deployed-revision
+systemctl start fin2-retention.timer
+if [ -f /etc/fin2/backup.env ]; then
+    /bin/bash "$release/deploy/export-backup.sh" "$snapshot"
+fi
 echo "Deployed $revision; recovery snapshot: $snapshot"

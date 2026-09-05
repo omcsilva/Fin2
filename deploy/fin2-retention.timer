@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Fin2 retention after backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 America/Sao_Paulo
+Persistent=true
+RandomizedDelaySec=5m
+Unit=fin2-retention.service
+
+[Install]
+WantedBy=timers.target

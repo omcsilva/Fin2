@@ -20,15 +20,20 @@ A restauração deve ocorrer primeiro em diretório novo, com verificação do
 manifesto, hashes, banco, documentos e imagens. Uma restauração isolada já foi
 testada; o teste deve ser repetido periodicamente com uma cópia externa.
 
-A exclusão automática ainda não está ativa. retention_plan.py apenas simula e
-apply_retention.py exige plano aprovado. A política deve preservar o backup mais
-recente, remover somente cópias confirmadas externamente e manter as duas
-releases necessárias para recuperação.
+A retenção automática roda diariamente às 03:30 em America/Sao_Paulo, depois
+do backup. Ela preserva os 7 backups regulares mais recentes, os 3 snapshots
+pré-atualização mais recentes, a referência mais recente validada por restauração
+e as releases ativa e anterior. Somente itens fora dessas janelas, íntegros e com
+hash externo novamente confirmado podem ser removidos.
+
+retention_plan.py calcula o estado e apply_retention.py recusa planos que tenham
+mudado entre a inspeção e a execução. Itens incompletos, desconhecidos ou sem
+confirmação externa permanecem para inspeção.
 
 ## HTTPS e pendências
 
 O acesso ativo é <https://django.lmnet.dpdns.org/fin2/> pelo proxy no t1docker.
 Gunicorn continua restrito a 127.0.0.1:8020 no t1django.
 
-Faltam aprovar a retenção, monitorar espaço e duração, testar periodicamente a
-cópia externa e medir recursos durante importações e atualizações.
+Faltam monitorar espaço e duração, testar periodicamente a cópia externa e
+medir recursos durante importações e atualizações.

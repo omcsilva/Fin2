@@ -16,6 +16,7 @@ possui login próprio e deve continuar protegida pela infraestrutura de rede.
 - aplicação: fin2.service, um Gunicorn com quatro threads;
 - proxy local: nginx.service, /fin2/ para 127.0.0.1:8020;
 - backup: fin2-backup.timer;
+- retenção: fin2-retention.timer, diariamente após o backup;
 - Git privado: /home/mcsil/fin2.git.
 
 Apache e MariaDB estão parados e desabilitados. Não aumente workers: um único
@@ -49,5 +50,6 @@ backup do usuário no Backblaze; o Fin2 não administra essa etapa posterior.
 - escrita, migrações e exportação externa habilitadas;
 - restauração isolada previamente verificada.
 
-Faltam retenção automática, medição de recursos e testes periódicos da
-restauração externa.
+A retenção mantém 7 backups regulares, 3 pré-atualização, a referência validada
+e as duas releases necessárias para recuperação. Faltam medição de recursos e
+testes periódicos da restauração externa.

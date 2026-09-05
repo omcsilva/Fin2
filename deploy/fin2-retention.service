@@ -1,0 +1,7 @@
+[Unit]
+Description=Fin2 verified snapshot and release retention
+After=fin2-backup.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/retain-fin2

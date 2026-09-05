@@ -38,7 +38,7 @@ migração. O Fin2 está em produção e é a base de escrita.
 ## Pendências operacionais
 
 - [ ] Decidir se preços e índices receberão agendamento.
-- [ ] Aprovar e ativar retenção automática dos backups locais.
+- [x] Aprovar e ativar retenção automática: 7 backups regulares, 3 pré-atualização e a referência restaurada.
 - [ ] Monitorar banco, backups e espaço livre.
 - [ ] Medir CPU, memória e duração das atualizações.
 - [ ] Documentar um ciclo produtivo completo, incluindo restauração.
