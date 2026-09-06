@@ -924,6 +924,91 @@ def reports(request,connection):
 @page_view
 def reconciliation(request,connection):
     data=context(request,connection);batch=data['batch']['batch_id']
+    cutoff=data['batch']['as_of_date']
+    currency_sql="""CASE upper(currency) WHEN 'REAL' THEN 'BRL' WHEN 'DOL' THEN 'USD'
+      WHEN 'DOLAR' THEN 'USD' ELSE upper(currency) END"""
+
+    # Compare both ledgers at the frozen Fin1 cutoff. The active side includes
+    # later corrections whose financial date is on or before that cutoff.
+    legacy_data={**data,'analysis_cutoff':cutoff,'historical':True,'portfolio_filter':'','year_filter':''}
+    active_data={**data,'analysis_cutoff':cutoff,'historical':False,'portfolio_filter':'','year_filter':''}
+    legacy_valuation,legacy_parameters=valuation_query(legacy_data)
+    active_valuation,active_parameters=valuation_query(active_data)
+    valuation_totals_sql=lambda scoped: "SELECT "+currency_sql+""" currency,
+      sum(reference_value) total_value,count(reference_value) priced_count,
+      count(*) FILTER(WHERE valuation_status NOT IN ('closed','priced','stale_price')) blocker_count
+      FROM ("""+scoped+") v GROUP BY 1"
+    legacy_values={r['currency']:r for r in query(connection,valuation_totals_sql(legacy_valuation),legacy_parameters)}
+    active_values={r['currency']:r for r in query(connection,valuation_totals_sql(active_valuation),active_parameters)}
+    data['final_valuation_checks']=[]
+    for currency in sorted(set(legacy_values)|set(active_values)):
+        legacy=legacy_values.get(currency,{});active=active_values.get(currency,{})
+        legacy_value=legacy.get('total_value');active_value=active.get('total_value')
+        data['final_valuation_checks'].append({'currency':currency,'legacy_value':legacy_value,
+          'active_value':active_value,'difference':(active_value or Decimal(0))-(legacy_value or Decimal(0)),
+          'legacy_priced':legacy.get('priced_count',0),'active_priced':active.get('priced_count',0),
+          'blocker_count':active.get('blocker_count',0)})
+    data['final_valuation_blockers']=query(connection,"""SELECT source_record_id,name,asset_name,
+      account_name,"""+currency_sql+""" currency,valuation_status
+      FROM ("""+active_valuation+""") v
+      WHERE valuation_status NOT IN ('closed','priced','stale_price')
+      ORDER BY currency,account_name,asset_name""",active_parameters)
+    for row in data['final_valuation_blockers']:
+        row['status_label']=VALUATION_STATUS.get(row['valuation_status'],row['valuation_status'])
+
+    data['final_cash_checks']=query(connection,"""WITH legacy AS (
+      SELECT a.source_record_id,a.name,"""+currency_sql.replace('currency','c.abbreviation')+""" currency,
+        sum(e.signed_amount) amount
+      FROM ledger.cash_entry_canonical e
+      JOIN portfolio.account a ON a.batch_id=e.batch_id AND a.legacy_id=e.account_id
+      LEFT JOIN portfolio.currency c ON c.batch_id=a.batch_id AND c.legacy_id=a.currency_id
+      WHERE e.batch_id=? AND e.settlement_date<=? AND NOT EXISTS (
+        SELECT 1 FROM ledger.reconciliation_decision d WHERE d.batch_id=e.batch_id
+          AND d.subject_type='cash_entry' AND d.subject_id=e.legacy_id
+          AND d.resolution='duplicate_source_row') GROUP BY ALL
+    ), active AS (
+      SELECT account_source_record_id,"""+currency_sql+""" currency,sum(amount) amount
+      FROM ledger.investment_cash_entry WHERE batch_id=? AND settlement_date<=? GROUP BY ALL
+    ) SELECT coalesce(l.source_record_id,a.account_source_record_id) account_source_record_id,
+      coalesce(l.name,p.name) account_name,coalesce(l.currency,a.currency) currency,
+      coalesce(l.amount,0) legacy_balance,coalesce(a.amount,0) active_balance,
+      coalesce(a.amount,0)-coalesce(l.amount,0) difference
+    FROM legacy l FULL JOIN active a ON a.account_source_record_id=l.source_record_id
+      AND a.currency=l.currency
+    LEFT JOIN portfolio.account p ON p.source_record_id=a.account_source_record_id
+    ORDER BY currency,account_name""",[batch,cutoff,batch,cutoff])
+
+    flow_sql="""WITH imported AS (
+      SELECT """+currency_sql+""" currency,category,amount FROM ledger.cash_flow_effective_v3
+      WHERE batch_id=? AND settlement_date<=?
+    ), manual AS (
+      SELECT """+currency_sql+""" currency,
+        CASE WHEN transfer_id IS NOT NULL THEN 'internal_transfer'
+          WHEN event_type='income' THEN 'income' WHEN event_type='tax' THEN 'tax'
+          WHEN event_type='fee' THEN 'fee' WHEN event_type IN ('buy','sell','redemption') THEN 'investment'
+          WHEN event_type='deposit' THEN 'external_contribution'
+          WHEN event_type='withdrawal' THEN 'external_withdrawal' ELSE 'unclassified' END category,amount
+      FROM ledger.manual_event me WHERE settlement_date<=? AND EXISTS (
+        SELECT 1 FROM portfolio.account a WHERE a.source_record_id=me.account_source_record_id AND a.batch_id=?)
+    ), funding AS (
+      SELECT """+currency_sql+""" currency,'external_contribution' category,amount
+      FROM ledger.purchase_contribution WHERE batch_id=? AND settlement_date<=?
+        AND (reversed_at IS NULL OR reversed_at>?)
+    ), legacy AS (SELECT currency,category,sum(amount) amount FROM imported GROUP BY ALL),
+    active AS (SELECT currency,category,sum(amount) amount FROM (
+      SELECT * FROM imported UNION ALL SELECT * FROM manual UNION ALL SELECT * FROM funding) GROUP BY ALL)
+    SELECT coalesce(l.currency,a.currency) currency,coalesce(l.category,a.category) category,
+      coalesce(l.amount,0) legacy_amount,coalesce(a.amount,0) active_amount,
+      coalesce(a.amount,0)-coalesce(l.amount,0) difference
+    FROM legacy l FULL JOIN active a USING(currency,category) ORDER BY currency,category"""
+    data['final_flow_checks']=query(connection,flow_sql,[batch,cutoff,cutoff,batch,batch,cutoff,cutoff])
+    data['final_income_checks']=[r for r in data['final_flow_checks'] if r['category']=='income']
+    data['final_cutoff']=cutoff
+    data['final_valuation_blocker_count']=len(data['final_valuation_blockers'])
+    data['final_unexplained_count']=sum(1 for r in data['final_valuation_checks'] if r['difference'])
+    # Every cash/flow delta is traceable to Fin2 journal entries; valuation
+    # differences would indicate an unexplained change at the common cutoff.
+    data['final_fin2_adjustment_count']=sum(1 for r in data['final_cash_checks'] if r['difference'])
     data['cash_blockers']=query(connection,"""SELECT c.*,
       (SELECT count(*) FROM document_record_link l WHERE l.record_id=c.source_record_id) document_count
       FROM ledger.cash_dashboard c WHERE c.batch_id=? AND c.canonical_balance IS NULL

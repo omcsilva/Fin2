@@ -79,6 +79,16 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('Rendimentos e fluxo de caixa',html)
         self.assertIn('não representa ainda a rentabilidade pessoal da carteira',html)
 
+    def test_reconciliation_compares_fin2_with_frozen_fin1_cutoff(self):
+        response=self.client.get('/fin2/conciliacao/')
+        html=response.content.decode()
+        self.assertEqual(response.status_code,200)
+        self.assertIn('Fechamento Fin2 × Fin1',html)
+        self.assertIn('Avaliações',html)
+        self.assertIn('Rendimentos',html)
+        self.assertIn('Saldos por conta',html)
+        self.assertIn('Fluxos por classificação',html)
+
     def test_xirr_for_one_year_gain(self):
         from datetime import date
         rate=_xirr([(date(2023,1,1),-100),(date(2024,1,1),110)])

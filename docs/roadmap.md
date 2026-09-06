@@ -26,7 +26,7 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 ## Pendências financeiras e de dados
 
 - [x] Conciliar a APEX Banco Inter: saídas de 16/04/2024 informadas pelo usuário registradas em 06/09/2026; saldo do ledger zerado. Extratos XP reassociados à conta correta.
-- [ ] Conferir saldos, rendimentos, fluxos e avaliações finais contra o Fin1.
+- [x] [Conferir saldos, rendimentos, fluxos e avaliações finais contra o Fin1](final-reconciliation.md); comparação dinâmica disponível em Conciliação na data do corte, com ajustes posteriores do Fin2 destacados.
 - [ ] Classificar fluxos que ainda exigem decisão documental.
 - [ ] Validar competência de IRRF e separar operações day trade.
 - [ ] Revisar resultados fiscais reais e emitir relatório fiscal final.
