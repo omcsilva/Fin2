@@ -28,7 +28,8 @@ O menu Histórico do Fin2 aponta para as páginas nativas do Fin1. O Fin1 usa a
 captura final verificada de 02/09/2026 em `/var/lib/fin1`, abre os três bancos
 SQLite com `mode=ro` e bloqueia métodos e rotas de alteração. O código está em
 `/opt/fin1`; o Nginx publica `/fin1/`, `/fin1/static/` e `/fin1/anexos/` sob a
-mesma restrição de rede do Fin2. Consulte [a configuração do arquivo](../deploy/fin1-readonly/README.md).
+mesma restrição de rede do Fin2. Código, configuração do serviço, proxy e rotina
+de atualização pertencem ao repositório Git separado `Fin1`.
 
 ## Operação
 
