@@ -40,6 +40,7 @@ TIME_ZONE = "America/Sao_Paulo"
 USE_TZ = True
 STATIC_URL = "/fin2/static/"
 FAVICON_STATIC_NAME = "favicon-DEV.ico" if DEBUG else "favicon-PRD.ico"
+FIN1_BASE_URL = os.environ.get("FIN1_BASE_URL", "/fin1/").rstrip("/") + "/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {

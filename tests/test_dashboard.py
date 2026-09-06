@@ -175,6 +175,9 @@ class DashboardTests(unittest.TestCase):
         for path in ('posicoes','alocacao','historico','relatorios','caixa','lancamentos','importar','conciliacao',
                      'cotacoes','registros','documentos','revisao'):
             self.assertIn(f'/fin2/{path}/',html)
+        for path in ('/fin1/','/fin1/aplicacoes/','/fin1/contas/','/fin1/carteiras/','/fin1/ativos/'):
+            self.assertIn(f'href="{path}"',html)
+        self.assertNotIn('/fin2/historico/fin1/',html)
 
     def test_quantity_detail_and_invalid_account(self):
         with connect(self.fixture.database) as c:
