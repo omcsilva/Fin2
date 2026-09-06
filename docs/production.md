@@ -4,7 +4,7 @@ Produção ativa em Debian 12, container Proxmox com 2 GB de RAM.
 
 - LAN: <http://t1django.lan/fin2/>
 - HTTPS: <https://django.lmnet.dpdns.org/fin2/>
-- Fin1 congelado: <https://django.lmnet.dpdns.org/fin1/>
+- Fin1 legado: <https://django.lmnet.dpdns.org/fin1/>
 
 O proxy HTTPS está no t1docker; o origin permanece no t1django. A aplicação não
 possui login próprio e deve continuar protegida pela infraestrutura de rede.
@@ -15,7 +15,7 @@ possui login próprio e deve continuar protegida pela infraestrutura de rede.
 - dados: /var/lib/fin2/fin2.duckdb, documents/ e catalog-images/;
 - configuração: /etc/fin2/fin2.env;
 - aplicação: fin2.service, um Gunicorn com quatro threads;
-- arquivo legado: fin1.service em 127.0.0.1:8010, com SQLite e anexos somente leitura;
+- aplicação legada: fin1.service em 127.0.0.1:8010, com SQLite e anexos próprios;
 - proxy local: nginx.service, /fin2/ para 127.0.0.1:8020;
 - backup: fin2-backup.timer;
 - retenção: fin2-retention.timer, diariamente após o backup;
@@ -24,12 +24,12 @@ possui login próprio e deve continuar protegida pela infraestrutura de rede.
 Apache e MariaDB estão parados e desabilitados. Não aumente workers: um único
 processo deve possuir o DuckDB.
 
-O menu Histórico do Fin2 aponta para as páginas nativas do Fin1. O Fin1 usa a
-captura final verificada de 02/09/2026 em `/var/lib/fin1`, abre os três bancos
-SQLite com `mode=ro` e bloqueia métodos e rotas de alteração. O código está em
-`/opt/fin1`; o Nginx publica `/fin1/`, `/fin1/static/` e `/fin1/anexos/` sob a
-mesma restrição de rede do Fin2. Código, configuração do serviço, proxy e rotina
-de atualização pertencem ao repositório Git separado `Fin1`.
+O menu Histórico do Fin2 aponta para as páginas nativas do Fin1. O Fin1 partiu
+da captura verificada de 02/09/2026 em `/var/lib/fin1`; seu serviço possui acesso
+de leitura e gravação aos três SQLite e aos anexos. O Nginx publica `/fin1/`,
+`/fin1/static/` e `/fin1/anexos/` sob a mesma restrição de rede do Fin2. Código,
+configuração do serviço, proxy e rotina de atualização pertencem ao repositório
+Git separado `Fin1`.
 
 ## Operação
 
