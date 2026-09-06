@@ -36,6 +36,9 @@ class DashboardTests(unittest.TestCase):
             response = self.client.get(path)
             self.assertEqual(response.status_code,200,path)
             self.assertIn("no-store",response["Cache-Control"])
+        positions = self.client.get('/fin2/posicoes/')
+        self.assertIn('<th colspan="3">Total</th>',positions.content.decode())
+        self.assertIn('aplicações',positions.content.decode())
         response = self.client.get(f"/fin2/registros/{self.record}/")
         self.assertContainsEscaped(response.content.decode())
 
@@ -44,6 +47,30 @@ class DashboardTests(unittest.TestCase):
         html=response.content.decode()
         self.assertIn('PATRIMÔNIO / VISÃO CONSOLIDADA',html)
         self.assertIn('Moedas não são somadas nem convertidas',html)
+        self.assertIn('Conta de Resultado',html)
+        self.assertIn('Resultado acumulado',html)
+        self.assertIn('Total investido',html)
+        self.assertIn('Total sacado',html)
+        self.assertIn('<summary>Histórico</summary>',html)
+        self.assertNotIn('<h2>Integridade da migração</h2>',html)
+
+    def test_fin2_cash_includes_manual_events_and_archive_excludes_them(self):
+        from datetime import date
+        from fin2.portfolio.manual_ledger import create
+        with connect(self.fixture.database) as c:
+            account = c.execute('SELECT source_record_id FROM portfolio.account LIMIT 1').fetchone()[0]
+        create(self.fixture.database,account_record=account,event_type='deposit',
+               settlement_date=date.today(),currency='BRL',amount='123.45',
+               description='Aporte exclusivo do ledger Fin2')
+        current = self.client.get('/fin2/caixa/')
+        self.assertEqual(current.status_code,200)
+        self.assertIn('Aporte exclusivo do ledger Fin2',current.content.decode())
+        self.assertNotIn('<th class="number">Saldo Fin1</th>',current.content.decode())
+        for path in ('','posicoes/','caixa/','alocacao/','relatorios/','cotacoes/'):
+            archived = self.client.get('/fin2/historico/fin1/'+path)
+            self.assertEqual(archived.status_code,200,path)
+            self.assertIn('Histórico · Fin1',archived.content.decode())
+            self.assertNotIn('Aporte exclusivo do ledger Fin2',archived.content.decode())
 
     def test_reports_distinguish_market_return_from_portfolio_return(self):
         response=self.client.get('/fin2/relatorios/')
@@ -56,6 +83,30 @@ class DashboardTests(unittest.TestCase):
         from datetime import date
         rate=_xirr([(date(2023,1,1),-100),(date(2024,1,1),110)])
         self.assertAlmostEqual(rate,.10,places=6)
+
+    def test_current_account_excludes_transfers_and_dates_reversals(self):
+        from datetime import date
+        from fin2.portfolio.current_account import summarize
+        with connect(self.fixture.database) as c:
+            account, batch = c.execute('SELECT source_record_id,batch_id FROM portfolio.account LIMIT 1').fetchone()
+            for identifier, kind, amount, day, reversal, transfer in [
+                ('aporte', 'deposit', 1000, '2024-01-01', None, None),
+                ('saque', 'withdrawal', -300, '2024-01-02', None, None),
+                ('estorno', 'deposit', 300, '2024-02-01', 'saque', None),
+                ('interna', 'deposit', 900, '2024-01-01', None, 'transfer')]:
+                c.execute('''INSERT INTO ledger.manual_event
+                    (event_id,account_source_record_id,event_type,settlement_date,currency,
+                     amount,description,reverses_event_id,transfer_id)
+                    VALUES (?,?,?,?,?,?,?,?,?)''',
+                    [identifier, account, kind, day, 'EUR', amount, identifier, reversal, transfer])
+            positions = [dict(currency='EUR', valuation_status='priced', reference_value=Decimal(900))]
+            january = next(r for r in summarize(c,batch,date(2024,1,31),positions) if r['currency']=='EUR')
+            february = next(r for r in summarize(c,batch,date(2024,2,28),positions) if r['currency']=='EUR')
+            self.assertEqual(january['result'], Decimal(200))
+            self.assertEqual(february['result'], Decimal(-100))
+        response = self.client.get('/fin2/relatorios/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Conta de Resultado', response.content.decode())
 
     def test_moving_average_cost_and_realized_gain(self):
         from datetime import date

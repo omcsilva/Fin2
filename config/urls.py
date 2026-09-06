@@ -1,10 +1,21 @@
 from django.urls import path
 from django.views.generic import RedirectView
 from fin2.dashboard import views
+from fin2.dashboard.manual_price_views import manual_prices
+from fin2.dashboard.ledger_views import cash, historical
 from fin2.dashboard.catalog_views import catalog
 from fin2.dashboard.catalog_images import catalog_image
 
 urlpatterns = [
+    path('fin2/cotacoes/manuais/', manual_prices, name='manual-prices'),
+    path('fin2/historico/fin1/cotacoes/', historical(views.prices), name='legacy-prices'),
+    path('fin2/historico/fin1/', historical(views.overview), name='legacy-overview'),
+    path('fin2/historico/fin1/posicoes/', historical(views.positions), name='legacy-positions'),
+    path('fin2/historico/fin1/posicoes/<str:identifier>/', historical(views.quantity_detail), name='legacy-quantity-detail'),
+    path('fin2/historico/fin1/caixa/', historical(views.legacy_cash), name='legacy-cash'),
+    path('fin2/historico/fin1/alocacao/', historical(views.allocation), name='legacy-allocation'),
+    path('fin2/historico/fin1/relatorios/', historical(views.reports), name='legacy-reports'),
+
     path('fin2/imagens/<str:identifier>/', catalog_image, name='catalog-image'),
     path('fin2/cadastros/', catalog, name='catalog'),
     path('fin2/cadastros/<str:kind>/', catalog, name='catalog-kind'),
@@ -12,7 +23,7 @@ urlpatterns = [
     path("fin2/", views.overview, name="overview"),
     path("fin2/posicoes/", views.positions, name="positions"),
     path("fin2/posicoes/<str:identifier>/", views.quantity_detail, name="quantity-detail"),
-    path("fin2/caixa/", views.cash, name="cash"),
+    path("fin2/caixa/", cash, name="cash"),
     path("fin2/lancamentos/", views.manual_events, name="manual-events"),
     path("fin2/lancamentos/transferir/", views.manual_transfer, name="manual-transfer"),
     path("fin2/lancamentos/transferencias/<str:identifier>/reverter/", views.reverse_manual_transfer, name="manual-transfer-reverse"),
@@ -24,7 +35,7 @@ urlpatterns = [
     path("fin2/alocacao/", views.allocation, name="allocation"),
     path("fin2/historico/", views.history, name="history"),
     path("fin2/relatorios/", views.reports, name="reports"),
-    path("fin2/conciliacao/", views.reconciliation, name="reconciliation"),
+    path("fin2/conciliacao/", historical(views.reconciliation), name="reconciliation"),
     path("fin2/relatorios/fluxos/<str:identifier>/classificar/", views.classify_cash_flow, name="cash-flow-classify"),
     path("fin2/cotacoes/", views.prices, name="prices"),
     path("fin2/cotacoes/capturas/", views.quote_captures, name="quote-captures"),
@@ -33,10 +44,10 @@ urlpatterns = [
     path("fin2/cotacoes/<str:identifier>/mecanismo/", views.price_update_method, name="price-update-method"),
     path("fin2/cotacoes/atualizacao/", views.price_update_status, name="price-update-status"),
     path("fin2/cotacoes/<str:identifier>/resposta/", views.quote_response, name="quote-response"),
-    path("fin2/registros/", views.records, name="records"),
-    path("fin2/registros/<str:identifier>/", views.record, name="record"),
+    path("fin2/registros/", historical(views.records), name="records"),
+    path("fin2/registros/<str:identifier>/", historical(views.record), name="record"),
     path("fin2/documentos/", views.documents, name="documents"),
     path("fin2/documentos/<str:identifier>/", views.document, name="document"),
     path("fin2/documentos/<str:identifier>/arquivo/", views.document_file, name="document-file"),
-    path("fin2/revisao/", views.issues, name="issues"),
+    path("fin2/revisao/", historical(views.issues), name="issues"),
 ]

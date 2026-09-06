@@ -72,10 +72,17 @@ def _account(db,record):
 
 def create(database, *, account_record, event_type, settlement_date, currency,
            amount, description, application_record=None, trade_date=None, quantity=None,
-           document_id=None,request_key=None,upload_filename=None,upload_body=None,storage_root=None):
+           document_id=None,request_key=None,upload_filename=None,upload_body=None,storage_root=None,
+           funding_source=None):
     request_key=str(request_key or uuid4().hex)
     if not re.fullmatch(r'[a-f0-9]{32}',request_key):raise ValueError('Chave de envio inválida')
     if event_type not in TYPES: raise ValueError('Tipo de evento inválido')
+    if event_type == 'buy':
+        funding_source = funding_source or 'result_account'
+        if funding_source not in {'result_account','investment_balance','dividends','sales','portability'}:
+            raise ValueError('Origem dos recursos inválida')
+    else:
+        funding_source = None
     try:
         settlement=date.fromisoformat(str(settlement_date))
         trade=date.fromisoformat(str(trade_date)) if trade_date else None
@@ -117,7 +124,8 @@ def create(database, *, account_record, event_type, settlement_date, currency,
                  'application_source_record_id':application_record,'event_type':event_type,
                  'trade_date':str(trade) if trade else None,'settlement_date':str(settlement),
                  'currency':currency,'quantity':str(qty) if qty is not None else None,
-                 'amount':str(money),'description':description,'document_id':document_id}
+                 'amount':str(money),'description':description,'document_id':document_id,
+                 'funding_source':funding_source}
         db.execute('BEGIN')
         try:
             if prepared: document_id=_put_document(db,prepared)
@@ -126,6 +134,8 @@ def create(database, *, account_record, event_type, settlement_date, currency,
                settlement_date,currency,quantity,amount,description,reverses_event_id,created_at,transfer_id,request_key)
               values (?,?,?,?,?,?,?,?,?,?,?,now(),NULL,?)""",
               [event_id,account_record,application_record,event_type,trade,settlement,currency,qty,money,description,None,request_key])
+            if funding_source:
+                db.execute('insert into ledger.purchase_funding values (?,?)',[event_id,funding_source])
             db.execute("insert into ledger.audit_log(audit_id,entity_type,entity_id,action,payload) values (?,'manual_event',?,'create',?)",
               [audit_id,event_id,json.dumps(payload,ensure_ascii=False)])
             if document_id:
@@ -207,6 +217,9 @@ def correct(database,event_id,*,settlement_date,amount,description,quantity=None
               values (?,?,?,?,?,?,?,?,?,?,NULL,now(),NULL,?)""",
               [replacement_id,original[0],original[1],event_type,original[3],settlement,
                original[5],qty,money,description,request_key])
+            db.execute('''insert into ledger.purchase_funding
+                select ?,source from ledger.purchase_funding where event_id=?''',
+                [replacement_id,event_id])
             for document_id in documents:
                 db.execute('insert into ledger.manual_event_document(event_id,document_id) values (?,?)',[reversal_id,document_id])
                 db.execute('insert into ledger.manual_event_document(event_id,document_id) values (?,?)',[replacement_id,document_id])

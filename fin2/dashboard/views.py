@@ -20,6 +20,8 @@ from fin2.portfolio.price_jobs import (create as create_price_job,cancel as canc
 from fin2.portfolio.manual_ledger import (create as create_manual_event,reverse as reverse_event,
   create_transfer,reverse_transfer,correct as correct_event)
 from fin2.portfolio.cash_flow_decisions import create as create_cash_flow_decision
+from fin2.dashboard.report_scope import scoped_connection
+from fin2.portfolio.current_account import investment_balances, summarize as summarize_current_account
 from fin2.imports.generic import stage as stage_file_import, commit as commit_import, reject as reject_import
 
 ISSUES = {
@@ -43,7 +45,7 @@ def page_view(function):
     def wrapped(request, *args, **kwargs):
         try:
             with reader(settings.WAREHOUSE_PATH) as connection:
-                return function(request, connection, *args, **kwargs)
+                return function(request, scoped_connection(connection,request.GET.get('include_zeroed') == '1'), *args, **kwargs)
         except Unavailable:
             return render(request, "dashboard/unavailable.html", status=503)
     return wrapped
@@ -52,6 +54,7 @@ def page_view(function):
 def context(request, connection, batch_id=None):
     batches = query(connection, "SELECT batch_id, as_of_date, imported_at FROM import_batch ORDER BY imported_at DESC, batch_id")
     selected = batch_id or request.GET.get("batch") or (batches[0]["batch_id"] if batches else None)
+    historical = getattr(request, 'fin1_history', False)
     batch = next((b for b in batches if b["batch_id"] == selected), None)
     if not batch:
         if selected:
@@ -68,17 +71,22 @@ def context(request, connection, batch_id=None):
           UNION ALL SELECT year(as_of_date) FROM import_batch WHERE batch_id=?
         ) WHERE y IS NOT NULL ORDER BY y DESC
         """, [selected,selected,selected]).fetchall()]
+    if not historical:
+        years = sorted(set(years + [date.today().year] + [r[0] for r in connection.execute(
+            '''SELECT DISTINCT year(m.settlement_date) FROM ledger.manual_event m
+               JOIN portfolio.account a ON a.source_record_id=m.account_source_record_id
+               WHERE a.batch_id=?''', [selected]).fetchall()]), reverse=True)
     year = request.GET.get('year','')
     if year and (not re.fullmatch(r'\d{4}',year) or int(year) not in years):
         raise Http404('Ano não encontrado')
-    global_query = urlencode({k:v for k,v in [('batch',selected),('portfolio',portfolio),('year',year)] if v})
+    global_query = urlencode({k:v for k,v in [('batch',selected),('portfolio',portfolio),('year',year),('include_zeroed','1' if request.GET.get('include_zeroed') == '1' else '')] if v})
     selected_collection = next((c for c in collections if str(c['legacy_id'])==portfolio),None)
     latest_price_update=connection.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
     latest_job=query(connection,"SELECT * FROM price_update_job ORDER BY created_at DESC LIMIT 1")
-    return {"batches": batches, "batch": batch, "collections":collections,
+    return {"include_zeroed": request.GET.get("include_zeroed") == "1", "historical": historical, "batches": batches, "batch": batch, "collections":collections,
             "portfolio_filter":portfolio,"selected_collection":selected_collection,
             "years":years,"year_filter":year,"global_query":global_query,
-            "analysis_cutoff": date(int(year),12,31) if year else max(batch['as_of_date'],date.today()),
+            "analysis_cutoff": date(int(year),12,31) if year else (batch['as_of_date'] if historical else max(batch['as_of_date'],date.today())),
             "last_price_update":latest_price_update,"latest_price_job":latest_job[0] if latest_job else None}
 
 
@@ -124,23 +132,41 @@ def valuation_query(data):
       LEFT JOIN portfolio.movement m ON m.batch_id=a.batch_id AND m.application_id=a.legacy_id
       LEFT JOIN portfolio.operation o ON o.batch_id=m.batch_id AND o.legacy_id=m.operation_id
       WHERE a.batch_id=? GROUP BY a.batch_id,a.legacy_id
+    ), manual_quantity AS (
+      SELECT me.application_source_record_id,
+        sum(coalesce(me.quantity,0) *
+          CASE coalesce(original.event_type,me.event_type)
+            WHEN 'buy' THEN 1 WHEN 'sell' THEN -1 WHEN 'redemption' THEN -1
+            ELSE 0 END * CASE WHEN me.reverses_event_id IS NULL THEN 1 ELSE -1 END) quantity,
+        count(*) FILTER(WHERE me.event_type='adjustment' AND me.reverses_event_id IS NULL
+          AND me.quantity IS NOT NULL) incomplete_count
+      FROM ledger.manual_event me
+      LEFT JOIN ledger.manual_event original ON original.event_id=me.reverses_event_id
+      WHERE me.settlement_date<=?
+      GROUP BY me.application_source_record_id
     ), scoped AS (
       SELECT p.* EXCLUDE(quantity_at_cutoff,movement_count,incomplete_count,legacy_delta,legacy_price,price_date),
         CASE WHEN d.status='resolved' AND d.quantity_override IS NOT NULL AND d.effective_date<=?
-             THEN d.quantity_override
-             WHEN coalesce(y.incomplete_count,0)=0 THEN coalesce(y.quantity,0) END AS quantity_at_cutoff,
-        coalesce(y.movement_count,0) AS movement_count,coalesce(y.incomplete_count,0) AS incomplete_count,
+             THEN d.quantity_override + coalesce(mq.quantity,0)
+             WHEN coalesce(y.incomplete_count,0)=0 THEN coalesce(y.quantity,0) + coalesce(mq.quantity,0) END AS quantity_at_cutoff,
+        coalesce(y.movement_count,0) AS movement_count,
+        coalesce(y.incomplete_count,0)+coalesce(mq.incomplete_count,0) AS incomplete_count,
         coalesce(d.status='resolved' AND d.quantity_override IS NOT NULL AND d.effective_date<=?,false) decision_applied,
         CASE WHEN ?='' THEN p.legacy_delta END AS legacy_delta,
         coalesce(ep.price,p.legacy_price) AS legacy_price,
         coalesce(CAST(ep.quoted_at AS DATE),p.price_date) AS price_date,
-        CASE WHEN ep.price IS NOT NULL THEN 'brapi_v2' ELSE 'fin1_snapshot' END AS price_source,
-        ep.captured_at AS price_consulted_at
+        coalesce(ep.provider,'fin1_snapshot') AS price_source,
+        CASE WHEN ep.provider<>'fin1_snapshot' THEN ep.captured_at END AS price_consulted_at
       FROM portfolio.position p JOIN annual y ON y.batch_id=p.batch_id AND y.application_id=p.legacy_id
+      LEFT JOIN manual_quantity mq ON mq.application_source_record_id=p.source_record_id
       LEFT JOIN ledger.reconciliation_decision d ON d.batch_id=p.batch_id
         AND d.subject_type='application' AND d.subject_id=p.legacy_id
       LEFT JOIN market.asset_catalog_effective ma ON ma.batch_id=p.batch_id AND ma.legacy_id=p.asset_id
-      LEFT JOIN market.latest_external_price ep ON ep.source_record_id=ma.source_record_id AND CAST(ep.quoted_at AS DATE)<=?
+      LEFT JOIN LATERAL (
+        SELECT * FROM market.ledger_price_observation px
+        WHERE px.source_record_id=ma.source_record_id AND CAST(px.quoted_at AS DATE)<=?
+        ORDER BY CAST(px.quoted_at AS DATE) DESC,px.captured_at DESC,px.capture_id DESC LIMIT 1
+      ) ep ON true
       WHERE p.batch_id=? AND (?='' OR EXISTS (
         SELECT 1 FROM portfolio.membership pm WHERE pm.batch_id=p.batch_id
           AND pm.application_id=p.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))
@@ -158,14 +184,28 @@ def valuation_query(data):
       THEN CAST(quantity_at_cutoff*legacy_price AS DECIMAL(38,10)) END AS reference_value
     FROM classified
     """
+    if data.get('historical'):
+        sql = sql.replace('WHERE me.settlement_date<=?', 'WHERE me.settlement_date<=? AND false')
+        sql = sql.replace('px.source_record_id=ma.source_record_id AND', 'px.source_record_id=ma.source_record_id AND false AND')
     cutoff=data['analysis_cutoff']; batch=data['batch']['batch_id']; portfolio=data['portfolio_filter']
     year=data['year_filter']
-    return sql,[cutoff,cutoff,cutoff,batch,cutoff,cutoff,year,cutoff,batch,portfolio,portfolio,cutoff,year,cutoff,cutoff]
+    return sql,[cutoff,cutoff,cutoff,batch,cutoff,cutoff,cutoff,year,cutoff,batch,portfolio,portfolio,cutoff,year,cutoff,cutoff]
+
+
+def add_current_account(connection, data):
+    """Share the consolidated result across overview and reports."""
+    if not data['portfolio_filter'] and not data.get('historical'):
+        valuation_sql, valuation_parameters = valuation_query(data)
+        positions = query(connection, valuation_sql, valuation_parameters)
+        data['investment_balances'] = investment_balances(connection, data['batch']['batch_id'], data['analysis_cutoff'])
+        data['current_account'] = summarize_current_account(connection, data['batch']['batch_id'],
+            data['analysis_cutoff'], positions, data['investment_balances'])
 
 
 @page_view
 def overview(request, connection):
     data = context(request, connection)
+    add_current_account(connection, data)
     batch = data["batch"]["batch_id"]
     data["counts"] = [(label, connection.execute(f"SELECT count(*) FROM {table} WHERE batch_id=?", [batch]).fetchone()[0])
                       for label,table in [("Registros legados","source_record"),("Documentos","source_document"),("Sinalizações","import_issue")]]
@@ -176,6 +216,15 @@ def overview(request, connection):
       SELECT 1 FROM portfolio.membership m WHERE m.batch_id=a.batch_id AND m.application_id=a.legacy_id AND CAST(m.collection_id AS VARCHAR)=?))""",[batch,portfolio,portfolio]).fetchone()[0]
     movements=connection.execute("""SELECT count(*) FROM portfolio.movement m WHERE m.batch_id=? AND (?='' OR year(coalesce(m.settlement_date,m.trade_date))=CAST(? AS INTEGER)) AND (?='' OR EXISTS(
       SELECT 1 FROM portfolio.membership pm WHERE pm.batch_id=m.batch_id AND pm.application_id=m.application_id AND CAST(pm.collection_id AS VARCHAR)=?))""",[batch,year,year or '0',portfolio,portfolio]).fetchone()[0]
+    if not data.get('historical'):
+        movements += connection.execute('''SELECT count(*) FROM ledger.manual_event m
+          JOIN portfolio.account a ON a.source_record_id=m.account_source_record_id
+          LEFT JOIN portfolio.application ap ON ap.source_record_id=m.application_source_record_id
+          WHERE a.batch_id=? AND m.settlement_date<=?
+          AND (?='' OR year(m.settlement_date)=CAST(? AS INTEGER))
+          AND (?='' OR EXISTS(SELECT 1 FROM portfolio.membership pm WHERE pm.batch_id=a.batch_id
+            AND pm.application_id=ap.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))''',
+          [batch,data['analysis_cutoff'],year,year or '0',portfolio,portfolio]).fetchone()[0]
     data['analysis_counts']=[('Aplicações',applications),('Movimentações no período',movements)]
     scoped,parameters=valuation_query(data)
     position_totals=query(connection,"""SELECT currency,sum(reference_value) position_value,
@@ -184,17 +233,35 @@ def overview(request, connection):
       count(*) FILTER(WHERE valuation_status NOT IN ('closed','priced','stale_price')) excluded_count,
       count(*) FILTER(WHERE valuation_status='stale_price') stale_count
       FROM ("""+scoped+") v GROUP BY currency ORDER BY currency",parameters)
-    cash_totals=query(connection,"""SELECT c.abbreviation currency,sum(e.signed_amount) cash_value,
-      count(*) FILTER(WHERE e.signed_amount IS NULL) incomplete_count
-      FROM ledger.cash_entry_canonical e JOIN portfolio.account a
-        ON a.batch_id=e.batch_id AND a.legacy_id=e.account_id
-      LEFT JOIN portfolio.currency c ON c.batch_id=a.batch_id AND c.legacy_id=a.currency_id
+    cash_totals=query(connection,"""SELECT e.currency,sum(e.amount) cash_value,
+      count(*) FILTER(WHERE e.amount IS NULL) incomplete_count
+      FROM ledger.investment_cash_entry e JOIN portfolio.account a
+        ON a.source_record_id=e.account_source_record_id
       WHERE e.batch_id=? AND e.settlement_date<=? AND (?='' OR EXISTS(
         SELECT 1 FROM portfolio.application ap JOIN portfolio.membership m
           ON m.batch_id=ap.batch_id AND m.application_id=ap.legacy_id
         WHERE ap.batch_id=a.batch_id AND ap.account_id=a.legacy_id
           AND CAST(m.collection_id AS VARCHAR)=?))
-      GROUP BY c.abbreviation ORDER BY c.abbreviation""",[batch,data['analysis_cutoff'],portfolio,portfolio])
+      GROUP BY e.currency ORDER BY e.currency""",[batch,data['analysis_cutoff'],portfolio,portfolio])
+    if data.get('historical'):
+        cash_totals = query(connection,'''SELECT c.abbreviation currency,sum(e.signed_amount) cash_value,
+          count(*) FILTER(WHERE e.signed_amount IS NULL) incomplete_count
+          FROM ledger.cash_entry_canonical e JOIN portfolio.account a
+            ON a.batch_id=e.batch_id AND a.legacy_id=e.account_id
+          LEFT JOIN portfolio.currency c ON c.batch_id=a.batch_id AND c.legacy_id=a.currency_id
+          WHERE e.batch_id=? AND e.settlement_date<=?
+          AND (?='' OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm
+            ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
+            WHERE ap.batch_id=a.batch_id AND ap.account_id=a.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))
+          GROUP BY c.abbreviation''',[batch,data['analysis_cutoff'],portfolio,portfolio])
+    currency_aliases = {'BRL':'REAL','USD':'DOL','DOLAR':'DOL'}
+    normalized_cash = {}
+    for row in cash_totals:
+        currency = currency_aliases.get(row['currency'],row['currency'])
+        total = normalized_cash.setdefault(currency,dict(currency=currency,cash_value=Decimal(0),incomplete_count=0))
+        total['cash_value'] += row['cash_value'] or Decimal(0)
+        total['incomplete_count'] += row['incomplete_count']
+    cash_totals = list(normalized_cash.values())
     by_currency={}
     for row in position_totals:
         by_currency[row['currency']]=dict(row)
@@ -214,7 +281,7 @@ def overview(request, connection):
     data['warning_count']=sum(r['excluded_count']+r['stale_count']+r['cash_incomplete'] for r in data['financial_summary'])
     for item in data["issues"]:
         item["label"] = ISSUES.get(item["code"], item["code"])
-    return render(request, "dashboard/overview.html", data)
+    return render(request, 'dashboard/legacy_overview.html' if data.get('historical') else 'dashboard/overview.html', data)
 
 
 @page_view
@@ -232,10 +299,14 @@ def positions(request, connection):
       AND (?='' OR EXISTS(SELECT 1 FROM portfolio.membership pm WHERE pm.batch_id=q.batch_id AND pm.application_id=q.application_id AND CAST(pm.collection_id AS VARCHAR)=?))
       AND (q.legacy_delta<>0 OR q.legacy_delta IS NULL)""",[batch,data['portfolio_filter'],data['portfolio_filter']]).fetchone()[0]
     scoped,parameters=valuation_query(data)
-    data.update(paged(request,connection,
-        "SELECT * FROM ("+scoped+") scoped_positions WHERE (?='' OR CAST(account_id AS VARCHAR)=?) AND (?='' OR concat_ws(' ',asset_name,name,account_name,class_name,currency) ILIKE ?) ORDER BY "+order+",legacy_id",
-        [*parameters,account,account,term,'%'+term+'%']))
-    return render(request,'dashboard/positions.html',data)
+    filtered="SELECT * FROM ("+scoped+") scoped_positions WHERE (?='' OR CAST(account_id AS VARCHAR)=?) AND (?='' OR concat_ws(' ',asset_name,name,account_name,class_name,currency) ILIKE ?)"
+    filter_parameters=[*parameters,account,account,term,'%'+term+'%']
+    data['position_totals']=query(connection,"SELECT currency,sum(reference_value) position_value FROM ("+filtered+") filtered_positions GROUP BY currency ORDER BY currency",filter_parameters)
+    data['position_count']=connection.execute("SELECT count(*) FROM ("+filtered+") filtered_positions",filter_parameters).fetchone()[0]
+    data.update(paged(request,connection,filtered+" ORDER BY "+order+",legacy_id",filter_parameters))
+    for row in data['rows']:
+        row['status_label'] = VALUATION_STATUS.get(row['valuation_status'], row['valuation_status'])
+    return render(request,'dashboard/legacy_positions.html' if data.get('historical') else 'dashboard/positions.html',data)
 
 
 @page_view
@@ -260,7 +331,7 @@ def allocation(request,connection):
     data.update(paged(request,connection,"SELECT * FROM ("+scoped+") v WHERE valuation_status<>'closed' AND (?='' OR currency=?) AND (?='' OR concat_ws(' ',asset_name,name,account_name,class_name) ILIKE ?) ORDER BY "+order+",legacy_id",[*parameters,currency,currency,term,'%'+term+'%']))
     for row in data['rows']:
         row['status_label']=VALUATION_STATUS.get(row['valuation_status'],row['valuation_status'])
-    return render(request,'dashboard/allocation.html',data)
+    return render(request,'dashboard/legacy_allocation.html' if data.get('historical') else 'dashboard/allocation.html',data)
 
 
 def _normalized_series(rows):
@@ -403,20 +474,43 @@ def prices(request, connection):
         SELECT a.*,p.quality,p.age_at_cutoff_days,p.captured_at,u.method update_method,
           coalesce(ep.price,a.legacy_price) display_price,
           coalesce(CAST(ep.quoted_at AS DATE),a.price_date) display_price_date,
-          CASE WHEN ep.price IS NOT NULL THEN 'brapi_v2' ELSE 'fin1_snapshot' END display_price_source,
-          ep.captured_at last_successful_query_at,
+          coalesce(ep.provider,'fin1_snapshot') display_price_source,
+          CASE WHEN ep.provider<>'fin1_snapshot' THEN ep.captured_at END last_successful_query_at,
           (SELECT count(*) FROM market.identifier_candidate i WHERE i.source_record_id=a.source_record_id AND i.occurrences>1) AS duplicate_identifiers
         FROM market.asset_catalog_effective a JOIN market.price_observation p ON p.observation_id=a.source_record_id
         JOIN market.asset_price_update_method u ON u.source_record_id=a.source_record_id
-        LEFT JOIN market.latest_external_price ep ON ep.source_record_id=a.source_record_id
+        LEFT JOIN market.latest_ledger_price ep ON ep.source_record_id=a.source_record_id AND NOT ?
         WHERE a.batch_id=? AND (?='' OR u.method=?)
           AND (?='' OR EXISTS(SELECT 1 FROM portfolio.application ap JOIN portfolio.membership pm ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id WHERE ap.batch_id=a.batch_id AND ap.asset_id=a.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))
           AND (?='' OR concat_ws(' ',a.name,a.symbol,a.legacy_code,a.legacy_cnpj) ILIKE ?)
         ORDER BY """+order+""",a.legacy_id
-        """, [batch,method,method,data['portfolio_filter'],data['portfolio_filter'],term,'%'+term+'%']))
+        """, [data.get('historical',False),batch,method,method,data['portfolio_filter'],data['portfolio_filter'],term,'%'+term+'%']))
+    if not data.get('historical'):
+        def effective_quality(row):
+            price = row['display_price']; day = row['display_price_date']
+            if not row.get('currency'): return 'missing_currency'
+            if price is None: return 'missing_price'
+            if price <= 0: return 'invalid_price'
+            if day is None: return 'missing_date'
+            if day > data['analysis_cutoff']: return 'future_price'
+            return 'stale_price' if (data['analysis_cutoff']-day).days > 30 else 'available'
+        effective_prices = query(connection,'''SELECT a.currency,
+            coalesce(ep.price,a.legacy_price) display_price,
+            coalesce(CAST(ep.quoted_at AS DATE),a.price_date) display_price_date
+            FROM market.asset_catalog_effective a
+            LEFT JOIN market.latest_ledger_price ep ON ep.source_record_id=a.source_record_id
+            WHERE a.batch_id=? AND '''+asset_scope,[batch,data['portfolio_filter'],data['portfolio_filter']])
+        counts = {}
+        for row in effective_prices:
+            quality = effective_quality(row)
+            counts[quality] = counts.get(quality,0)+1
+        data['quality'] = [dict(quality=k,count=v,label=labels[k]) for k,v in sorted(counts.items())]
+        for row in data['rows']:
+            row['quality'] = effective_quality(row)
+            row['age_at_cutoff_days'] = (data['analysis_cutoff']-row['display_price_date']).days if row['display_price_date'] else None
     for row in data['rows']:
         row['quality_label'] = labels[row['quality']]
-    return render(request, 'dashboard/prices.html', data)
+    return render(request, 'dashboard/legacy_prices.html' if data.get('historical') else 'dashboard/prices.html', data)
 
 
 @page_view
@@ -507,12 +601,31 @@ def quantity_detail(request, connection, identifier):
     if not positions:
         raise Http404('Aplicação fora da carteira selecionada')
     data['position']=positions[0]
+    if not data.get('historical'):
+        activity = """WITH activity AS (
+          SELECT q.source_record_id entry_id,q.settlement_date,q.operation_name operation,
+            q.signed_quantity, 'Importado' origin
+          FROM portfolio.quantity_detail q WHERE q.batch_id=? AND q.application_id=?
+          UNION ALL
+          SELECT me.event_id,me.settlement_date,me.event_type,
+            coalesce(me.quantity,0) * CASE coalesce(original.event_type,me.event_type)
+              WHEN 'buy' THEN 1 WHEN 'sell' THEN -1 WHEN 'redemption' THEN -1 ELSE 0 END
+              * CASE WHEN me.reverses_event_id IS NULL THEN 1 ELSE -1 END,'Fin2'
+          FROM ledger.manual_event me
+          LEFT JOIN ledger.manual_event original ON original.event_id=me.reverses_event_id
+          WHERE me.application_source_record_id=?
+        ) SELECT * FROM activity WHERE settlement_date<=?
+          AND (?='' OR year(settlement_date)=CAST(? AS INTEGER))
+          ORDER BY settlement_date DESC,entry_id DESC"""
+        data.update(paged(request,connection,activity,[item['batch_id'],item['legacy_id'],identifier,
+          data['analysis_cutoff'],data['year_filter'],data['year_filter'] or '0']))
+        return render(request,'dashboard/quantity_detail.html',data)
     data.update(paged(request,connection,"SELECT * FROM portfolio.quantity_detail WHERE batch_id=? AND application_id=? AND (?='' OR year(coalesce(settlement_date,trade_date))=CAST(? AS INTEGER)) ORDER BY settlement_date NULLS LAST,trade_date,legacy_id",[item['batch_id'],item['legacy_id'],data['year_filter'],data['year_filter'] or '0']))
-    return render(request,'dashboard/quantity_detail.html',data)
+    return render(request,'dashboard/legacy_quantity_detail.html' if data.get('historical') else 'dashboard/quantity_detail.html',data)
 
 
 @page_view
-def cash(request,connection):
+def legacy_cash(request,connection):
     data=context(request,connection)
     batch=data['batch']['batch_id']
     account=request.GET.get('account','')
@@ -543,7 +656,7 @@ def cash(request,connection):
             raise Http404('Conta não encontrada')
         data['selected']=selected[0]
         data.update(paged(request,connection,"SELECT * FROM ledger.cash_entry_dashboard WHERE batch_id=? AND account_id=? AND (?='' OR year(settlement_date)=CAST(? AS INTEGER)) ORDER BY settlement_timestamp NULLS FIRST,legacy_id",[batch,int(account),data['year_filter'],data['year_filter'] or '0']))
-    return render(request,'dashboard/cash.html',data)
+    return render(request,'dashboard/legacy_cash.html',data)
 
 
 @page_view
@@ -551,6 +664,7 @@ def reports(request,connection):
     """Income and cash-flow report from canonical imported and manual events."""
     data=context(request,connection)
     batch=data['batch']['batch_id']; year=data['year_filter']; portfolio=data['portfolio_filter']
+    add_current_account(connection, data)
     sql="""
     WITH imported AS (
       SELECT c.settlement_date AS event_date,coalesce(c.currency,'') currency,c.amount,c.category
@@ -561,7 +675,8 @@ def reports(request,connection):
             AND CAST(pm.collection_id AS VARCHAR)=?))
     ), manual AS (
       SELECT me.settlement_date event_date,me.currency,me.amount,
-        CASE WHEN me.event_type='income' THEN 'income'
+        CASE WHEN me.transfer_id IS NOT NULL THEN 'internal_transfer'
+             WHEN me.event_type='income' THEN 'income'
              WHEN me.event_type='tax' THEN 'tax'
              WHEN me.event_type='fee' THEN 'fee'
              WHEN me.event_type IN ('buy','sell','redemption') THEN 'investment'
@@ -570,13 +685,29 @@ def reports(request,connection):
              ELSE 'unclassified' END category
       FROM ledger.manual_event me
       LEFT JOIN portfolio.application ap ON ap.source_record_id=me.application_source_record_id
-      WHERE (?='' OR year(me.settlement_date)=CAST(? AS INTEGER))
+      WHERE EXISTS (SELECT 1 FROM portfolio.account ma WHERE ma.source_record_id=me.account_source_record_id AND ma.batch_id=?)
+        AND (?='' OR year(me.settlement_date)=CAST(? AS INTEGER))
         AND (?='' OR EXISTS(SELECT 1 FROM portfolio.membership pm
           WHERE pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
             AND CAST(pm.collection_id AS VARCHAR)=?))
-    ), events AS (SELECT * FROM imported UNION ALL SELECT * FROM manual)
+    ) , funding AS (
+      SELECT settlement_date event_date,currency,amount,'external_contribution' category
+      FROM ledger.purchase_contribution
+      WHERE batch_id=? AND (?='' OR year(settlement_date)=CAST(? AS INTEGER))
+        AND ?='' AND (reversed_at IS NULL OR reversed_at>?)
+    ), events AS (SELECT * FROM imported UNION ALL SELECT * FROM manual UNION ALL SELECT * FROM funding)
     """
-    params=[batch,year,year or '0',portfolio,portfolio,year,year or '0',portfolio,portfolio]
+    params=[batch,year,year or '0',portfolio,portfolio,batch,year,year or '0',portfolio,portfolio,
+            batch,year,year or '0',portfolio,data['analysis_cutoff']]
+    if data.get('historical'):
+        sql = sql.replace('WHERE EXISTS (SELECT 1 FROM portfolio.account ma', 'WHERE false AND EXISTS (SELECT 1 FROM portfolio.account ma')
+        sql = sql.replace('WHERE batch_id=? AND', 'WHERE false AND batch_id=? AND')
+    # Normalize currency aliases and restrict all report flows to the selected cutoff.
+    sql = sql.replace('), events AS (', '), raw_events AS (')
+    sql += """, events AS (SELECT event_date,CASE upper(currency) WHEN 'REAL' THEN 'BRL'
+        WHEN 'DOL' THEN 'USD' WHEN 'DOLAR' THEN 'USD' ELSE upper(currency) END currency,
+        amount,category FROM raw_events WHERE event_date<=?) """
+    params.append(data['analysis_cutoff'])
     data['totals']=query(connection,sql+"""SELECT currency,
       sum(amount) FILTER(WHERE category='income') income,
       sum(amount) FILTER(WHERE category='investment') investment,
@@ -651,6 +782,12 @@ def reports(request,connection):
           FROM ledger.cash_flow_effective_v3
           WHERE batch_id=? AND application_id IS NOT NULL AND settlement_date<=?
           ORDER BY application_id,settlement_date,cash_component_id""",[batch,data['analysis_cutoff']])
+        if not data.get('historical'):
+            all_return_flows += query(connection,'''SELECT ap.legacy_id application_id,
+              me.settlement_date,me.amount FROM ledger.manual_event me
+              JOIN portfolio.application ap ON ap.source_record_id=me.application_source_record_id
+              WHERE ap.batch_id=? AND me.settlement_date<=? AND me.transfer_id IS NULL
+              AND me.event_type NOT IN ('deposit','withdrawal')''',[batch,data['analysis_cutoff']])
         return_flows_by_application={}
         for flow in all_return_flows:
             return_flows_by_application.setdefault(flow['application_id'],[]).append(flow)
@@ -685,7 +822,8 @@ def reports(request,connection):
         ON ap.source_record_id=me.application_source_record_id
       LEFT JOIN (SELECT trade_event_id,sum(amount) expense FROM ledger.file_import_event_allocation GROUP BY 1) x
         ON x.trade_event_id=me.event_id
-      ORDER BY event_date""",[batch])
+      WHERE ap.batch_id=? AND NOT ?
+      ORDER BY event_date""",[batch,batch,data.get('historical',False)])
     events_by_application={}
     for event in all_cost_events:
         events_by_application.setdefault(event['application_id'],[]).append(event)
@@ -780,7 +918,7 @@ def reports(request,connection):
         unmatched_irrf=[row for row in unmatched_irrf if row['tax_month'].year==int(year)]
     data['unmatched_irrf']=unmatched_irrf
     data['tax_preview']=sorted(tax_rows,key=lambda row:(row['month'],row['investor'],row['tax_group']),reverse=True)
-    return render(request,'dashboard/reports.html',data)
+    return render(request,'dashboard/legacy_reports.html' if data.get('historical') else 'dashboard/reports.html',data)
 
 
 @page_view
@@ -853,6 +991,7 @@ def manual_events(request):
             else:
                 create_manual_event(settings.WAREHOUSE_PATH,
                   account_record=request.POST.get('account',''),application_record=request.POST.get('application') or None,
+                  funding_source=request.POST.get('funding_source') or None,
                   event_type=request.POST.get('event_type',''),trade_date=request.POST.get('trade_date') or None,
                   settlement_date=request.POST.get('settlement_date',''),currency=request.POST.get('currency',''),
                   quantity=request.POST.get('quantity') or None,amount=request.POST.get('amount',''),

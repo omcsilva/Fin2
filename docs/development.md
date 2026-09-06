@@ -16,6 +16,9 @@ python3 -m venv .venv
 Acesse <http://127.0.0.1:8020/fin2/>. O ambiente local usa favicon-DEV.ico;
 produção usa favicon-PRD.ico.
 
+Na rede local, acesse <http://micro.lan:8020/fin2/>. Inclua `micro.lan` em
+`FIN2_ALLOWED_HOSTS` no `.env` e mantenha o servidor em `0.0.0.0:8020`.
+
 FIN2_DATA_DIR aponta para o diretório privado com fin2.duckdb, documents/ e
 catalog-images/. O arquivo .env pode fornecer BRAPI_TOKEN e não é versionado.
 

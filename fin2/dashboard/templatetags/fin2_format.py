@@ -27,3 +27,17 @@ def money(value, currency=''):
     rendered=f'{abs(amount):,.2f}'.translate(str.maketrans({',':'.','.':','}))
     sign='-' if amount<0 else ''
     return f'{sign}{prefix} {rendered}'
+
+
+@register.filter
+def number(value):
+    """Format a decimal with Brazilian separators and at most four decimals."""
+    if value is None or value == '':
+        return '—'
+    try:
+        amount=Decimal(str(value)).quantize(Decimal('0.0001'),rounding=ROUND_HALF_UP)
+    except (InvalidOperation,ValueError):
+        return '—'
+    rendered=f'{abs(amount):,.4f}'.translate(str.maketrans({',':'.','.':','})).rstrip('0').rstrip(',')
+    sign='-' if amount<0 else ''
+    return f'{sign}{rendered}'

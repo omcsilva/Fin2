@@ -33,6 +33,7 @@ TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIR
               "APP_DIRS": False, "OPTIONS": {
                   "context_processors": ["django.template.context_processors.request", "fin2.dashboard.context_processors.environment"],
                   "libraries": {"fin2_format": "fin2.dashboard.templatetags.fin2_format"},
+                  "builtins": ["fin2.dashboard.templatetags.fin2_format"],
               }}]
 LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Sao_Paulo"

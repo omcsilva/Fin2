@@ -243,3 +243,23 @@ coordena processos externos executados pelo terminal.
 - `warehouse/migrations/0014_benchmark_history.sql`: índices e séries
   comparativas;
 - `warehouse/migrations/0015_bcb_benchmarks.sql`: catálogo oficial do SGS.
+
+## Cotações e avaliações manuais
+
+A página `/fin2/cotacoes/manuais/`, disponível em Dados e auditoria e na tela de
+Cotações, registra preço por unidade, moeda, data de referência, fonte,
+observação e documento opcional. Para bens com quantidade 1, o preço unitário
+representa a avaliação integral. A moeda precisa coincidir com a do ativo;
+valores positivos são preservados com até dez casas decimais. Datas futuras,
+moedas incompatíveis e fontes vazias são rejeitadas.
+
+A migração 0044 cria registros imutáveis em `market.manual_price`, com chave de
+idempotência e auditoria. Uma correção é outro registro para a mesma data.
+A cotação vigente é a de maior data de referência até o corte, considerando
+registros manuais, consultas externas e referências importadas. Empates de data
+usam o registro mais recente. O Histórico Fin1 permanece usando a referência
+de origem. O cadastro manual não altera o mecanismo BRAPI/NENHUM.
+
+Visão geral, posições, alocação, Conta de Resultado e relatórios passam a usar
+essa seleção no corte. A tela de Cotações apresenta a origem `manual`. Ativos
+criados no catálogo do Fin2 também passam a integrar o catálogo de preços.

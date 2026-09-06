@@ -21,6 +21,7 @@ dist/
 
 # Private financial data must live outside the checkout
 *.duckdb
+EXTRATO-*.pdf
 *.duckdb.*
 *.sqlite
 *.sqlite3

@@ -27,7 +27,11 @@ KINDS={
  'aplicacao':('Aplicações',{'nome':('Nome',None),'conta_id':('Conta','conta'),'ativo_id':('Ativo','ativo')}),
  'aplicacao_carteira':('Vínculos com carteiras',{'aplicacao_id':('Aplicação','aplicacao'),'carteira_id':('Carteira','carteira')})
 }
-OPTIONAL={'abrev','tipo_id','produto_id','setor_id','indice_id','isin','cnpj','emissor','vencimento','indexador','taxa'}
+STATUS_KINDS = {'titular','instituicao','produto','ativo'}
+for _kind in STATUS_KINDS:
+    KINDS[_kind][1]['status'] = ('Status',None)
+KINDS['conta'][1]['decisao'] = ('Status',None)
+OPTIONAL={'abrev','tipo_id','produto_id','setor_id','indice_id','isin','cnpj','emissor','vencimento','indexador','taxa','status','decisao'}
 
 def records(db,batch,kind):
     if kind not in KINDS:raise ValueError('Cadastro desconhecido')
@@ -53,6 +57,15 @@ def save(database,*,batch,kind,values,record_id=None,revision=0,request_key):
         payload=dict(before or {})
         for field,(label,target) in KINDS[kind][1].items():
             value=str(values.get(field) or '').strip()
+            if field in ('status','decisao'):
+                if field not in values:
+                    value = str(payload.get(field) or '').strip()
+                value = value.upper()
+                allowed = {'','ZERADO'} if field == 'status' else {'','MANTER','ZERADA'}
+                if value not in allowed:
+                    raise ValueError('Status inválido')
+                payload[field] = value
+                continue
             if not value:
                 if field not in OPTIONAL:raise ValueError(f'{label}: preenchimento obrigatório')
                 value=None

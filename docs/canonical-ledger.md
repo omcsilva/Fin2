@@ -47,11 +47,23 @@ iguais a zero. Quatro diferenças intermediárias na Clear Marcos são apenas a
 ordem de lançamentos que compartilham a mesma data e não alteram o saldo após os
 pares.
 
-A conta APEX continua pendente. Os 14 lançamentos e o acumulado final somam
-USD 12.666,49, enquanto o cadastro marcado como zerado guarda saldo zero. A
-revisão dos sete extratos preservados mostrou que o histórico do Fin1 está
-incompleto: o extrato de fevereiro de 2024 fecha o caixa em USD 42.876,79. Os
-extratos foram vinculados ao registro da conta, mas nenhum saldo foi inventado.
+A conta APEX Marcos (Banco Inter) tinha 14 lançamentos importados somando
+USD 12.666,49, enquanto o cadastro marcado como zerado guardava saldo zero.
+Em 06/09/2026 foi corrigida uma associação documental indevida: os sete extratos
+preservados pertencem à APEX Marcos (App XP), e todos os saldos conferem com
+essa conta, já encerrada com saldo zero após a transferência para a Schwab.
+Os vínculos e observações foram corrigidos com auditoria e backup. O ajuste
+manual indevido de USD 2.171,70 no Banco Inter foi estornado, preservando o
+lançamento original. A comparação anterior com USD 42.876,79 era entre contas
+distintas e não deve fundamentar ajustes.
+
+Ainda em 06/09/2026, o usuário informou as saídas de 16/04/2024: USD 10.000,00
+para Banco Inter e USD 2.666,49 para Global Account. Foram registradas duas
+retiradas auditáveis, com contrapartida na Conta de Resultado. O caixa do ledger
+passou a zero e a decisão foi resolvida com vigência em 16/04/2024, explicitando
+a declaração do usuário como fonte. Os lançamentos importados foram preservados;
+a soma original continua disponível para conferência. A conciliação se refere ao
+caixa histórico APEX, não às operações novas da Plataforma Global em 2025/2026.
 
 Os quatro lançamentos sem conta são duplicatas dos lançamentos 945–948. As cópias
 válidas têm mesma data, descrição e valor, estão associadas à conta 4 e possuem o

@@ -45,3 +45,45 @@ e SHA-256 e visualizados em sandbox. HTML legado é escapado. Produção usa um
 Variáveis principais: FIN2_DATA_DIR, FIN2_DEBUG, FIN2_SECRET_KEY,
 FIN2_ALLOWED_HOSTS, FIN2_CSRF_TRUSTED_ORIGINS e BRAPI_TOKEN. Rotas e arquivos
 estáticos preservam o prefixo /fin2/.
+
+## Ledger atual e Histórico
+
+As páginas principais representam o ledger Fin2: operações importadas aceitas
+continuam compondo posições e caixa, somadas aos lançamentos manuais, estornos,
+transferências e aportes vinculados. O menu Histórico reúne as conferências de
+origem em `/fin2/historico/fin1/` (visão geral, posições, caixa, alocação,
+cotações e relatórios), além da conciliação, registros e revisão da importação.
+Essas conferências excluem eventos manuais e cotações externas posteriores;
+não constituem uma cópia imutável do cadastro, pois decisões de conciliação e
+correções de cadastro continuam preservadas nas projeções da origem.
+
+A Visão geral deixa de apresentar contagens de migração. Posições e seu detalhe
+mostram a quantidade do ledger; Saldos e extrato soma o caixa importado e manual,
+incluindo o aporte automático da compra e seu estorno. Dividendos e vendas ficam
+na conta de investimento. Moedas equivalentes REAL/BRL e DOL/USD são normalizadas
+no extrato e nos fluxos. O saldo acumulado do extrato inclui movimentos anteriores
+ao ano filtrado. Contas compartilhadas entre carteiras são mostradas integralmente.
+
+O seletor de anos do ledger inclui liquidações manuais e o ano corrente. O
+Histórico usa anos da origem e, sem filtro anual, o corte do lote importado.
+Relatórios financeiros atuais limitam eventos ao lote e corte selecionados,
+e incorporam os fluxos manuais também no retorno por aplicação.
+
+## Incluir zerados?
+
+O checkbox global `include_zeroed=1` é desmarcado por padrão e acompanha links,
+filtros locais e paginação. Sem ele, as consultas de relatórios excluem cadastros
+com status explícito ZERADO/ZERADA (incluindo a decisão ZERADA das contas).
+Saldo ou quantidade zero, isoladamente, não definem status.
+
+O campo Status de titulares, instituições, produtos e ativos é editável em
+Cadastros e começa vazio, inclusive nas projeções de registros antigos. A
+migração 0043 fornece esse padrão sem modificar os documentos ou registros de
+origem. O campo existente de decisão das contas aparece como Status no cadastro.
+
+A exclusão propaga os vínculos: titular/instituição → conta → aplicação;
+produto → ativo → aplicação. `report_scope` aplica os mesmos predicados às
+relações e projeções usadas em relatórios antes de agregar ou paginar, tanto no
+ledger atual quanto no Histórico. A opção marcada usa as consultas integrais.
+As telas de edição e os registros originais continuam acessíveis para permitir
+revisão de status; o filtro não apaga dados nem altera lançamentos.

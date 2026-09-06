@@ -26,7 +26,12 @@ def catalog(request,kind='titular'):
                             initial=selected['payload'] if selected else {})
             labels={}
             for field,(label,target) in KINDS[kind][1].items():
-                if target:
+                if field in ('status','decisao'):
+                    choices = [('', 'Sem status'), ('ZERADO', 'ZERADO')] if field == 'status' else [
+                        ('','Sem status'), ('MANTER','MANTER'), ('ZERADA','ZERADO')]
+                    form.fields[field] = forms.ChoiceField(label=label,choices=choices,required=False)
+                    labels[field] = dict(choices)
+                elif target:
                     choices=[(str(r['legacy_id']),r['payload'].get('nome') or str(r['legacy_id'])) for r in records(db,batch,target)]
                     labels[field]=dict(choices)
                     form.fields[field]=forms.ChoiceField(label=label,choices=[('','Selecione')]+choices,required=field not in OPTIONAL)

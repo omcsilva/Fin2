@@ -3,9 +3,9 @@
 {% block title %}Fin2 · Identificadores e cotações{% endblock %}
 {% block content %}
 <h1>Identificadores e cotações</h1>
-<nav class="page-tabs" aria-label="Páginas de cotações"><a href="{% url 'prices' %}?{{ global_query }}" class="active" aria-current="page">Cobertura completa</a><a href="{% url 'quote-captures' %}?{{ global_query }}">Capturas externas</a><a href="{% url 'manual-prices' %}?{{ global_query }}">Cotações e avaliações manuais</a></nav>
-<p>Ativos cadastrados no ledger{% if selected_collection %} vinculados à carteira {{ selected_collection.name }}{% endif %}, incluindo posições encerradas. Os preços usam a referência mais recente entre cotações manuais, externas e importadas, com a origem indicada. Nenhuma consulta a APIs é executada nesta página. O ano selecionado não transforma o cadastro atual em histórico de cotações.</p>
-<p class="notice">A fonte e a data acompanham cada cotação. Identificadores importados podem exigir revisão. Valores, moedas e multiplicadores não são convertidos; a alocação usa a cotação vigente no corte selecionado.</p>
+<nav class="page-tabs" aria-label="Páginas de cotações"><a href="{% url 'prices' %}?{{ global_query }}" class="active" aria-current="page">Cobertura completa</a><a href="{% url 'quote-captures' %}?{{ global_query }}">Capturas externas</a></nav>
+<p>Inventário de ativos do lote{% if selected_collection %} vinculados à carteira {{ selected_collection.name }}{% endif %}, incluindo posições encerradas. Origem dos preços: snapshot do Fin1. Nenhuma consulta a APIs é executada nesta página. O ano selecionado não transforma o cadastro atual em histórico de cotações.</p>
+<p class="notice">Os identificadores ainda não foram validados. A integração configurada no Fin1 não comprova a origem efetiva de cada preço. Valores, moedas e multiplicadores são preservados sem conversão; a alocação continua usando a referência legada.</p>
 <section class="panel"><h2>Cobertura do lote completo</h2>
 <p>{{ identifiers }} identificadores candidatos · {{ duplicates }} ocorrências em campos com valores repetidos entre ativos.</p>
 <ul>{% for item in quality %}<li>{{ item.label }}: {{ item.count }}</li>{% endfor %}</ul></section>
@@ -15,9 +15,9 @@
 <div class="table-summary"><span>{{ page.paginator.count }} ativos encontrados</span><span>Classificação e pesquisa abrangem todas as páginas</span></div><div class="table-wrap" data-table="prices"><table><thead><tr><th><button class="sort-button" type="button" data-sort="asset">Ativo</button></th><th>Mecanismo de atualização</th><th><button class="sort-button" type="button" data-sort="price">Preço</button></th><th><button class="sort-button" type="button" data-sort="quality">Validação</button></th></tr></thead><tbody>
 {% for item in rows %}<tr><td><a href="{% url 'record' item.source_record_id %}">{{ item.name|default:'Sem nome' }}</a><br><small>{{ item.symbol|default:'Sem símbolo' }}</small></td>
 <td><form method="post" action="{% url 'price-update-method' item.source_record_id %}?{{ global_query }}" class="inline-form">{% csrf_token %}<select name="method" onchange="this.form.submit()" aria-label="Mecanismo de atualização de {{ item.name|default:item.symbol }}"><option value="BRAPI" {% if item.update_method == 'BRAPI' %}selected{% endif %}>BRAPI</option><option value="NENHUM" {% if item.update_method == 'NENHUM' %}selected{% endif %}>NENHUM</option></select></form></td>
-<td>{{ item.display_price|money:item.currency }}<br><small>Fechamento: {{ item.display_price_date|date:'d/m/Y'|default:'Sem data' }}</small>{% if item.last_successful_query_at %}<br><small>Registro: {{ item.last_successful_query_at|date:'d/m/Y H:i:s' }}</small>{% endif %}</td>
+<td>{{ item.display_price|money:item.currency }}<br><small>Fechamento: {{ item.display_price_date|date:'d/m/Y'|default:'Sem data' }}</small>{% if item.last_successful_query_at %}<br><small>Consulta: {{ item.last_successful_query_at|date:'d/m/Y H:i:s' }}</small>{% endif %}</td>
 <td>{{ item.quality_label }}<br><small>{{ item.display_price_source }}</small></td></tr>
 {% empty %}<tr><td colspan="4">Nenhum ativo encontrado.</td></tr>{% endfor %}</tbody></table></div>
 {% include 'dashboard/pagination.html' %}
-<p>A data de captura da referência importada e a última consulta externa são apresentadas separadamente. A qualidade considera a cotação exibida na data de corte. Esta tela não reconstrói um histórico diário nem unifica ativos entre lotes.</p>
+<p>A captura registra a importação do snapshot, não o horário de consulta ao provedor. A idade é calculada em relação à data de referência do lote. O Fin1 preserva apenas o último preço no cadastro; esta tela não reconstrói um histórico diário nem unifica ativos entre lotes.</p>
 {% endblock %}
