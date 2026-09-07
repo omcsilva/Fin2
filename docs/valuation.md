@@ -19,7 +19,7 @@ Cotações com mais de **30 dias em relação ao corte** são consideradas antig
 
 ## Moedas e percentuais
 
-Subtotais e alocação por classe são calculados separadamente para cada moeda. Não há taxa de câmbio nem soma entre moedas. As abreviaturas da origem são preservadas: a base atual usa `REAL` e `DOL` nas aplicações; o mapeamento para códigos ISO ainda está pendente.
+Subtotais e alocação por classe são calculados separadamente para cada moeda. Não há taxa de câmbio nem soma entre moedas. As moedas foram normalizadas para códigos ISO; as abreviaturas da origem são preservadas no payload importado.
 
 Os percentuais têm como denominador apenas o subtotal das posições com valor disponível naquela moeda. Portanto, não representam a distribuição de todo o patrimônio quando existem exclusões. Classes ausentes ficam identificadas como “Sem classe”. Carteiras muitos-para-muitos não são usadas para multiplicar linhas; cada aplicação contribui uma única vez dentro do seu lote.
 
@@ -42,4 +42,4 @@ Foram produzidos oito grupos de alocação por moeda/classe. Esses valores não 
 
 A atualização foi aplicada após parar a árvore do servidor local e preservar `fin2-before-valuation.duckdb` no diretório privado. O servidor foi reiniciado em `127.0.0.1:8020`. O cabeçalho aprovado foi preservado e nenhum dado do Fin1 foi corrigido.
 
-Estado atual: as cinco divergências de quantidade foram resolvidas por decisões auditadas. A brapi atualiza os ativos configurados para esse mecanismo, enquanto ativos NENHUM aguardam outra fonte ou entrada manual. Permanecem pendentes a normalização das moedas legadas, a conversão cambial e a reconciliação final dos valores.
+Estado atual: as cinco divergências de quantidade foram resolvidas por decisões auditadas. A brapi atualiza os ativos configurados para esse mecanismo; ativos NENHUM podem receber cotações e avaliações manuais com fonte e data. A normalização das moedas está concluída. A [reconciliação final](final-reconciliation.md) conferiu os valores com cobertura, mas Brasilprev CICLO DE VIDA 2030 I PGBL e INRD11 continuam sem avaliação válida. A aceitação final permanece pendente. Não há conversão cambial implementada.

@@ -28,3 +28,26 @@ restam exclusões nem IRRF sem correspondência.
 - resolver a competência e o aproveitamento dos dois grupos de IRRF;
 - comparar os resultados mensais completos com informes, notas e declarações;
 - registrar a aprovação dos valores antes de marcar esta tarefa como concluída.
+
+## Revalidação local em 07/09/2026
+
+Consulta somente leitura à base de desenvolvimento, com todas as carteiras,
+sem filtro de ano e incluindo zerados, reproduziu 45 combinações mensais e
+33 aplicações excluídas: 29 por operações que exigem decisão de custo e quatro
+por compras/vendas sem quantidade ou valor. O relatório permanece incompleto.
+
+Os grupos de IRRF sem correspondência nessa base totalizam R$ 6,57 e R$ 5,40,
+ambos sem competência identificada. São 18 lançamentos sem documento diretamente
+vinculado ao registro de caixa. Esses resultados diferem dos valores registrados
+na revisão de 06/09 acima; não se deve assumir equivalência entre as bases ou
+substituir os números de produção sem repetir a consulta naquele ambiente.
+
+A inspeção da origem identificou uma venda sem quantidade cuja descrição é de
+juros sobre capital, com outro movimento de rendimento ligado ao mesmo lançamento;
+compras/vendas sem quantidade; e um fundo DI classificado como ações brasileiras.
+Esses casos exigem revisão da classificação, duplicidade e documentos antes de
+qualquer correção financeira. Cotações históricas não comprovam quantidades negociadas.
+
+O inventário detalhado, IDs dos movimentos e evidências foram preservados fora
+do Git em `Fin2-private/reviews/2026-09-07/review.md` e `evidence.json`.
+Nenhum lançamento, cadastro ou preço foi alterado nesta revalidação.

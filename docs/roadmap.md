@@ -1,6 +1,6 @@
 # Roteiro de implementação
 
-Atualizado em 05/09/2026. O corte do Fin1 já foi concluído; ele está congelado
+Atualizado em 07/09/2026. O corte do Fin1 já foi concluído; ele está congelado
 e não serão importados mais dados de lá. O Fin2 está em produção e é a base de escrita.
 
 ## Concluído
@@ -30,6 +30,8 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] Classificar fluxos que exigem decisão documental; o ledger não possui fluxos na categoria `unclassified`, inclusive considerando entidades zeradas.
 - [x] Validar competência de IRRF e separar operações day trade.
 - [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md).
+- [ ] Completar avaliações de Brasilprev CICLO DE VIDA 2030 I PGBL e INRD11
+  com fonte e data; ambas permanecem sem preço legado válido na verificação local de 07/09.
 - [x] Normalizar REAL, DOL e EUR para códigos ISO, preservando os valores originais no payload importado.
 - [x] Completar o histórico dos ativos anterior aos três meses da brapi; 183.218 fechamentos oficiais da B3 cobrem os 78 ativos mapeados desde a primeira compra registrada.
 - [x] Complementar o Ibovespa com arquivos oficiais da B3; 6.614 fechamentos diários cobrem 03/01/2000 a 04/09/2026.
