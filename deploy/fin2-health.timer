@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Fin2 health check
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 America/Sao_Paulo
+Persistent=true
+RandomizedDelaySec=5min
+Unit=fin2-health.service
+
+[Install]
+WantedBy=timers.target

@@ -1,6 +1,6 @@
 # Backup, retenção e manutenção
 
-Estado atualizado em 05/09/2026.
+Estado atualizado em 07/09/2026.
 
 ## Backup ativo
 
@@ -35,5 +35,10 @@ confirmação externa permanecem para inspeção.
 O acesso ativo é <https://django.lmnet.dpdns.org/fin2/> pelo proxy no t1docker.
 Gunicorn continua restrito a 127.0.0.1:8020 no t1django.
 
-Faltam monitorar espaço e duração, testar periodicamente a cópia externa e
-medir recursos durante importações e atualizações.
+`fin2-health.timer` verifica diariamente o serviço, HTTP local, presença do
+banco, uso de disco abaixo de 85% e backup regular com manifesto, banco e recibo
+externo criado há no máximo 36 horas. Falhas ficam registradas no systemd/journal.
+
+A medição inicial de recursos, duração e ocupação está no [ciclo produtivo e de
+recuperação](production-cycle.md). Faltam medir picos durante importações e
+atualizações de preços e testar periodicamente uma restauração da cópia externa.

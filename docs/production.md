@@ -51,14 +51,16 @@ A exportação externa está habilitada: cifra com chave pública, envia ao rpi5
 confirma SHA-256. O destino //rpi5.lan/mergerfs/Backup/Fin2 já participa do
 backup do usuário no Backblaze; o Fin2 não administra essa etapa posterior.
 
-## Estado verificado em 05/09/2026
+## Estado verificado em 07/09/2026
 
-- revisão bb25278916f5946ded791b7fb2777ce71a6c05e6 ativa;
+- revisão f2ba0eb1f79cf76abd935e18e256140f27e177ff ativa;
 - aplicação e timer de backup ativos;
 - acesso local e HTTPS respondendo HTTP 200;
 - escrita, migrações e exportação externa habilitadas;
 - restauração isolada previamente verificada.
 
 A retenção mantém 7 backups regulares, 3 pré-atualização, a referência validada
-e as duas releases necessárias para recuperação. Faltam medição de recursos e
-testes periódicos da restauração externa.
+e as duas releases necessárias para recuperação. O [ciclo produtivo e de
+recuperação](production-cycle.md) registra as medições atuais, a validação diária
+e o procedimento de restauração. Testes periódicos da cópia externa continuam
+necessários.

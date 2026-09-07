@@ -1,0 +1,7 @@
+[Unit]
+Description=Fin2 service, storage and backup health check
+After=fin2-retention.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/check-fin2-health

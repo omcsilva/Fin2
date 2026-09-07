@@ -42,9 +42,11 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 
 - [ ] Decidir se preços e índices receberão agendamento.
 - [x] Aprovar e ativar retenção automática: 7 backups regulares, 3 pré-atualização e a referência restaurada.
-- [ ] Monitorar banco, backups e espaço livre.
-- [ ] Medir CPU, memória e duração das atualizações.
-- [ ] Documentar um ciclo produtivo completo, incluindo restauração.
+- [x] Monitorar diariamente serviço, HTTP, banco, backups e espaço livre por
+  `fin2-health.timer`, com falhas registradas no journal.
+- [ ] Medir picos de CPU, memória e duração durante importações e atualizações
+  de preços; a linha de base do serviço, backup e implantação já foi registrada.
+- [x] [Documentar um ciclo produtivo completo, incluindo restauração](production-cycle.md).
 - [ ] Obter aceitação final da reconciliação dos dados já importados.
 
 A pasta no rpi5 já participa do backup do usuário no Backblaze. O Fin2 comprova
