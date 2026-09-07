@@ -25,8 +25,9 @@ processa a resposta em curso. Ticker incompatível passa para NENHUM. Consulte
 
 CDI, Selic, IPCA, dólar e euro vêm do SGS/BCB desde 01/01/2000. O histórico
 antigo dos ativos vem dos arquivos anuais COTAHIST da B3, importados com
-preservação do ZIP e validação do layout oficial. O Ibovespa após a série descontinuada do SGS
-deve ser complementado com arquivos oficiais da B3. O Fin2 não interpola dados
+preservação do ZIP e validação do layout oficial. O Ibovespa usa os arquivos
+anuais oficiais da B3 desde 03/01/2000; a série descontinuada do SGS permanece
+como evidência, mas a B3 prevalece nas datas coincidentes. O Fin2 não interpola dados
 nem cria valores sintéticos.
 
 Também falta decidir sobre agendamento.

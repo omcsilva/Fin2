@@ -453,7 +453,7 @@ def history(request,connection):
     start=date(int(data['year_filter']),1,1) if data['year_filter'] else date(2000,1,1)
     end=data['analysis_cutoff']
     catalogs=query(connection,"""SELECT v.benchmark_source_record_id series_id,c.abbreviation code,c.name,
-       v.unit,v.provider FROM market.benchmark_value v JOIN market.benchmark_catalog c
+       v.unit,v.provider FROM market.benchmark_value_effective v JOIN market.benchmark_catalog c
        ON c.source_record_id=v.benchmark_source_record_id
        WHERE v.observation_date BETWEEN ? AND ? GROUP BY ALL ORDER BY code""",[start,end])
     catalogs+=query(connection,"""SELECT d.series_id,a.symbol code,a.name,d.unit,d.provider
@@ -786,7 +786,7 @@ def reports(request,connection):
         row['return_pct']=(row['last_value']/row['first_value']-1)*100
     benchmark_returns=[]
     catalogs=query(connection,"""SELECT v.benchmark_source_record_id series_id,c.abbreviation code,c.name
-      FROM market.benchmark_value v JOIN market.benchmark_catalog c
+      FROM market.benchmark_value_effective v JOIN market.benchmark_catalog c
         ON c.source_record_id=v.benchmark_source_record_id
       WHERE v.observation_date BETWEEN ? AND ? GROUP BY ALL ORDER BY c.abbreviation""",
       [performance_start,data['analysis_cutoff']])

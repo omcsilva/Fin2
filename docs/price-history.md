@@ -87,6 +87,7 @@ consultas são divididas em janelas de até nove anos e mantêm cada resposta br
 
 Foram carregadas desde 01/01/2000: 6.698 observações de CDI, 6.698 de Selic,
 319 de IPCA, 6.699 de dólar e 6.695 de euro. A série SGS 7 do Ibovespa devolveu
-apenas 432 observações entre 02/01/2018 e 30/09/2019; ela está descontinuada e
-permanece marcada como incompleta. O restante do Ibovespa deverá vir dos arquivos
-históricos oficiais da B3, sem preenchimento por interpolação.
+apenas 432 observações entre 02/01/2018 e 30/09/2019 e permanece preservada.
+Os downloads anuais oficiais da B3 fornecem 6.614 fechamentos diários entre
+03/01/2000 e 04/09/2026. A projeção efetiva prefere a B3 nas datas coincidentes,
+sem interpolação; as 27 respostas originais ficam preservadas com SHA-256.

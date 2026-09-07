@@ -10,13 +10,13 @@ do rodapé executa somente o primeiro fluxo.
 | Informação | Fonte | Período | Frequência | Como é acionada |
 |---|---|---|---|---|
 | Último fechamento e lacunas recentes dos ativos | brapi v2 | Até três meses, conforme o plano gratuito | Diária | Botão **Atualizar preços** no rodapé |
-| Histórico completo de ativos já armazenado | Capturas legadas da brapi v2 | Período anteriormente importado | Diária | Preservado, sem atualização ativa |
+| Histórico de ativos | COTAHIST/B3 e capturas legadas da brapi v2 | Desde a primeira compra registrada | Diária | `scripts.import_b3_history` |
 | CDI, Selic, IPCA, dólar e euro | SGS do Banco Central do Brasil | Desde 01/01/2000 | Diária ou mensal, conforme a série | `scripts.update_official_benchmarks` |
-| Ibovespa | SGS/Banco Central, série 7 | Desde 01/01/2000, quando disponível | Diária | `scripts.update_official_benchmarks` |
+| Ibovespa | B3, estatísticas oficiais de índices | Desde 03/01/2000 | Diária | `scripts.update_b3_ibovespa` |
 
 O histórico do Ibovespa no SGS está descontinuado e cobre apenas parte do
-período. A complementação deve usar arquivos históricos oficiais da B3. O Fin2
-não interpola lacunas e não cria valores sintéticos.
+período. Os arquivos históricos oficiais da B3 completam a série e prevalecem
+nas datas coincidentes. O Fin2 não interpola lacunas nem cria valores sintéticos.
 
 ```mermaid
 flowchart LR
@@ -183,7 +183,7 @@ artificialmente em uma série diária.
 
 O comando antigo `scripts.update_benchmark_history` não realiza mais consultas.
 Para CDI, Selic, IPCA e câmbio, o procedimento operacional adotado é o adaptador
-oficial do BCB. O Ibovespa ainda exige a complementação por arquivos oficiais
+oficial do BCB. O Ibovespa é complementado pelos arquivos anuais oficiais
 da B3.
 
 ## Uso nos gráficos
@@ -216,12 +216,12 @@ coordena processos externos executados pelo terminal.
 
 - O botão do rodapé atualiza o último fechamento e preenche lacunas dos três
   meses retornados; ele não recupera períodos anteriores nem atualiza índices.
-- Não há carga ativa do histórico completo dos ativos; somente o último
-  fechamento é atualizado.
+- O histórico antigo dos ativos é carregado explicitamente dos arquivos anuais
+  COTAHIST; o botão atualiza somente o período recente.
 - Ativos sem ticker inequívoco, com moeda ou multiplicador incompatível, ou sem
   suporte do provedor permanecem sem cotação externa.
-- A série oficial do Ibovespa no SGS é incompleta e aguarda integração com os
-  arquivos históricos da B3.
+- A série descontinuada do SGS permanece como evidência; a projeção efetiva do
+  Ibovespa usa os arquivos anuais da B3.
 - Uma cotação `accepted` passou pelas validações técnicas, mas ainda pode estar
   defasada se o provedor devolver um horário antigo. O horário da própria
   cotação é preservado para essa análise.
