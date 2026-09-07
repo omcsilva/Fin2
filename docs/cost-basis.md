@@ -20,25 +20,29 @@ preliminar e não constituem apuração fiscal sem conferência das regras aplic
 A prévia agrega vendas e resultados por mês, titular e grupo fiscal. Para ações
 brasileiras em operações comuns, marca como potencialmente isento o ganho em
 mês com vendas de até R$ 20.000. Para FII, aplica 20% sobre ganho positivo. Nos
-demais ganhos tributáveis de ações, aplica 15%. Meses com compra e venda da mesma
-aplicação no mesmo dia são sinalizados como possível day trade e não recebem
-estimativa automática.
+demais ganhos tributáveis de ações, aplica 15%. A quantidade comprada e vendida
+da mesma aplicação no mesmo pregão é separada como day trade, sem consumir o
+estoque anterior. O resultado recebe alíquota de 20% e controle próprio de
+prejuízos; eventual quantidade excedente permanece na modalidade comum.
 
 A prévia transporta prejuízos cronologicamente por titular, mantendo um saldo
-para operações comuns (ações e ETFs) e outro para FII. Ganhos isentos com ações
-não consomem o saldo de prejuízo; perdas em operações comuns continuam no
-controle. Possíveis day trades são isolados e não alteram os saldos.
+para operações comuns (ações e ETFs), outro para FII e outro para day trade.
+Ganhos isentos com ações não consomem o saldo de prejuízo; perdas em operações
+comuns continuam no controle.
 
-Lançamentos cuja descrição identifica IRRF sobre operações em bolsa são
-agregados por titular e mês de liquidação. A tela os deduz como crédito candidato
-e mostra um imposto líquido provisório. A data do extrato pode pertencer ao mês
-seguinte ao pregão; créditos sem competência calculada correspondente ficam
-listados separadamente. Não deve ser tratado como DARF sem essa conferência.
+Lançamentos cuja descrição identifica IRRF sobre operações em bolsa só são
+deduzidos quando a competência pode ser obtida da operação relacionada ou do
+único mês de negociação encontrado na nota de corretagem vinculada. A modalidade
+day trade é identificada pela descrição do IRRF e não se mistura ao crédito de
+operações comuns. Registros sem essa evidência ficam listados separadamente pela
+data de liquidação e não reduzem a estimativa.
 
 O cálculo depende da classificação correta dos ativos. Fontes oficiais consultadas em
-03/09/2026:
+06/09/2026:
 
 - https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/bolsa-de-valores-1/isencoes
 - https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/bolsa-de-valores-1/calculo-e-pagamento-do-imposto
 - https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/fundos-de-investimento-no-brasil
 - https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/bolsa-de-valores-1/compensacoes
+- https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/bolsa-de-valores-1/retencoes
+- https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/dirpf/p-r-irpf-2026-v1-00-2026-04-23.pdf

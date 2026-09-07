@@ -130,6 +130,26 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(result['realized_gain'],Decimal('23.25'))
         self.assertEqual(result['allocated_expenses'],Decimal('4'))
         self.assertEqual(result['sale_details'][0]['proceeds'],Decimal('99'))
+        self.assertEqual(result['sale_details'][0]['tax_group'],'common')
+
+    def test_day_trade_is_split_from_existing_position(self):
+        from datetime import date
+        events=[
+            {'event_date':date(2024,1,2),'operation':'Compra','quantity':10,'amount':100,
+             'gross_amount':100,'allocated_cash':True},
+            {'event_date':date(2024,2,1),'operation':'Compra','quantity':8,'amount':96,
+             'gross_amount':96,'allocated_cash':True},
+            {'event_date':date(2024,2,1),'operation':'Venda','quantity':5,'amount':75,
+             'gross_amount':75,'allocated_cash':True},
+        ]
+        result=_average_cost(events,date(2024,12,31),2024)
+        self.assertEqual(result['status'],'calculated')
+        self.assertEqual(result['quantity'],Decimal('13'))
+        self.assertEqual(result['cost_balance'],Decimal('136'))
+        self.assertEqual(result['realized_gain'],Decimal('15'))
+        self.assertEqual(result['sale_details'],[{
+            'date':date(2024,2,1),'proceeds':Decimal('75'),'gain':Decimal('15'),
+            'tax_group':'day_trade','quantity':Decimal('5')}])
 
     def assertContainsEscaped(self, html):
         self.assertIn("&lt;p&gt;synthetic&lt;/p&gt;",html)

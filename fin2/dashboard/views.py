@@ -380,30 +380,59 @@ def _average_cost(events, cutoff, report_year=None):
     """Brazilian moving-average estimate for simple quantity-bearing trades."""
     quantity=Decimal('0'); cost=Decimal('0'); realized=Decimal('0'); sale_proceeds=Decimal('0')
     buy_count=sale_count=unallocated_count=0;allocated_expenses=Decimal('0');sale_details=[]
-    buy_days={event['event_date'] for event in events
-              if str(event['operation'] or '').lower() in ('compra','buy')}
+    by_day={}
     for event in events:
         day=event['event_date']
-        if not day or day>cutoff: continue
-        operation=str(event['operation'] or '').lower()
-        qty=abs(Decimal(str(event['quantity'] or 0)))
-        amount=abs(Decimal(str(event['amount'] or 0)))
-        gross=abs(Decimal(str(event.get('gross_amount') or amount)))
-        if not event.get('allocated_cash',True): unallocated_count+=1
-        if operation in ('compra','buy'):
-            if qty<=0 or amount<=0: return {'status':'missing_trade_detail'}
-            quantity+=qty;cost+=amount;allocated_expenses+=amount-gross;buy_count+=1
-        elif operation in ('venda','sell','resgate','redemption'):
-            if qty<=0 or quantity<qty: return {'status':'insufficient_quantity'}
-            allocated=cost*qty/quantity
-            gain=amount-allocated
+        if day and day<=cutoff: by_day.setdefault(day,[]).append(event)
+    for day, daily_events in sorted(by_day.items()):
+        buys=[];sales=[]
+        for event in daily_events:
+            operation=str(event['operation'] or '').lower()
+            qty=abs(Decimal(str(event['quantity'] or 0)))
+            amount=abs(Decimal(str(event['amount'] or 0)))
+            gross=abs(Decimal(str(event.get('gross_amount') or amount)))
+            if not event.get('allocated_cash',True): unallocated_count+=1
+            if operation in ('compra','buy'):
+                if qty<=0 or amount<=0: return {'status':'missing_trade_detail'}
+                buys.append((qty,amount,gross));buy_count+=1
+            elif operation in ('venda','sell','resgate','redemption'):
+                if qty<=0: return {'status':'missing_trade_detail'}
+                sales.append((qty,amount,gross));sale_count+=1
+            elif qty and operation not in ('rendimento','dividendo','juros c p','imposto','taxa'):
+                return {'status':'unsupported_operation'}
+        buy_qty=sum((row[0] for row in buys),Decimal('0'))
+        buy_amount=sum((row[1] for row in buys),Decimal('0'))
+        buy_gross=sum((row[2] for row in buys),Decimal('0'))
+        sell_qty=sum((row[0] for row in sales),Decimal('0'))
+        sell_amount=sum((row[1] for row in sales),Decimal('0'))
+        sell_gross=sum((row[2] for row in sales),Decimal('0'))
+        allocated_expenses+=(buy_amount-buy_gross)+(sell_gross-sell_amount)
+
+        # The quantity bought and sold in the same session is day trade and
+        # does not consume the position held before that session.
+        day_trade_qty=min(buy_qty,sell_qty)
+        if day_trade_qty:
+            day_buy_cost=buy_amount*day_trade_qty/buy_qty
+            day_proceeds=sell_amount*day_trade_qty/sell_qty
+            day_gain=day_proceeds-day_buy_cost
             if report_year is None or day.year==report_year:
-                realized+=gain;sale_proceeds+=amount
-            sale_details.append({'date':day,'proceeds':amount,'gain':gain,'day_trade_candidate':day in buy_days})
-            allocated_expenses+=gross-amount
-            cost-=allocated;quantity-=qty;sale_count+=1
-        elif qty and operation not in ('rendimento','dividendo','juros c p','imposto','taxa'):
-            return {'status':'unsupported_operation'}
+                realized+=day_gain;sale_proceeds+=day_proceeds
+            sale_details.append({'date':day,'proceeds':day_proceeds,'gain':day_gain,
+                                 'tax_group':'day_trade','quantity':day_trade_qty})
+        remaining_buy=buy_qty-day_trade_qty
+        if remaining_buy:
+            quantity+=remaining_buy;cost+=buy_amount*remaining_buy/buy_qty
+        remaining_sale=sell_qty-day_trade_qty
+        if remaining_sale:
+            if quantity<remaining_sale: return {'status':'insufficient_quantity'}
+            proceeds=sell_amount*remaining_sale/sell_qty
+            allocated=cost*remaining_sale/quantity
+            gain=proceeds-allocated
+            if report_year is None or day.year==report_year:
+                realized+=gain;sale_proceeds+=proceeds
+            sale_details.append({'date':day,'proceeds':proceeds,'gain':gain,
+                                 'tax_group':'common','quantity':remaining_sale})
+            cost-=allocated;quantity-=remaining_sale
     return {'status':'calculated','quantity':quantity,'cost_balance':cost,
       'average_cost':cost/quantity if quantity else None,'realized_gain':realized,
       'sale_proceeds':sale_proceeds,'buy_count':buy_count,'sale_count':sale_count,
@@ -851,31 +880,29 @@ def reports(request,connection):
             tax_class='fii' if class_name.startswith('im') else None
         if application['currency']!='REAL' or not tax_class: continue
         for sale in application['sale_details']:
-            key=(application['investor_name'] or 'Sem titular',sale['date'].replace(day=1),tax_class)
+            key=(application['investor_name'] or 'Sem titular',sale['date'].replace(day=1),tax_class,sale['tax_group'])
             bucket=tax_buckets.setdefault(key,{'investor':key[0],'month':key[1],'tax_class':tax_class,
-              'sales':Decimal('0'),'gain':Decimal('0'),'day_trade_candidate':False})
+              'sales':Decimal('0'),'gain':Decimal('0'),'tax_group':sale['tax_group']})
             bucket['sales']+=sale['proceeds'];bucket['gain']+=sale['gain']
-            bucket['day_trade_candidate']|=sale['day_trade_candidate']
     consolidated={}
     for bucket in tax_buckets.values():
-        group='fii' if bucket['tax_class']=='fii' else 'common'
+        group='day_trade' if bucket['tax_group']=='day_trade' else ('fii' if bucket['tax_class']=='fii' else 'common')
         key=(bucket['investor'],bucket['month'],group)
         row=consolidated.setdefault(key,{'investor':key[0],'month':key[1],'tax_group':group,
           'sales':Decimal('0'),'gain':Decimal('0'),'stock_sales':Decimal('0'),
-          'stock_gain':Decimal('0'),'etf_gain':Decimal('0'),'day_trade_candidate':False})
+          'stock_gain':Decimal('0'),'etf_gain':Decimal('0')})
         row['sales']+=bucket['sales'];row['gain']+=bucket['gain']
-        row['day_trade_candidate']|=bucket['day_trade_candidate']
         if bucket['tax_class']=='stocks':
             row['stock_sales']+=bucket['sales'];row['stock_gain']+=bucket['gain']
         elif bucket['tax_class']=='etf': row['etf_gain']+=bucket['gain']
     tax_rows=[];loss_pools={}
     for row in sorted(consolidated.values(),key=lambda item:(item['investor'],item['month'],item['tax_group'])):
         pool_key=(row['investor'],row['tax_group']);opening=loss_pools.get(pool_key,Decimal('0'))
-        row['label']='Operações comuns' if row['tax_group']=='common' else 'FII'
+        row['label']={'common':'Operações comuns','fii':'FII','day_trade':'Day trade'}[row['tax_group']]
         row.update(opening_loss=opening,compensated_loss=Decimal('0'),taxable_gain=None,
                    estimated_tax=None,exempt_gain=Decimal('0'))
-        if row['day_trade_candidate']:
-            row['tax_status']='Revisar possível day trade';row['closing_loss']=opening
+        if row['tax_group']=='day_trade':
+            taxable_result=row['gain'];rate=Decimal('.20')
         else:
             if row['tax_group']=='common':
                 if row['stock_sales']<=Decimal('20000') and row['stock_gain']>0:
@@ -884,38 +911,53 @@ def reports(request,connection):
                 rate=Decimal('.15')
             else:
                 taxable_result=row['gain'];rate=Decimal('.20')
-            if taxable_result<0:
-                row['closing_loss']=opening-taxable_result
-                row['taxable_gain']=Decimal('0');row['estimated_tax']=Decimal('0')
-                row['tax_status']='Prejuízo transportado'
-            else:
-                row['compensated_loss']=min(opening,taxable_result)
-                row['taxable_gain']=taxable_result-row['compensated_loss']
-                row['closing_loss']=opening-row['compensated_loss']
-                row['estimated_tax']=row['taxable_gain']*rate
-                row['tax_status']='Isento' if row['exempt_gain'] and not row['taxable_gain'] else 'Prévia antes do IRRF'
-            loss_pools[pool_key]=row['closing_loss']
+        if taxable_result<0:
+            row['closing_loss']=opening-taxable_result
+            row['taxable_gain']=Decimal('0');row['estimated_tax']=Decimal('0')
+            row['tax_status']='Prejuízo transportado'
+        else:
+            row['compensated_loss']=min(opening,taxable_result)
+            row['taxable_gain']=taxable_result-row['compensated_loss']
+            row['closing_loss']=opening-row['compensated_loss']
+            row['estimated_tax']=row['taxable_gain']*rate
+            row['tax_status']='Isento' if row['exempt_gain'] and not row['taxable_gain'] else 'Prévia antes do IRRF'
+        loss_pools[pool_key]=row['closing_loss']
         tax_rows.append(row)
-    irrf_rows=query(connection,"""SELECT coalesce(i.name,'Sem titular') investor,
-      CAST(date_trunc('month',e.settlement_date) AS DATE) tax_month,-sum(e.amount) irrf
+    irrf_rows=query(connection,"""WITH evidence AS (
+      SELECT e.cash_component_id,coalesce(i.name,'Sem titular') investor,e.settlement_date,
+        e.description,-e.amount irrf,
+        CASE WHEN upper(e.description) LIKE '%DAY%TRADE%' THEN 'day_trade' ELSE 'common' END tax_group,
+        CAST(date_trunc('month',coalesce(max(re.trade_date),
+          CASE WHEN count(DISTINCT date_trunc('month',m.trade_date))=1 THEN max(m.trade_date) END)) AS DATE) tax_month
       FROM ledger.cash_flow_effective_v3 e
       JOIN portfolio.account a ON a.batch_id=e.batch_id AND a.legacy_id=e.account_id
       LEFT JOIN portfolio.investor i ON i.batch_id=a.batch_id AND i.legacy_id=a.investor_id
+      LEFT JOIN ledger.event re ON re.event_id=e.related_event_id
+      LEFT JOIN portfolio.cash_entry ce ON ce.batch_id=e.batch_id AND ce.legacy_id=e.legacy_cash_id
+      LEFT JOIN main.document_record_link cash_doc ON cash_doc.record_id=ce.source_record_id
+      LEFT JOIN main.document_record_link movement_doc ON movement_doc.document_id=cash_doc.document_id
+      LEFT JOIN portfolio.movement m ON m.batch_id=e.batch_id AND m.source_record_id=movement_doc.record_id
       WHERE e.batch_id=? AND e.currency='REAL' AND e.category='tax'
         AND upper(e.description) LIKE 'IRRF%OPERA%'
-      GROUP BY 1,2 ORDER BY 1,2""",[batch])
-    irrf_by_month={(row['investor'],row['tax_month']):row['irrf'] for row in irrf_rows}
+      GROUP BY e.cash_component_id,i.name,e.settlement_date,e.description,e.amount)
+      SELECT investor,tax_month,tax_group,min(settlement_date) settlement_date,sum(irrf) irrf,
+        string_agg(description,'; ' ORDER BY settlement_date) descriptions
+      FROM evidence GROUP BY 1,2,3 ORDER BY 1,2""",[batch])
+    irrf_by_month={(row['investor'],row['tax_month'],row['tax_group']):row['irrf']
+                   for row in irrf_rows if row['tax_month']}
     used_irrf=set()
     for row in tax_rows:
-        key=(row['investor'],row['month'])
-        row['irrf_candidate']=irrf_by_month.get(key,Decimal('0')) if row['tax_group']=='common' else Decimal('0')
+        key=(row['investor'],row['month'],row['tax_group'])
+        row['irrf_candidate']=irrf_by_month.get(key,Decimal('0'))
         if row['irrf_candidate']: used_irrf.add(key)
         row['net_tax']=max((row['estimated_tax'] or Decimal('0'))-row['irrf_candidate'],Decimal('0')) \
           if row['estimated_tax'] is not None else None
-    unmatched_irrf=[row for row in irrf_rows if (row['investor'],row['tax_month']) not in used_irrf]
+    unmatched_irrf=[row for row in irrf_rows
+                    if not row['tax_month'] or (row['investor'],row['tax_month'],row['tax_group']) not in used_irrf]
     if year:
         tax_rows=[row for row in tax_rows if row['month'].year==int(year)]
-        unmatched_irrf=[row for row in unmatched_irrf if row['tax_month'].year==int(year)]
+        unmatched_irrf=[row for row in unmatched_irrf
+                        if (row['tax_month'] or row['settlement_date']).year==int(year)]
     data['unmatched_irrf']=unmatched_irrf
     data['tax_preview']=sorted(tax_rows,key=lambda row:(row['month'],row['investor'],row['tax_group']),reverse=True)
     return render(request,'dashboard/legacy_reports.html' if data.get('historical') else 'dashboard/reports.html',data)
