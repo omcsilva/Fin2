@@ -29,7 +29,7 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] [Conferir saldos, rendimentos, fluxos e avaliações finais contra o Fin1](final-reconciliation.md); comparação dinâmica disponível em Conciliação na data do corte, com ajustes posteriores do Fin2 destacados.
 - [x] Classificar fluxos que exigem decisão documental; o ledger não possui fluxos na categoria `unclassified`, inclusive considerando entidades zeradas.
 - [x] Validar competência de IRRF e separar operações day trade.
-- [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md).
+- [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md); quantidades documentadas de VALE3 e escopo por produto foram corrigidos, mas portabilidades, eventos societários, PETR4 e dois grupos de IRRF continuam pendentes.
 - [ ] Completar avaliações de Brasilprev CICLO DE VIDA 2030 I PGBL e INRD11
   com fonte e data; ambas permanecem sem preço legado válido na verificação local de 07/09.
 - [x] Normalizar REAL, DOL e EUR para códigos ISO, preservando os valores originais no payload importado.

@@ -11,7 +11,7 @@ from django.test import Client, override_settings
 
 from tests import test_fin1_import as fixtures
 from warehouse.database import connect
-from fin2.dashboard.views import _average_cost, _xirr
+from fin2.dashboard.views import _average_cost, _tax_class, _xirr
 
 
 class DashboardTests(unittest.TestCase):
@@ -164,6 +164,13 @@ class DashboardTests(unittest.TestCase):
         result=_average_cost(events,date(2024,12,31),2024)
         self.assertEqual(result['status'],'unsupported_operation')
         self.assertEqual(result['sale_count'],1)
+
+    def test_tax_class_uses_catalog_product_instead_of_numeric_id_or_name_guess(self):
+        self.assertEqual(_tax_class({'product_name':'Ação'}),'stocks')
+        self.assertEqual(_tax_class({'product_name':'ETF'}),'etf')
+        self.assertEqual(_tax_class({'product_name':'Fundo Imobiliário'}),'fii')
+        self.assertIsNone(_tax_class({'product_name':'Fundo Renda Fixa'}))
+        self.assertIsNone(_tax_class({'product_name':'Previdência Privada'}))
 
     def assertContainsEscaped(self, html):
         self.assertIn("&lt;p&gt;synthetic&lt;/p&gt;",html)

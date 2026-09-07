@@ -447,6 +447,15 @@ def _average_cost(events, cutoff, report_year=None):
       'sale_details':sale_details}
 
 
+def _tax_class(application):
+    """Return the supported Brazilian variable-income group from catalog data."""
+    product=(application.get('product_name') or '').strip().lower()
+    if product=='ação': return 'stocks'
+    if product=='etf': return 'etf'
+    if product=='fundo imobiliário': return 'fii'
+    return None
+
+
 @page_view
 def history(request,connection):
     data=context(request,connection);batch=data['batch']['batch_id'];portfolio=data['portfolio_filter']
@@ -840,15 +849,21 @@ def reports(request,connection):
                 application['flow_count']=len(dated)-1
                 data['money_weighted_returns'].append(application)
     valuation_sql,valuation_parameters=valuation_query(data)
-    cost_applications=query(connection,"""SELECT legacy_id,source_record_id,name,asset_name,symbol,currency,
-      class_name,investor_name,quantity_at_cutoff FROM ("""+valuation_sql+") v ORDER BY currency,asset_name",valuation_parameters)
+    cost_applications=query(connection,"""SELECT v.legacy_id,v.source_record_id,v.name,v.asset_name,v.symbol,v.currency,
+      v.class_name,v.investor_name,v.quantity_at_cutoff,p.name product_name FROM ("""+valuation_sql+""") v
+      LEFT JOIN portfolio.asset a ON a.batch_id=v.batch_id AND a.legacy_id=v.asset_id
+      LEFT JOIN portfolio.reference p ON p.batch_id=a.batch_id AND p.kind='produto' AND p.legacy_id=a.product_id
+      ORDER BY v.currency,v.asset_name""",valuation_parameters)
     status_labels={'missing_trade_detail':'Compra ou venda sem quantidade/valor',
       'insufficient_quantity':'Venda excede a quantidade reconstruída',
       'unsupported_operation':'Portabilidade, split ou outra operação exige decisão de custo'}
     all_cost_events=query(connection,"""SELECT e.application_id,coalesce(e.settlement_date,e.trade_date) event_date,
-      e.operation,e.source_quantity quantity,coalesce(abs(c.amount),abs(e.source_value)) amount,
+      coalesce(ov.operation_override,e.operation) operation,
+      coalesce(ov.quantity_override,e.source_quantity) quantity,coalesce(abs(c.amount),abs(e.source_value)) amount,
       abs(e.source_value) gross_amount,c.amount IS NOT NULL allocated_cash
       FROM ledger.event e LEFT JOIN ledger.cash_flow_effective_v3 c ON c.related_event_id=e.event_id
+      LEFT JOIN ledger.cost_event_override ov
+        ON ov.batch_id=e.batch_id AND ov.legacy_movement_id=e.legacy_event_id
       WHERE e.batch_id=?
       UNION ALL SELECT ap.legacy_id,coalesce(me.trade_date,me.settlement_date),me.event_type,me.quantity,
         CASE WHEN me.event_type='buy' THEN abs(me.amount)+coalesce(x.expense,0)
@@ -879,16 +894,10 @@ def reports(request,connection):
     data.update(cost_basis=calculated,cost_basis_excluded=excluded)
     data['tax_excluded']=[application for application in excluded
       if application.get('sale_count',0) and application['currency']=='BRL' and
-      ('brasil' in (application['class_name'] or '').lower() or
-       (application['class_name'] or '').lower().startswith('im'))]
+      _tax_class(application)]
     tax_buckets={}
     for application in calculated:
-        class_name=(application['class_name'] or '').lower()
-        asset_text=' '.join(str(application.get(key) or '') for key in ('name','asset_name','symbol')).lower()
-        if 'brasil' in class_name:
-            tax_class='etf' if any(token in asset_text for token in (' etf','ishares','it now','índice','indice')) else 'stocks'
-        else:
-            tax_class='fii' if class_name.startswith('im') else None
+        tax_class=_tax_class(application)
         if application['currency']!='BRL' or not tax_class: continue
         for sale in application['sale_details']:
             key=(application['investor_name'] or 'Sem titular',sale['date'].replace(day=1),tax_class,sale['tax_group'])

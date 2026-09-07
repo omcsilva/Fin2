@@ -50,4 +50,23 @@ qualquer correção financeira. Cotações históricas não comprovam quantidade
 
 O inventário detalhado, IDs dos movimentos e evidências foram preservados fora
 do Git em `Fin2-private/reviews/2026-09-07/review.md` e `evidence.json`.
-Nenhum lançamento, cadastro ou preço foi alterado nesta revalidação.
+
+## Correções documentadas em 07/09/2026
+
+A migração `0049_cost_event_overrides.sql` preserva os movimentos importados e
+aplica ajustes somente durante a reconstrução de custo. As notas XP 20009637 e
+20508449 comprovam respectivamente a compra e a venda de 100 VALE3 nos movimentos
+5120 e 5121. Os documentos foram vinculados aos registros correspondentes.
+
+O movimento 3441 de ITUB4 é ignorado somente no custo médio porque duplica o JCP
+ligado ao mesmo lançamento 213. Ele não foi reclassificado no ledger. O movimento
+3245 de PETR4 permanece pendente: a descrição indica venda, mas quantidade e valor
+estão zerados, e a observação da própria origem questiona a procedência das ações.
+
+O escopo de renda variável passou a usar o nome do produto no cadastro: Ação,
+ETF e Fundo Imobiliário. Assim, o PS FI Ref DI CP fica fora da apuração de bolsa
+por ser Fundo Renda Fixa, sem depender de um ID numérico específico.
+
+Splits, bonificações e transferências de custódia continuam excluídos até que o
+custo seja reconstruído por titular e ativo com conservação comprovada entre
+contas. O valor legado das portabilidades não é tratado como custo fiscal.
