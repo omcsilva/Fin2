@@ -1,5 +1,9 @@
 # Proposed data model
 
+Canonical projections use ISO 4217 codes (`BRL`, `USD`, and `EUR`). Legacy
+labels (`REAL`, `DOL`, and `DOLAR`) remain only in the immutable imported
+payload. Manual entries and new file imports are normalized before storage.
+
 This is the proposed financial model, not an implemented financial ledger. The separate [audit/ingestion schema](legacy-import.md) is implemented. Final financial keys, precision, constraints, and transformations depend on reconciliation of Fin1 records.
 
 The [initial Fin1 inspection](fin1-analysis.md) establishes additional requirements: preserve multiple financial owners independently of the single application user, portfolio memberships, distinct legacy applications (do not assume account/asset uniqueness), and HTML annotations. Model cash entries and investment movements as related components to prevent double counting, and distinguish expected events from settled events. Preserve legacy calculated values separately for reconciliation.

@@ -254,7 +254,7 @@ def overview(request, connection):
             ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
             WHERE ap.batch_id=a.batch_id AND ap.account_id=a.legacy_id AND CAST(pm.collection_id AS VARCHAR)=?))
           GROUP BY c.abbreviation''',[batch,data['analysis_cutoff'],portfolio,portfolio])
-    currency_aliases = {'BRL':'REAL','USD':'DOL','DOLAR':'DOL'}
+    currency_aliases = {'REAL':'BRL','DOL':'USD','DOLAR':'USD'}
     normalized_cash = {}
     for row in cash_totals:
         currency = currency_aliases.get(row['currency'],row['currency'])
@@ -774,7 +774,7 @@ def reports(request,connection):
       min(d.trading_date) first_date,max(d.trading_date) last_date,
       arg_min(d.adjusted_close,d.trading_date) first_value,
       arg_max(d.adjusted_close,d.trading_date) last_value
-      FROM market.daily_close d JOIN market.asset_catalog a ON a.source_record_id=d.source_record_id
+      FROM market.daily_close_series d JOIN market.asset_catalog a ON a.source_record_id=d.source_record_id
       WHERE a.batch_id=? AND d.adjusted_close IS NOT NULL AND d.trading_date BETWEEN ? AND ?
         AND EXISTS(SELECT 1 FROM portfolio.application ap LEFT JOIN portfolio.membership pm
           ON pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
@@ -878,7 +878,7 @@ def reports(request,connection):
             application['status_label']=status_labels[result['status']];excluded.append(application)
     data.update(cost_basis=calculated,cost_basis_excluded=excluded)
     data['tax_excluded']=[application for application in excluded
-      if application.get('sale_count',0) and application['currency']=='REAL' and
+      if application.get('sale_count',0) and application['currency']=='BRL' and
       ('brasil' in (application['class_name'] or '').lower() or
        (application['class_name'] or '').lower().startswith('im'))]
     tax_buckets={}
@@ -889,7 +889,7 @@ def reports(request,connection):
             tax_class='etf' if any(token in asset_text for token in (' etf','ishares','it now','índice','indice')) else 'stocks'
         else:
             tax_class='fii' if class_name.startswith('im') else None
-        if application['currency']!='REAL' or not tax_class: continue
+        if application['currency']!='BRL' or not tax_class: continue
         for sale in application['sale_details']:
             key=(application['investor_name'] or 'Sem titular',sale['date'].replace(day=1),tax_class,sale['tax_group'])
             bucket=tax_buckets.setdefault(key,{'investor':key[0],'month':key[1],'tax_class':tax_class,
@@ -948,7 +948,7 @@ def reports(request,connection):
       LEFT JOIN main.document_record_link cash_doc ON cash_doc.record_id=ce.source_record_id
       LEFT JOIN main.document_record_link movement_doc ON movement_doc.document_id=cash_doc.document_id
       LEFT JOIN portfolio.movement m ON m.batch_id=e.batch_id AND m.source_record_id=movement_doc.record_id
-      WHERE e.batch_id=? AND e.currency='REAL' AND e.category='tax'
+      WHERE e.batch_id=? AND e.currency='BRL' AND e.category='tax'
         AND upper(e.description) LIKE 'IRRF%OPERA%'
       GROUP BY e.cash_component_id,i.name,e.settlement_date,e.description,e.amount)
       SELECT investor,tax_month,tax_group,min(settlement_date) settlement_date,sum(irrf) irrf,

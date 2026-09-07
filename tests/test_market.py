@@ -35,7 +35,7 @@ class MarketTests(unittest.TestCase):
                 self.assertEqual(db.execute('SELECT count(*) FROM market.identifier_candidate WHERE occurrences>1').fetchone()[0],2)
                 self.assertEqual(db.execute("SELECT DISTINCT verification_status FROM market.identifier_candidate").fetchall(),[('unverified',)])
                 self.assertEqual(db.execute('SELECT price,currency,source,configured_provider FROM market.price_observation WHERE asset_id=1').fetchone(),
-                    (Decimal('1.25'),'REAL','fin1_snapshot','atuBrAPI'))
+                    (Decimal('1.25'),'BRL','fin1_snapshot','atuBrAPI'))
                 self.assertIsNone(db.execute('SELECT provider_record_id FROM market.asset_catalog WHERE legacy_id=3').fetchone()[0])
             with closing(sqlite3.connect(fixture.snapshot/'db.sqlite3')) as c:
                 c.execute("UPDATE fin1_ativo SET cotacao=2.5,dt_cotacao='2026-08-31' WHERE id=1")

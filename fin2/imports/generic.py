@@ -75,8 +75,10 @@ class GenericLedgerAdapter:
             if event_type not in TYPES:raise ValueError('tipo inválido')
             description=' '.join(str(row['description'] or '').split())
             if not description or len(description)>500:raise ValueError('descrição inválida')
+            currency=str(row['currency'] or '').strip().upper()
+            currency={'REAL':'BRL','DOL':'USD','DOLAR':'USD'}.get(currency,currency)
             normalized.update(event_type=event_type,trade_date=str(_day(row['trade_date'])) if row['trade_date'] else None,
-              settlement_date=str(_day(row['settlement_date'],True)),currency=str(row['currency'] or '').strip().upper(),
+              settlement_date=str(_day(row['settlement_date'],True)),currency=currency,
               quantity=str(_decimal(row['quantity'],10)) if row['quantity'] not in (None,'') else None,
               amount=str(_decimal(row['amount'],4,True)),description=description)
             if not normalized['currency'] or len(normalized['currency'])>10:raise ValueError('moeda inválida')

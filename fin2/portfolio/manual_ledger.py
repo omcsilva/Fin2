@@ -123,7 +123,7 @@ def create(database, *, account_record, event_type, settlement_date, currency,
         payload={'event_id':event_id,'account_source_record_id':account_record,
                  'application_source_record_id':application_record,'event_type':event_type,
                  'trade_date':str(trade) if trade else None,'settlement_date':str(settlement),
-                 'currency':currency,'quantity':str(qty) if qty is not None else None,
+                 'currency':normalized_currency,'quantity':str(qty) if qty is not None else None,
                  'amount':str(money),'description':description,'document_id':document_id,
                  'funding_source':funding_source}
         db.execute('BEGIN')
@@ -133,7 +133,7 @@ def create(database, *, account_record, event_type, settlement_date, currency,
               (event_id,account_source_record_id,application_source_record_id,event_type,trade_date,
                settlement_date,currency,quantity,amount,description,reverses_event_id,created_at,transfer_id,request_key)
               values (?,?,?,?,?,?,?,?,?,?,?,now(),NULL,?)""",
-              [event_id,account_record,application_record,event_type,trade,settlement,currency,qty,money,description,None,request_key])
+              [event_id,account_record,application_record,event_type,trade,settlement,normalized_currency,qty,money,description,None,request_key])
             if funding_source:
                 db.execute('insert into ledger.purchase_funding values (?,?)',[event_id,funding_source])
             db.execute("insert into ledger.audit_log(audit_id,entity_type,entity_id,action,payload) values (?,'manual_event',?,'create',?)",

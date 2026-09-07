@@ -24,9 +24,9 @@ processa a resposta em curso. Ticker incompatível passa para NENHUM. Consulte
 ## Histórico e pendências
 
 CDI, Selic, IPCA, dólar e euro vêm do SGS/BCB desde 01/01/2000. O histórico
-antigo dos ativos exige outra fonte. O Ibovespa após a série descontinuada do SGS
+antigo dos ativos vem dos arquivos anuais COTAHIST da B3, importados com
+preservação do ZIP e validação do layout oficial. O Ibovespa após a série descontinuada do SGS
 deve ser complementado com arquivos oficiais da B3. O Fin2 não interpola dados
 nem cria valores sintéticos.
 
-Também faltam definir preços para ativos NENHUM, normalizar moedas legadas e
-decidir sobre agendamento.
+Também falta decidir sobre agendamento.

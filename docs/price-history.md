@@ -6,6 +6,26 @@
 > de três meses. O conteúdo abaixo documenta a carga histórica
 > anterior e as séries que permanecem preservadas no banco.
 
+O histórico anterior à janela recente é complementado pelos arquivos anuais
+COTAHIST oficiais da B3. O importador aceita o ZIP original, valida o layout
+fixo de 245 bytes e considera somente o mercado à vista (`TPMERC=010`) com
+ticker exato e único no catálogo. O ZIP é preservado integralmente com SHA-256.
+Como a B3 informa que esses preços não têm ajuste por proventos, o fechamento
+oficial é armazenado sem preencher artificialmente `adjusted_close`.
+Mudanças comprovadas de ticker usam aliases com período de validade; a carga
+inicial inclui BVMF3→B3SA3, KROT3→COGN3 e VVAR3→VIIA3.
+
+Na carga inicial de 06/09/2026, os 11 arquivos anuais de 2016 a 2026 produziram
+183.218 fechamentos para 85 ativos do catálogo. A conferência dos 78 ativos
+mapeados para brapi não encontrou lacuna entre a primeira compra registrada e o
+início da série oficial correspondente. Os arquivos preservados somam
+541.156.425 bytes.
+
+~~~bash
+.venv/bin/python -m scripts.import_b3_history \
+  --database /caminho/fin2.duckdb COTAHIST_A2025.ZIP
+~~~
+
 A migração `0013_daily_close_history.sql` cria `market.daily_close`, com uma linha
 por ativo, provedor e data de pregão. A série guarda moeda, fechamento,
 fechamento ajustado, captura de origem e instante de captura. Não são criadas

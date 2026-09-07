@@ -30,8 +30,8 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] Classificar fluxos que exigem decisão documental; o ledger não possui fluxos na categoria `unclassified`, inclusive considerando entidades zeradas.
 - [x] Validar competência de IRRF e separar operações day trade.
 - [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md).
-- [ ] Normalizar REAL, DOL e EUR para códigos ISO.
-- [ ] Completar o histórico dos ativos anterior aos três meses da brapi.
+- [x] Normalizar REAL, DOL e EUR para códigos ISO, preservando os valores originais no payload importado.
+- [x] Completar o histórico dos ativos anterior aos três meses da brapi; 183.218 fechamentos oficiais da B3 cobrem os 78 ativos mapeados desde a primeira compra registrada.
 - [ ] Complementar o Ibovespa com arquivos oficiais da B3.
 - [x] Disponibilizar cotações e avaliações manuais com fonte, data, moeda e auditoria para ativos NENHUM.
 - [ ] Criar outros adaptadores apenas para instituições ainda utilizadas.
