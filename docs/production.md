@@ -53,7 +53,8 @@ backup do usuário no Backblaze; o Fin2 não administra essa etapa posterior.
 
 ## Estado verificado em 07/09/2026
 
-- revisão f2ba0eb1f79cf76abd935e18e256140f27e177ff ativa;
+- revisão ativa registrada em `/var/lib/fin2/deployed-revision` e conferida após
+  cada implantação;
 - aplicação e timer de backup ativos;
 - acesso local e HTTPS respondendo HTTP 200;
 - escrita, migrações e exportação externa habilitadas;
