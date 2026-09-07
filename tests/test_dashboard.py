@@ -151,6 +151,20 @@ class DashboardTests(unittest.TestCase):
             'date':date(2024,2,1),'proceeds':Decimal('75'),'gain':Decimal('15'),
             'tax_group':'day_trade','quantity':Decimal('5')}])
 
+    def test_average_cost_failure_preserves_sale_count_for_fiscal_audit(self):
+        from datetime import date
+        events=[
+            {'event_date':date(2024,1,2),'operation':'Compra','quantity':10,'amount':100,
+             'gross_amount':100,'allocated_cash':True},
+            {'event_date':date(2024,2,1),'operation':'Split','quantity':10,'amount':0,
+             'gross_amount':0,'allocated_cash':True},
+            {'event_date':date(2024,3,1),'operation':'Venda','quantity':5,'amount':75,
+             'gross_amount':75,'allocated_cash':True},
+        ]
+        result=_average_cost(events,date(2024,12,31),2024)
+        self.assertEqual(result['status'],'unsupported_operation')
+        self.assertEqual(result['sale_count'],1)
+
     def assertContainsEscaped(self, html):
         self.assertIn("&lt;p&gt;synthetic&lt;/p&gt;",html)
         self.assertNotIn("<p>synthetic</p>",html)

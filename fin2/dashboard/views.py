@@ -383,7 +383,14 @@ def _average_cost(events, cutoff, report_year=None):
     by_day={}
     for event in events:
         day=event['event_date']
-        if day and day<=cutoff: by_day.setdefault(day,[]).append(event)
+        if day and day<=cutoff:
+            by_day.setdefault(day,[]).append(event)
+            operation=str(event['operation'] or '').lower()
+            buy_count += operation in ('compra','buy')
+            sale_count += operation in ('venda','sell','resgate','redemption')
+    def failure(status):
+        return {'status':status,'buy_count':buy_count,'sale_count':sale_count,
+                'unallocated_count':unallocated_count,'sale_details':sale_details}
     for day, daily_events in sorted(by_day.items()):
         buys=[];sales=[]
         for event in daily_events:
@@ -393,13 +400,13 @@ def _average_cost(events, cutoff, report_year=None):
             gross=abs(Decimal(str(event.get('gross_amount') or amount)))
             if not event.get('allocated_cash',True): unallocated_count+=1
             if operation in ('compra','buy'):
-                if qty<=0 or amount<=0: return {'status':'missing_trade_detail'}
-                buys.append((qty,amount,gross));buy_count+=1
+                if qty<=0 or amount<=0: return failure('missing_trade_detail')
+                buys.append((qty,amount,gross))
             elif operation in ('venda','sell','resgate','redemption'):
-                if qty<=0: return {'status':'missing_trade_detail'}
-                sales.append((qty,amount,gross));sale_count+=1
+                if qty<=0: return failure('missing_trade_detail')
+                sales.append((qty,amount,gross))
             elif qty and operation not in ('rendimento','dividendo','juros c p','imposto','taxa'):
-                return {'status':'unsupported_operation'}
+                return failure('unsupported_operation')
         buy_qty=sum((row[0] for row in buys),Decimal('0'))
         buy_amount=sum((row[1] for row in buys),Decimal('0'))
         buy_gross=sum((row[2] for row in buys),Decimal('0'))
@@ -424,7 +431,7 @@ def _average_cost(events, cutoff, report_year=None):
             quantity+=remaining_buy;cost+=buy_amount*remaining_buy/buy_qty
         remaining_sale=sell_qty-day_trade_qty
         if remaining_sale:
-            if quantity<remaining_sale: return {'status':'insufficient_quantity'}
+            if quantity<remaining_sale: return failure('insufficient_quantity')
             proceeds=sell_amount*remaining_sale/sell_qty
             allocated=cost*remaining_sale/quantity
             gain=proceeds-allocated
@@ -870,6 +877,10 @@ def reports(request,connection):
         else:
             application['status_label']=status_labels[result['status']];excluded.append(application)
     data.update(cost_basis=calculated,cost_basis_excluded=excluded)
+    data['tax_excluded']=[application for application in excluded
+      if application.get('sale_count',0) and application['currency']=='REAL' and
+      ('brasil' in (application['class_name'] or '').lower() or
+       (application['class_name'] or '').lower().startswith('im'))]
     tax_buckets={}
     for application in calculated:
         class_name=(application['class_name'] or '').lower()
@@ -959,6 +970,7 @@ def reports(request,connection):
         unmatched_irrf=[row for row in unmatched_irrf
                         if (row['tax_month'] or row['settlement_date']).year==int(year)]
     data['unmatched_irrf']=unmatched_irrf
+    data['tax_report_complete']=data['include_zeroed'] and not data['tax_excluded'] and not unmatched_irrf
     data['tax_preview']=sorted(tax_rows,key=lambda row:(row['month'],row['investor'],row['tax_group']),reverse=True)
     return render(request,'dashboard/legacy_reports.html' if data.get('historical') else 'dashboard/reports.html',data)
 

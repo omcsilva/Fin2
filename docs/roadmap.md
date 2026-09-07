@@ -29,7 +29,7 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] [Conferir saldos, rendimentos, fluxos e avaliações finais contra o Fin1](final-reconciliation.md); comparação dinâmica disponível em Conciliação na data do corte, com ajustes posteriores do Fin2 destacados.
 - [x] Classificar fluxos que exigem decisão documental; o ledger não possui fluxos na categoria `unclassified`, inclusive considerando entidades zeradas.
 - [x] Validar competência de IRRF e separar operações day trade.
-- [ ] Revisar resultados fiscais reais e emitir relatório fiscal final.
+- [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md).
 - [ ] Normalizar REAL, DOL e EUR para códigos ISO.
 - [ ] Completar o histórico dos ativos anterior aos três meses da brapi.
 - [ ] Complementar o Ibovespa com arquivos oficiais da B3.
