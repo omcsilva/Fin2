@@ -6,8 +6,10 @@ diferença para o valor da venda é exibida como ganho realizado no período.
 
 O cálculo só aceita compras e vendas com quantidade e valor explícitos. A
 quantidade final reconstruída deve coincidir com a posição canônica. Aplicações
-com portabilidade, split, bonificação, venda sem posição suficiente ou dados
-incompletos ficam listadas como excluídas.
+com portabilidade, bonificação, venda sem posição suficiente ou dados incompletos
+ficam listadas como excluídas. Um desdobramento com quantidade adicional
+explícita e valor zero aumenta a quantidade e conserva o custo total; qualquer
+outro formato de evento societário continua bloqueado.
 
 O caixa líquido de uma nota com vários ativos é rateado proporcionalmente ao
 valor bruto, com fechamento decimal exato. A parcela líquida aumenta o custo da

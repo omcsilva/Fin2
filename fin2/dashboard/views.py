@@ -392,10 +392,11 @@ def _average_cost(events, cutoff, report_year=None):
         return {'status':status,'buy_count':buy_count,'sale_count':sale_count,
                 'unallocated_count':unallocated_count,'sale_details':sale_details}
     for day, daily_events in sorted(by_day.items()):
-        buys=[];sales=[]
+        buys=[];sales=[];split_quantity=Decimal('0')
         for event in daily_events:
             operation=str(event['operation'] or '').lower()
-            qty=abs(Decimal(str(event['quantity'] or 0)))
+            source_quantity=Decimal(str(event['quantity'] or 0))
+            qty=abs(source_quantity)
             amount=abs(Decimal(str(event['amount'] or 0)))
             gross=abs(Decimal(str(event.get('gross_amount') or amount)))
             if not event.get('allocated_cash',True): unallocated_count+=1
@@ -405,8 +406,14 @@ def _average_cost(events, cutoff, report_year=None):
             elif operation in ('venda','sell','resgate','redemption'):
                 if qty<=0: return failure('missing_trade_detail')
                 sales.append((qty,amount,gross))
+            elif operation=='split':
+                if source_quantity<=0 or amount or gross: return failure('unsupported_operation')
+                split_quantity+=qty
             elif qty and operation not in ('rendimento','dividendo','juros c p','imposto','taxa'):
                 return failure('unsupported_operation')
+        # The imported split quantity is the additional number of units. A
+        # split changes quantity while preserving the total tax cost.
+        quantity+=split_quantity
         buy_qty=sum((row[0] for row in buys),Decimal('0'))
         buy_amount=sum((row[1] for row in buys),Decimal('0'))
         buy_gross=sum((row[2] for row in buys),Decimal('0'))

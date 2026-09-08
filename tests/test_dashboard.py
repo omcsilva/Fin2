@@ -151,7 +151,7 @@ class DashboardTests(unittest.TestCase):
             'date':date(2024,2,1),'proceeds':Decimal('75'),'gain':Decimal('15'),
             'tax_group':'day_trade','quantity':Decimal('5')}])
 
-    def test_average_cost_failure_preserves_sale_count_for_fiscal_audit(self):
+    def test_split_preserves_total_cost_and_sale_count(self):
         from datetime import date
         events=[
             {'event_date':date(2024,1,2),'operation':'Compra','quantity':10,'amount':100,
@@ -162,8 +162,24 @@ class DashboardTests(unittest.TestCase):
              'gross_amount':75,'allocated_cash':True},
         ]
         result=_average_cost(events,date(2024,12,31),2024)
-        self.assertEqual(result['status'],'unsupported_operation')
+        self.assertEqual(result['status'],'calculated')
+        self.assertEqual(result['quantity'],Decimal('15'))
+        self.assertEqual(result['cost_balance'],Decimal('75'))
+        self.assertEqual(result['average_cost'],Decimal('5'))
+        self.assertEqual(result['realized_gain'],Decimal('50'))
         self.assertEqual(result['sale_count'],1)
+
+    def test_split_with_value_remains_unsupported(self):
+        from datetime import date
+        events=[
+            {'event_date':date(2024,1,2),'operation':'Compra','quantity':10,'amount':100,
+             'gross_amount':100,'allocated_cash':True},
+            {'event_date':date(2024,2,1),'operation':'Split','quantity':10,'amount':1,
+             'gross_amount':1,'allocated_cash':True},
+        ]
+        self.assertEqual(_average_cost(events,date(2024,12,31))['status'],'unsupported_operation')
+        events[1].update(quantity=-10,amount=0,gross_amount=0)
+        self.assertEqual(_average_cost(events,date(2024,12,31))['status'],'unsupported_operation')
 
     def test_tax_class_uses_catalog_product_instead_of_numeric_id_or_name_guess(self):
         self.assertEqual(_tax_class({'product_name':'Ação'}),'stocks')

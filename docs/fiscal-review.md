@@ -70,3 +70,17 @@ por ser Fundo Renda Fixa, sem depender de um ID numérico específico.
 Splits, bonificações e transferências de custódia continuam excluídos até que o
 custo seja reconstruído por titular e ativo com conservação comprovada entre
 contas. O valor legado das portabilidades não é tratado como custo fiscal.
+
+## Desdobramentos em 07/09/2026
+
+Desdobramentos simples com quantidade adicional explícita e valor zero agora
+preservam o custo total e aumentam somente a quantidade. Essa regra resolveu a
+aplicação BBAS3 de Marcos, cujo desdobramento de 700 ações em 23/04/2024 ocorreu
+depois da venda histórica, sem alterar o ganho já realizado.
+
+A revalidação passou a produzir 50 combinações mensais e 31 aplicações
+excluídas: 30 por portabilidade, bonificação ou outro evento que ainda exige
+decisão de custo, e uma pela venda PETR4 sem quantidade e valor. Os dois grupos
+de IRRF continuam sem competência documental. Desdobramentos combinados com
+uma transferência anterior, como BTCI11 e GGRC11, permanecem excluídos pela
+transferência.

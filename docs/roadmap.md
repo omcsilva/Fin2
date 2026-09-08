@@ -29,7 +29,10 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] [Conferir saldos, rendimentos, fluxos e avaliações finais contra o Fin1](final-reconciliation.md); comparação dinâmica disponível em Conciliação na data do corte, com ajustes posteriores do Fin2 destacados.
 - [x] Classificar fluxos que exigem decisão documental; o ledger não possui fluxos na categoria `unclassified`, inclusive considerando entidades zeradas.
 - [x] Validar competência de IRRF e separar operações day trade.
-- [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md); quantidades documentadas de VALE3 e escopo por produto foram corrigidos, mas portabilidades, eventos societários, PETR4 e dois grupos de IRRF continuam pendentes.
+- [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md);
+  quantidades documentadas de VALE3, escopo por produto e desdobramento BBAS3
+  foram corrigidos, mas 31 aplicações, incluindo portabilidades, bonificação e
+  PETR4 sem detalhe, além de dois grupos de IRRF, continuam pendentes.
 - [ ] Completar a avaliação de Brasilprev CICLO DE VIDA 2030 I PGBL com fonte e
   data; nenhum dos 286 documentos preservados contém um extrato com a cota.
   O INRD11 foi resolvido pela brapi, com fechamento de R$ 72,65 em 27/08/2026
