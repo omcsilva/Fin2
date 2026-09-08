@@ -93,9 +93,10 @@ def context(request, connection, batch_id=None):
                   'r.legacy_id=ac.institution_id'),
                 ('conta','▣','Contas','portfolio.account',
                   'r.legacy_id=ap.account_id')]
+    menu_connection = scoped_connection(connection, request.GET.get('include_zeroed') == '1')
     navigation_catalogs=[]
     for kind,symbol,label,relation,join_condition in menu_specs:
-        items=query(connection,f"""SELECT DISTINCT r.source_record_id,
+        items=query(menu_connection,f"""SELECT DISTINCT r.source_record_id,
           COALESCE(r.name,json_extract_string(er.payload,'$.abrev'),'Sem nome') AS name,
           json_extract_string(er.payload,'$.imagem') image_key
           FROM portfolio.application ap

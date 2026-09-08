@@ -45,6 +45,10 @@ class ReportConnection:
 
 
 def scoped_connection(connection, include_zeroed=False):
+    if isinstance(connection, ReportConnection):
+        if not include_zeroed:
+            return connection
+        connection = connection.connection
     if include_zeroed:
         return connection
     records = connection.execute('''SELECT record_id,batch_id,legacy_id,table_name,payload

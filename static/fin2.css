@@ -270,8 +270,19 @@ td{padding-block:6.5px}
 /* Menu spacing comes from minimum heights, rather than vertical padding. */
 .main-menu{min-height:24px;padding-inline:var(--ui-gutter)}
 .main-menu>a,.menu-group summary{min-height:23px}
-.submenu{padding-block:2px}
-.main-menu .submenu a{padding-block:5px}
+.submenu{padding:0}
+.main-menu .submenu a{
+  display:grid;
+  grid-template-columns:22px minmax(0,1fr);
+  align-items:center;
+  column-gap:9px;
+  margin:0;
+  padding:2.5px 6.5px;
+  border-bottom:0;
+}
+.main-menu .submenu a::after{display:none}
+.main-menu .submenu a>img{grid-column:1;grid-row:1;display:block}
+.main-menu .submenu a>span{grid-column:2;grid-row:1;min-width:0}
 nav.panel>a{padding-block:4px}
 .status-bar{min-height:23px;padding-inline:var(--ui-gutter)}
 .status-bar>span{padding-block:3.5px}

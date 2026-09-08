@@ -22,6 +22,7 @@ class ReportStatusTests(unittest.TestCase):
         self.product=self.add('produto',nome='Produto de teste')
         currency=self.add('moeda',nome='Real',abrev='BRL')
         category=self.add('classe',nome='Classe de teste')
+        self.category=category
         self.account=self.add('conta',nome='Conta filtrável',titular_id=self.owner['legacy_id'],
             instituicao_id=self.institution['legacy_id'],moeda_id=currency['legacy_id'])
         self.asset=self.add('ativo',nome='Ativo filtrável',abrev='TEST4',produto_id=self.product['legacy_id'],
@@ -99,3 +100,32 @@ class ReportStatusTests(unittest.TestCase):
             self.assertIn('name="include_zeroed" value="1" checked',response.content.decode())
             self.assertIn('include_zeroed=1',response.content.decode())
             self.assertEqual(client.get('/fin2/caixa/?account='+str(self.account['legacy_id'])).status_code,404)
+
+    def test_catalog_navigation_follows_status_on_raw_and_scoped_pages(self):
+        from django.test import RequestFactory
+        from fin2.dashboard.views import context
+        expected = {
+            'classe': self.category['record_id'],
+            'produto': self.product['record_id'],
+            'titular': self.owner['record_id'],
+            'instituicao': self.institution['record_id'],
+            'conta': self.account['record_id'],
+        }
+        factory = RequestFactory()
+        for kind, item in [('conta', self.account), ('ativo', self.asset),
+                           ('produto', self.product), ('titular', self.owner),
+                           ('instituicao', self.institution)]:
+            self.status(kind, item, 'ZERADA' if kind == 'conta' else 'ZERADO')
+            with connect(self.f.database) as db:
+                for include in (False, True):
+                    request = factory.get('/fin2/cadastros/',
+                                          {'include_zeroed': '1'} if include else {})
+                    for connection in (db, scoped_connection(db, include)):
+                        with self.subTest(kind=kind, include=include,
+                                          connection=type(connection).__name__):
+                            menus = context(request, connection)['navigation_catalogs']
+                            for menu in menus:
+                                ids = {row['source_record_id'] for row in menu['items']}
+                                self.assertEqual(expected[menu['kind']] in ids, include,
+                                                 menu['kind'])
+            self.status(kind, item, '')
