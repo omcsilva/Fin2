@@ -110,6 +110,8 @@ novo resultado tenha sido gravado.
 O contador inicial informa somente quantos ativos ainda exigem consulta. Quando
 esse número é zero, o resultado final informa que todos os ativos possuem
 cotações atualizadas na data de hoje.
+Ao pressionar o botão, a interface informa imediatamente que está verificando os
+ativos a serem atualizados; depois substitui essa mensagem pela contagem apurada.
 
 A resposta original é guardada em `external_quote_capture`, junto com SHA-256,
 endpoint, horário, interpretação e estado `accepted` ou `rejected`. A view

@@ -650,7 +650,7 @@ def price_update_status(request):
             with reader(settings.WAREHOUSE_PATH) as connection:
                 rows=query(connection,"SELECT * FROM price_update_job WHERE job_id=?",[rows[0]['job_id']])
         result=rows[0];result['last_price_update']=last
-        if result['status'] in ('queued','running'):
+        if result['status'] in ('queued','running') and result['message'].startswith('Consultando o último fechamento'):
             result['message']=previous[0]['message'] if previous else ''
         return JsonResponse(result)
     except Unavailable:

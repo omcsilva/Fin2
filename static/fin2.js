@@ -34,7 +34,7 @@
       const job=await response.json();
       last.textContent=formatDate(job.last_price_update);
       active=job.status==='queued'||job.status==='running';
-      if (!active) status.textContent=job.message || '';
+      status.textContent=job.message || '';
       button.disabled=false;button.textContent=active?'■':'⟳';
       button.title=active?'Cancelar atualização de preços':'Atualizar preços';
       button.setAttribute('aria-label',button.title);
@@ -48,6 +48,7 @@
     const cancelling=active;
     button.disabled=true;button.textContent=cancelling?'■':'◌';
     button.title=cancelling?'Cancelando atualização de preços':'Iniciando atualização de preços';button.setAttribute('aria-label',button.title);
+    if (!cancelling) status.textContent='Verificando ativos a serem atualizados...';
     try {
       const response=await fetch(cancelling?form.dataset.cancelUrl:form.action,{method:'POST',body:new FormData(form),headers:{Accept:'application/json'}});
       if (!response.ok) throw new Error();

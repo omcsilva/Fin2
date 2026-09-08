@@ -40,7 +40,7 @@ def run(database,job_id,batch_id,collection_id=None,fetcher=fetch_latest_close,s
         try:
             if job_id in CANCELLED_JOB_IDS:return
             today=today or datetime.now(LOCAL_ZONE).date()
-            _set(database,job_id,status='running',started_at=datetime.now(timezone.utc),message='Selecionando ativos compatíveis')
+            _set(database,job_id,status='running',started_at=datetime.now(timezone.utc),message='Verificando ativos a serem atualizados...')
             with connect(database) as db:
                 rows=db.execute("""SELECT a.source_record_id,a.symbol,a.name,
                     EXISTS(SELECT 1 FROM market.asset_price_query_success c WHERE c.source_record_id=a.source_record_id
