@@ -641,12 +641,17 @@ def price_update_status(request):
     try:
         with reader(settings.WAREHOUSE_PATH) as connection:
             rows=query(connection,"SELECT * FROM price_update_job ORDER BY created_at DESC LIMIT 1")
+            previous=query(connection,"""SELECT message FROM price_update_job
+              WHERE status IN ('completed','failed','cancelled')
+              ORDER BY finished_at DESC,created_at DESC LIMIT 1""")
             last=connection.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
         if not rows:return JsonResponse({'status':'idle','message':'','last_price_update':last})
         if rows[0]['status'] in ('queued','running') and recover_interrupted(settings.WAREHOUSE_PATH,rows[0]['job_id']):
             with reader(settings.WAREHOUSE_PATH) as connection:
                 rows=query(connection,"SELECT * FROM price_update_job WHERE job_id=?",[rows[0]['job_id']])
         result=rows[0];result['last_price_update']=last
+        if result['status'] in ('queued','running'):
+            result['message']=previous[0]['message'] if previous else ''
         return JsonResponse(result)
     except Unavailable:
         return JsonResponse({'status':'unavailable','message':'Estado indisponível'},status=503)

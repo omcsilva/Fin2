@@ -303,7 +303,8 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(status.status_code,200)
         self.assertEqual(status.json()['status'],'idle')
 
-    def test_running_price_job_keeps_previous_result_visible(self):
+    @patch('fin2.dashboard.views.recover_interrupted',return_value=False)
+    def test_running_price_job_keeps_previous_result_visible(self, recover):
         with connect(self.fixture.database) as c:
             batch=c.execute('SELECT batch_id FROM import_batch').fetchone()[0]
             c.execute("""INSERT INTO price_update_job
@@ -316,6 +317,9 @@ class DashboardTests(unittest.TestCase):
         html=self.client.get('/fin2/').content.decode()
         self.assertIn('Resultado anterior',html)
         self.assertNotIn('Consultando o último fechamento',html)
+        status=self.client.get('/fin2/cotacoes/atualizacao/').json()
+        self.assertEqual(status['status'],'running')
+        self.assertEqual(status['message'],'Resultado anterior')
 
     def test_storage_path_cannot_escape_and_corruption_not_served(self):
         with connect(self.fixture.database) as c:

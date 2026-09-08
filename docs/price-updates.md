@@ -104,7 +104,9 @@ consultar o próximo ativo. O resultado recém-gravado é mostrado imediatamente
 na barra de status e permanece visível durante essa espera, sem uma mensagem
 intermediária. Um ativo que já tenha uma consulta
 bem-sucedida na data corrente, considerada no fuso `America/Sao_Paulo`, é
-retirado da fila sem nova chamada à brapi.
+retirado da fila sem nova chamada à brapi e sem espera. Durante uma consulta,
+tanto a interface quanto o endpoint preservam o resultado anterior até que o
+novo resultado tenha sido gravado.
 
 A resposta original é guardada em `external_quote_capture`, junto com SHA-256,
 endpoint, horário, interpretação e estado `accepted` ou `rejected`. A view

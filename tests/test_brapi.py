@@ -123,7 +123,9 @@ class BrapiTests(unittest.TestCase):
                 self.assertEqual(selected,(Decimal('12.34'),'brapi_v2'))
                 second='c'*64
                 db.execute("INSERT INTO price_update_job(job_id,batch_id,status,created_at,message) VALUES(?,?, 'queued',?,'test')",[second,batch,NOW])
-            run_price_job(f.database,second,batch,fetcher=lambda symbol:self.fail('ativo consultado duas vezes no mesmo dia'),today=NOW.date())
+            run_price_job(f.database,second,batch,
+              fetcher=lambda symbol:self.fail('ativo consultado duas vezes no mesmo dia'),
+              sleeper=lambda seconds:self.fail('ativo já consultado não deve aguardar'),today=NOW.date())
             with connect(f.database) as db:
                 self.assertEqual(db.execute('SELECT status,target_count,accepted_count FROM price_update_job WHERE job_id=?',[second]).fetchone(),('completed',1,1))
                 db.execute("UPDATE market.daily_close SET close=99 WHERE trading_date=DATE '2026-08-28'")
