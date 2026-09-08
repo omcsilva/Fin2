@@ -19,5 +19,9 @@ class PriceHistoryTests(unittest.TestCase):
     capture(db,[(record,'PETR4')],BODY,NOW)
     self.assertEqual(db.execute('select count(*),min(close),min(adjusted_close) from market.daily_close').fetchone(),(1,Decimal('12.5000000000'),Decimal('12.4000000000')))
     self.assertEqual(db.execute('select count(*) from market.history_capture').fetchone()[0],1)
+    observation=db.execute("""select price,cast(quoted_at as date),provider
+      from market.ledger_price_observation
+      where source_record_id=? and provider='brapi_v2'""",[record]).fetchone()
+    self.assertEqual(observation,(Decimal('12.4000000000'),NOW.date(),'brapi_v2'))
    with self.assertRaises(ValueError): parse(b'{}',{'PETR4'})
   finally:f.tearDown()
