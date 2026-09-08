@@ -30,8 +30,10 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] Classificar fluxos que exigem decisão documental; o ledger não possui fluxos na categoria `unclassified`, inclusive considerando entidades zeradas.
 - [x] Validar competência de IRRF e separar operações day trade.
 - [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md); quantidades documentadas de VALE3 e escopo por produto foram corrigidos, mas portabilidades, eventos societários, PETR4 e dois grupos de IRRF continuam pendentes.
-- [ ] Completar avaliações de Brasilprev CICLO DE VIDA 2030 I PGBL e INRD11
-  com fonte e data; ambas permanecem sem preço legado válido na verificação local de 07/09.
+- [ ] Completar a avaliação de Brasilprev CICLO DE VIDA 2030 I PGBL com fonte e
+  data; nenhum dos 286 documentos preservados contém um extrato com a cota.
+  O INRD11 foi resolvido pela brapi, com fechamento de R$ 72,65 em 27/08/2026
+  para o corte de 31/08/2026.
 - [x] Normalizar REAL, DOL e EUR para códigos ISO, preservando os valores originais no payload importado.
 - [x] Completar o histórico dos ativos anterior aos três meses da brapi; 183.218 fechamentos oficiais da B3 cobrem os 78 ativos mapeados desde a primeira compra registrada.
 - [x] Complementar o Ibovespa com arquivos oficiais da B3; 6.614 fechamentos diários cobrem 03/01/2000 a 04/09/2026.
@@ -40,12 +42,13 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 
 ## Pendências operacionais
 
-- [ ] Decidir se preços e índices receberão agendamento.
+- [x] [Decidir sobre agendamento de preços e índices](price-updates.md#decisão-de-agendamento):
+  manter atualizações manuais enquanto não houver coordenação entre escritores.
 - [x] Aprovar e ativar retenção automática: 7 backups regulares, 3 pré-atualização e a referência restaurada.
 - [x] Monitorar diariamente serviço, HTTP, banco, backups e espaço livre por
   `fin2-health.timer`, com falhas registradas no journal.
-- [ ] Medir picos de CPU, memória e duração durante importações e atualizações
-  de preços; a linha de base do serviço, backup e implantação já foi registrada.
+- [ ] Medir picos de CPU, memória e duração durante importações; serviço, backup,
+  implantação e uma atualização completa de 66 preços já foram medidos.
 - [x] [Documentar um ciclo produtivo completo, incluindo restauração](production-cycle.md).
 - [ ] Obter aceitação final da reconciliação dos dados já importados.
 

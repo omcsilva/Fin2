@@ -30,4 +30,6 @@ anuais oficiais da B3 desde 03/01/2000; a série descontinuada do SGS permanece
 como evidência, mas a B3 prevalece nas datas coincidentes. O Fin2 não interpola dados
 nem cria valores sintéticos.
 
-Também falta decidir sobre agendamento.
+Não há agendamento automático de escritores. A [decisão de agendamento](price-updates.md#decisão-de-agendamento)
+mantém a brapi sob comando manual no processo web e reserva BCB/B3 para janelas
+explícitas de manutenção, evitando concorrência entre processos no DuckDB.

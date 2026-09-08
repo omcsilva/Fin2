@@ -218,6 +218,25 @@ coordena processos externos executados pelo terminal.
   meses retornados; ele não recupera períodos anteriores nem atualiza índices.
 - O histórico antigo dos ativos é carregado explicitamente dos arquivos anuais
   COTAHIST; o botão atualiza somente o período recente.
+
+## Decisão de agendamento
+
+Decisão registrada em 07/09/2026: nenhum fluxo de preço ou índice será executado
+por um processo agendado independente.
+
+- O fechamento recente pela brapi continua sob comando manual no dashboard. O
+  trabalho roda dentro do único processo web, respeita o intervalo do provedor,
+  permite cancelamento e compartilha o bloqueio de escrita do DuckDB.
+- CDI, Selic, IPCA e câmbio pelo BCB continuam como manutenção explícita. O
+  comando reconsulta todo o período desde 2000 e abre o banco em outro processo;
+  deve ser executado com backup e serviço parado.
+- O Ibovespa e o histórico antigo dos ativos dependem de arquivos oficiais anuais
+  da B3. Eles são importados quando um novo arquivo é obtido e verificado.
+
+Um agendamento futuro exige primeiro um coordenador único de escrita entre o
+serviço e comandos externos, além de atualização incremental dos índices. Até
+lá, timers separados poderiam disputar o arquivo DuckDB ou interromper um trabalho
+da interface.
 - Ativos sem ticker inequívoco, com moeda ou multiplicador incompatível, ou sem
   suporte do provedor permanecem sem cotação externa.
 - A série descontinuada do SGS permanece como evidência; a projeção efetiva do

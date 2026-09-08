@@ -105,3 +105,9 @@ de sete segundos. O serviço voltou com HTTP 200 e a cópia cifrada foi confirma
 Treze snapshots pré-atualização antigos não possuem comprovante externo e são
 preservados pela retenção para inspeção. Eles ocupam aproximadamente 3,6 GB. Os
 novos snapshots possuem recibo externo e seguem a janela automática configurada.
+
+Uma atualização manual completa de preços em 07/09/2026 processou 66 ativos e
+ignorou 90 conforme as regras de elegibilidade. Todos os 66 foram aceitos, sem
+rejeição ou falha, em 7 minutos e 10 segundos. Durante a amostragem, mestre e
+worker do Gunicorn atingiram aproximadamente 166 MB de RSS e 12,4% de CPU
+agregado. A espera de cinco segundos entre chamadas domina a duração do trabalho.

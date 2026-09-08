@@ -35,3 +35,16 @@ seus valores deixam de aparecer, conforme a regra global dos relatórios.
 Não foram encontradas diferenças de avaliação ou rendimento no conjunto com
 cobertura. As diferenças de caixa e fluxo encontradas são integralmente
 explicadas pelos lançamentos corretivos do Fin2.
+
+## Atualização de cobertura em 07/09/2026
+
+O INRD11 deixou de ser uma pendência: a série aceita da brapi contém 60
+fechamentos e fornece R$ 72,65 em 27/08/2026, último pregão disponível antes do
+corte. Para 150 cotas, ele acrescenta R$ 10.897,50 à avaliação ativa em BRL.
+A comparação congelada acima preserva o resultado conferido em 06/09; a tela
+dinâmica de conciliação passa a mostrar esse acréscimo do Fin2 e apenas a
+Brasilprev como bloqueio de avaliação.
+
+Nenhum dos 286 documentos preservados contém cota ou saldo atualizado da
+Brasilprev. Completar essa avaliação exige um extrato individual com data e
+valor da cota; o custo médio não será usado como substituto de valor de mercado.
