@@ -103,4 +103,17 @@ Uma segunda rodada transportou o custo líquido reconstruído em outras 18 perna
 integrais, nas quais o valor patrimonial preservado divergia do custo fiscal.
 Foram resolvidos BRCR11, DIVO11, ELET3, KNRI11, USIM3, VALE3 e LIGT3 nos pares
 com origem identificada. A prévia passou a 59 combinações mensais e nove
-aplicações excluídas: oito por operação sem cadeia completa e a PETR4 sem detalhe.
+aplicações excluídas: oito por operação sem cadeia completa e a PETR4 sem origem
+de aquisição para suportar a venda comprovada.
+
+## Nota Clear 1484178 em 07/09/2026
+
+A nota vinculada ao movimento 3245 comprova a venda de 100 PETR4 a R$ 25,18 em
+09/11/2018. O líquido de R$ 42.787,37 foi rateado proporcionalmente entre os
+R$ 40.285,00 de ITAUSA e os R$ 2.518,00 de PETR4, resultando respectivamente em
+R$ 40.270,2894762049 e R$ 2.517,0805237951.
+
+A aplicação PETR4 continua excluída porque as compras e vendas anteriores deixam
+estoque zero antes dessa venda. A própria observação importada questiona a origem
+das 100 ações. O bloqueio passa de detalhe ausente para venda acima do estoque;
+a nota comprova a alienação, mas não comprova a aquisição nem seu custo.
