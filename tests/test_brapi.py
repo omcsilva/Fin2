@@ -110,6 +110,9 @@ class BrapiTests(unittest.TestCase):
                 db.execute("INSERT INTO price_update_job(job_id,batch_id,status,created_at,message) VALUES(?,?,'queued',?,'test')",[job,batch,NOW])
             def fake(symbol):
                 self.assertEqual(symbol,'PETR4')
+                with connect(f.database) as db:
+                    self.assertEqual(db.execute('SELECT message FROM price_update_job WHERE job_id=?',[job]).fetchone()[0],
+                                     'Atualizando 1 ativos configurados para BRAPI')
                 return history_response(),NOW
             run_price_job(f.database,job,batch,fetcher=fake,today=NOW.date())
             with connect(f.database) as db:
@@ -127,7 +130,8 @@ class BrapiTests(unittest.TestCase):
               fetcher=lambda symbol:self.fail('ativo consultado duas vezes no mesmo dia'),
               sleeper=lambda seconds:self.fail('ativo já consultado não deve aguardar'),today=NOW.date())
             with connect(f.database) as db:
-                self.assertEqual(db.execute('SELECT status,target_count,accepted_count FROM price_update_job WHERE job_id=?',[second]).fetchone(),('completed',1,1))
+                self.assertEqual(db.execute('SELECT status,target_count,accepted_count,message FROM price_update_job WHERE job_id=?',[second]).fetchone(),
+                  ('completed',1,1,'Todos ativos possuem cotações atualizadas na data de hoje'))
                 db.execute("UPDATE market.daily_close SET close=99 WHERE trading_date=DATE '2026-08-28'")
                 third='d'*64
                 tomorrow=NOW+timedelta(days=1)

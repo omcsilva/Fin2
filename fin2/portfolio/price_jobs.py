@@ -59,7 +59,10 @@ def run(database,job_id,batch_id,collection_id=None,fetcher=fetch_latest_close,s
                     db.executemany("""INSERT INTO market.price_update_job_asset
                       (job_id,source_record_id,asset_name,symbol,method,status) VALUES (?,?,?,?, 'BRAPI','pending')""",
                       [(job_id,record,symbol,name) for record,symbol,name,current in rows])
-            _set(database,job_id,target_count=len(rows),skipped_count=max(total-len(rows),0),message=f'Atualizando {len(rows)} ativos configurados para BRAPI')
+            pending_count=sum(not current_today for _,_,_,current_today in rows)
+            selection_message=(f'Atualizando {pending_count} ativos configurados para BRAPI' if pending_count
+                               else 'Todos ativos possuem cotações atualizadas na data de hoje')
+            _set(database,job_id,target_count=len(rows),skipped_count=max(total-len(rows),0),message=selection_message)
             accepted=rejected=failed=disabled=0;last_success=None;failures=[];queries=0
             for record_id,symbol,name,current_today in rows:
                 label=f'{name} ({symbol})' if name and symbol and name!=symbol else (symbol or name or record_id[:8])
@@ -127,8 +130,11 @@ def run(database,job_id,batch_id,collection_id=None,fetcher=fetch_latest_close,s
                 finished=datetime.now(timezone.utc)
                 with connect(database) as db:
                     db.execute("UPDATE market.price_update_state SET last_successful_at=?,job_id=? WHERE state_key='assets'",[finished,job_id])
-                summary=(last_success+' · ' if last_success else '')+f'Concluído: {accepted} ativos atualizados'
-                if disabled:summary+=f', {disabled} alterados para NENHUM'
+                if pending_count==0:
+                    summary='Todos ativos possuem cotações atualizadas na data de hoje'
+                else:
+                    summary=(last_success+' · ' if last_success else '')+f'Concluído: {pending_count-disabled} ativos atualizados'
+                    if disabled:summary+=f', {disabled} alterados para NENHUM'
             elif failures:
                 summary='Falharam: '+', '.join(failures)
             else: summary='Nenhum ativo configurado para atualização BRAPI'
