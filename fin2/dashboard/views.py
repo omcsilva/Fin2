@@ -391,9 +391,14 @@ def _average_cost(events, cutoff, report_year=None):
             operation=str(event['operation'] or '').lower()
             buy_count += operation in ('compra','buy')
             sale_count += operation in ('venda','sell','resgate','redemption')
-    def failure(status):
+    sale_dates=[day for day,daily_events in by_day.items() if any(
+        str(event['operation'] or '').lower() in ('venda','sell','resgate','redemption')
+        for event in daily_events)]
+    last_sale_date=max(sale_dates) if sale_dates else None
+    def failure(status, failure_date):
         return {'status':status,'buy_count':buy_count,'sale_count':sale_count,
-                'unallocated_count':unallocated_count,'sale_details':sale_details}
+                'unallocated_count':unallocated_count,'sale_details':sale_details,
+                'tax_sales_complete':bool(last_sale_date and failure_date>last_sale_date)}
     for day, daily_events in sorted(by_day.items()):
         buys=[];sales=[];split_quantity=Decimal('0')
         for event in daily_events:
@@ -404,23 +409,23 @@ def _average_cost(events, cutoff, report_year=None):
             gross=abs(Decimal(str(event.get('gross_amount') or amount)))
             if not event.get('allocated_cash',True): unallocated_count+=1
             if operation in ('compra','buy'):
-                if qty<=0 or amount<=0: return failure('missing_trade_detail')
+                if qty<=0 or amount<=0: return failure('missing_trade_detail',day)
                 buys.append((qty,amount,gross))
             elif operation in ('venda','sell','resgate','redemption'):
-                if qty<=0: return failure('missing_trade_detail')
+                if qty<=0: return failure('missing_trade_detail',day)
                 sales.append((qty,amount,gross))
             elif operation=='split':
-                if source_quantity<=0 or amount or gross: return failure('unsupported_operation')
+                if source_quantity<=0 or amount or gross: return failure('unsupported_operation',day)
                 split_quantity+=qty
             elif operation=='tax_transfer_in':
-                if source_quantity<=0 or amount<=0: return failure('unsupported_operation')
+                if source_quantity<=0 or amount<=0: return failure('unsupported_operation',day)
                 quantity+=source_quantity;cost+=amount
             elif operation=='tax_transfer_out':
                 if source_quantity<=0 or amount<=0 or quantity<source_quantity or cost<amount:
-                    return failure('unsupported_operation')
+                    return failure('unsupported_operation',day)
                 quantity-=source_quantity;cost-=amount
             elif qty and operation not in ('rendimento','dividendo','juros c p','imposto','taxa'):
-                return failure('unsupported_operation')
+                return failure('unsupported_operation',day)
         # The imported split quantity is the additional number of units. A
         # split changes quantity while preserving the total tax cost.
         quantity+=split_quantity
@@ -448,7 +453,7 @@ def _average_cost(events, cutoff, report_year=None):
             quantity+=remaining_buy;cost+=buy_amount*remaining_buy/buy_qty
         remaining_sale=sell_qty-day_trade_qty
         if remaining_sale:
-            if quantity<remaining_sale: return failure('insufficient_quantity')
+            if quantity<remaining_sale: return failure('insufficient_quantity',day)
             proceeds=sell_amount*remaining_sale/sell_qty
             allocated=cost*remaining_sale/quantity
             gain=proceeds-allocated
@@ -917,9 +922,11 @@ def reports(request,connection):
     data.update(cost_basis=calculated,cost_basis_excluded=excluded)
     data['tax_excluded']=[application for application in excluded
       if application.get('sale_count',0) and application['currency']=='BRL' and
-      _tax_class(application)]
+      _tax_class(application) and not application.get('tax_sales_complete')]
+    tax_applications=calculated+[application for application in excluded
+      if application.get('tax_sales_complete')]
     tax_buckets={}
-    for application in calculated:
+    for application in tax_applications:
         tax_class=_tax_class(application)
         if application['currency']!='BRL' or not tax_class: continue
         for sale in application['sale_details']:

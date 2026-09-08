@@ -5,12 +5,15 @@ e todas as aplicações, inclusive as marcadas como zeradas.
 
 ## Estado da apuração
 
-O estado vigente em produção, após as correções de 07/09/2026, é de 59
-combinações mensais, nove aplicações em reais com vendas excluídas e dois grupos
-de IRRF sem apuração correspondente. As nove aplicações são BBPO11 de Marcos,
-BTCI11 de Luciana, CMIG4 de Marcos, DIVO11 de Luciana, ELET3 de Marcos, NUBR33
-de Marcos, duas aplicações PETR4 e VALE3 de Marcos. Os números maiores nas
-seções seguintes registram etapas anteriores da revisão e foram superados.
+Após considerar vendas integralmente reconstruídas que antecedem um bloqueio
+posterior, a revalidação de 08/09/2026 produz 61 combinações mensais, seis
+aplicações em reais com vendas excluídas e dois grupos de IRRF sem apuração
+correspondente. As seis aplicações são BBPO11 de Marcos, BTCI11 de Luciana,
+NUBR33 de Marcos, duas aplicações PETR4 e VALE3 de Marcos. CMIG4, DIVO11 e ELET3
+deixaram de bloquear os resultados já realizados porque seus eventos não
+resolvidos ocorreram depois da última venda; esses eventos continuam impedindo
+o cálculo da posição fiscal final da aplicação. Os números maiores nas seções
+seguintes registram etapas anteriores da revisão e foram superados.
 
 A prévia reconstrói 45 combinações de mês, titular e modalidade entre junho de
 2016 e maio de 2024. Esses resultados ainda não formam o relatório fiscal final:
@@ -30,7 +33,7 @@ restam exclusões nem IRRF sem correspondência.
 
 ## Condições atuais para conclusão
 
-- reconstruir o custo das nove aplicações excluídas a partir das notas e eventos
+- reconstruir o custo das seis aplicações excluídas a partir das notas e eventos
   societários, preservando o custo nas portabilidades;
 - resolver a competência e o aproveitamento dos dois grupos de IRRF;
 - comparar os resultados mensais completos com informes, notas e declarações;

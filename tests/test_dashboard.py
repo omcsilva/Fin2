@@ -181,6 +181,34 @@ class DashboardTests(unittest.TestCase):
         events[1].update(quantity=-10,amount=0,gross_amount=0)
         self.assertEqual(_average_cost(events,date(2024,12,31))['status'],'unsupported_operation')
 
+    def test_later_unsupported_event_does_not_discard_completed_sales(self):
+        from datetime import date
+        events=[
+            {'event_date':date(2024,1,2),'operation':'Compra','quantity':10,'amount':100,
+             'gross_amount':100,'allocated_cash':True},
+            {'event_date':date(2024,2,2),'operation':'Venda','quantity':5,'amount':75,
+             'gross_amount':75,'allocated_cash':True},
+            {'event_date':date(2024,3,2),'operation':'Port. Saída','quantity':5,'amount':50,
+             'gross_amount':50,'allocated_cash':True},
+        ]
+        result=_average_cost(events,date(2024,12,31),2024)
+        self.assertEqual(result['status'],'unsupported_operation')
+        self.assertTrue(result['tax_sales_complete'])
+        self.assertEqual(result['sale_details'][0]['gain'],Decimal('25'))
+
+    def test_earlier_unsupported_event_still_blocks_later_sales(self):
+        from datetime import date
+        events=[
+            {'event_date':date(2024,1,2),'operation':'Port. Entr.','quantity':10,'amount':100,
+             'gross_amount':100,'allocated_cash':True},
+            {'event_date':date(2024,2,2),'operation':'Venda','quantity':5,'amount':75,
+             'gross_amount':75,'allocated_cash':True},
+        ]
+        result=_average_cost(events,date(2024,12,31),2024)
+        self.assertEqual(result['status'],'unsupported_operation')
+        self.assertFalse(result['tax_sales_complete'])
+        self.assertEqual(result['sale_details'],[])
+
     def test_custody_transfer_carries_cost_without_a_sale(self):
         from datetime import date
         source=[

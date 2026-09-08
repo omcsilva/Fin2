@@ -36,8 +36,9 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
   quantidades documentadas de VALE3, escopo por produto e desdobramento BBAS3
   foram corrigidos, e 24 pernas exatas de custódia transportam o custo sem venda;
   outras 18 pernas integrais usam o custo líquido reconstruído na origem;
-  nove aplicações, incluindo cadeias incompletas, bonificação e
-  PETR4 sem origem de aquisição, além de dois grupos de IRRF, continuam pendentes.
+  seis aplicações com cadeia anterior incompleta ou origem de aquisição ausente,
+  além de dois grupos de IRRF, continuam pendentes. Eventos posteriores à última
+  venda não descartam mais ganhos já reconstruídos.
 - [ ] Completar a avaliação de Brasilprev CICLO DE VIDA 2030 I PGBL com fonte e
   data; nenhum dos 286 documentos preservados contém um extrato com a cota.
   O INRD11 foi resolvido pela brapi, com fechamento de R$ 72,65 em 27/08/2026
