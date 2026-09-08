@@ -98,3 +98,9 @@ GGRC11, LUGG11 e SANB11 de Luciana, a revalidação passou a 53 combinações
 mensais e 22 aplicações excluídas: 21 por operações ainda não comprovadas e uma
 pela venda PETR4 sem detalhe. Pares com diferença de custo, conversões de ticker
 e entradas sem saída identificada permanecem bloqueados.
+
+Uma segunda rodada transportou o custo líquido reconstruído em outras 18 pernas
+integrais, nas quais o valor patrimonial preservado divergia do custo fiscal.
+Foram resolvidos BRCR11, DIVO11, ELET3, KNRI11, USIM3, VALE3 e LIGT3 nos pares
+com origem identificada. A prévia passou a 59 combinações mensais e nove
+aplicações excluídas: oito por operação sem cadeia completa e a PETR4 sem detalhe.

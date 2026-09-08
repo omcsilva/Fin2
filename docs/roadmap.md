@@ -32,7 +32,8 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md);
   quantidades documentadas de VALE3, escopo por produto e desdobramento BBAS3
   foram corrigidos, e 24 pernas exatas de custódia transportam o custo sem venda;
-  22 aplicações, incluindo portabilidades divergentes, bonificação e
+  outras 18 pernas integrais usam o custo líquido reconstruído na origem;
+  nove aplicações, incluindo cadeias incompletas, bonificação e
   PETR4 sem detalhe, além de dois grupos de IRRF, continuam pendentes.
 - [ ] Completar a avaliação de Brasilprev CICLO DE VIDA 2030 I PGBL com fonte e
   data; nenhum dos 286 documentos preservados contém um extrato com a cota.
