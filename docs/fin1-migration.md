@@ -16,10 +16,10 @@ movements and 2,428 cash entries. All five quantity discrepancies now have
 audited canonical decisions. “Reais em espécie” was a manual earmarked-cash
 control whose latest movement explicitly closed both `em_carteira` and
 `financeiro`; its stale application quantity was therefore overridden to zero
-without changing the imported record. Cash decisions are complete except for
-APEX Marcos (Banco Inter): seven preserved monthly statements prove that the
-ledger history is incomplete, but no statement after February 2024 is
-available to establish a current canonical balance.
+without changing the imported record. Cash decisions are complete. The APEX
+Marcos (Banco Inter) history was completed with the two withdrawals of
+16 April 2024 reported by the user; the canonical balance is zero and the
+declaration remains recorded as its evidence.
 
 The XP Bancos FIC FIRF CP application is also canonically closed. Its imported
 25 February 2025 redemption and matching withholding-tax entry explicitly set

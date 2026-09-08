@@ -1,6 +1,6 @@
 # Roteiro de implementação
 
-Atualizado em 07/09/2026. O corte do Fin1 já foi concluído; ele está congelado
+Atualizado em 07/09/2026 após a revisão da produção. O corte do Fin1 já foi concluído; ele está congelado
 e não serão importados mais dados de lá. O Fin2 está em produção e é a base de escrita.
 
 ## Concluído
@@ -17,6 +17,8 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] Correções auditadas das cinco divergências originais de quantidade.
 - [x] Custo médio, taxas, isenção mensal, prejuízos e candidatos a IRRF.
 - [x] Histórico disponível de ativos e referências oficiais do BCB.
+- [x] Uso dos fechamentos diários aceitos nas avaliações históricas; o INRD11
+  possui preço válido no último pregão anterior ao corte do Fin1.
 - [x] Atualização brapi individual, intervalo de um segundo, janela recente,
   cancelamento, mecanismo BRAPI/NENHUM e progresso assíncrono.
 - [x] Produção Proxmox, Git privado, releases, Nginx, systemd e HTTPS.
@@ -28,7 +30,8 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] Conciliar a APEX Banco Inter: saídas de 16/04/2024 informadas pelo usuário registradas em 06/09/2026; saldo do ledger zerado. Extratos XP reassociados à conta correta.
 - [x] [Conferir saldos, rendimentos, fluxos e avaliações finais contra o Fin1](final-reconciliation.md); comparação dinâmica disponível em Conciliação na data do corte, com ajustes posteriores do Fin2 destacados.
 - [x] Classificar fluxos que exigem decisão documental; o ledger não possui fluxos na categoria `unclassified`, inclusive considerando entidades zeradas.
-- [x] Validar competência de IRRF e separar operações day trade.
+- [x] Separar operações day trade e usar na apuração somente IRRF com
+  competência comprovada.
 - [ ] [Revisar resultados fiscais reais e emitir relatório fiscal final](fiscal-review.md);
   quantidades documentadas de VALE3, escopo por produto e desdobramento BBAS3
   foram corrigidos, e 24 pernas exatas de custódia transportam o custo sem venda;
@@ -38,7 +41,7 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [ ] Completar a avaliação de Brasilprev CICLO DE VIDA 2030 I PGBL com fonte e
   data; nenhum dos 286 documentos preservados contém um extrato com a cota.
   O INRD11 foi resolvido pela brapi, com fechamento de R$ 72,65 em 27/08/2026
-  para o corte de 31/08/2026.
+  para o corte de 31/08/2026, e deixou de bloquear a conciliação em produção.
 - [x] Normalizar REAL, DOL e EUR para códigos ISO, preservando os valores originais no payload importado.
 - [x] Completar o histórico dos ativos anterior aos três meses da brapi; 183.218 fechamentos oficiais da B3 cobrem os 78 ativos mapeados desde a primeira compra registrada.
 - [x] Complementar o Ibovespa com arquivos oficiais da B3; 6.614 fechamentos diários cobrem 03/01/2000 a 04/09/2026.
@@ -56,6 +59,14 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
   implantação e uma atualização completa de 66 preços já foram medidos.
 - [x] [Documentar um ciclo produtivo completo, incluindo restauração](production-cycle.md).
 - [ ] Obter aceitação final da reconciliação dos dados já importados.
+
+## Estado verificado em produção
+
+Na revisão `cb19e52`, a página de conciliação responde HTTP 200 e apresenta 45
+posições BRL e 13 USD avaliadas no escopo padrão, sem bloqueios de avaliação,
+saldo ou quantidade. A suíte automatizada possui 89 testes aprovados. Permanecem
+abertos o relatório fiscal final, a avaliação documental da Brasilprev, a
+medição de importações e a aceitação final.
 
 A pasta no rpi5 já participa do backup do usuário no Backblaze. O Fin2 comprova
 somente a exportação cifrada até o rpi5.

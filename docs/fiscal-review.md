@@ -5,6 +5,13 @@ e todas as aplicações, inclusive as marcadas como zeradas.
 
 ## Estado da apuração
 
+O estado vigente em produção, após as correções de 07/09/2026, é de 59
+combinações mensais, nove aplicações em reais com vendas excluídas e dois grupos
+de IRRF sem apuração correspondente. As nove aplicações são BBPO11 de Marcos,
+BTCI11 de Luciana, CMIG4 de Marcos, DIVO11 de Luciana, ELET3 de Marcos, NUBR33
+de Marcos, duas aplicações PETR4 e VALE3 de Marcos. Os números maiores nas
+seções seguintes registram etapas anteriores da revisão e foram superados.
+
 A prévia reconstrói 45 combinações de mês, titular e modalidade entre junho de
 2016 e maio de 2024. Esses resultados ainda não formam o relatório fiscal final:
 33 aplicações brasileiras ou FII que possuem vendas foram excluídas porque seu
@@ -21,9 +28,9 @@ agora identifica programaticamente aplicações excluídas que contêm vendas e 
 considera a apuração completa quando o escopo inclui aplicações zeradas e não
 restam exclusões nem IRRF sem correspondência.
 
-## Condições para conclusão
+## Condições atuais para conclusão
 
-- reconstruir o custo das 33 aplicações excluídas a partir das notas e eventos
+- reconstruir o custo das nove aplicações excluídas a partir das notas e eventos
   societários, preservando o custo nas portabilidades;
 - resolver a competência e o aproveitamento dos dois grupos de IRRF;
 - comparar os resultados mensais completos com informes, notas e declarações;

@@ -24,11 +24,11 @@ estornado. Por isso, comparados ao Fin1, o Fin2 mostra USD +2.171,70 em aportes
 e USD -14.838,19 em retiradas. O efeito líquido é USD -12.666,49 e coincide
 com o ajuste da conta APEX.
 
-## Cobertura
+## Cobertura na conferência original
 
 Foram avaliadas 46 posições em BRL e 13 em USD. Duas posições BRL permanecem
 fora do total por ausência de cotação válida: Brasilprev CICLO DE VIDA 2030 I
-PGBL e INRD11. A interface lista ambas como avaliações pendentes e não presume
+PGBL e INRD11. A interface listava ambas como avaliações pendentes e não presumia
 valor zero. Com **Incluir zerados?** desmarcado, itens marcados como ZERADO e
 seus valores deixam de aparecer, conforme a regra global dos relatórios.
 
@@ -36,15 +36,25 @@ Não foram encontradas diferenças de avaliação ou rendimento no conjunto com
 cobertura. As diferenças de caixa e fluxo encontradas são integralmente
 explicadas pelos lançamentos corretivos do Fin2.
 
-## Atualização de cobertura em 07/09/2026
+## Estado atual em produção em 07/09/2026
 
-O INRD11 deixou de ser uma pendência: a série aceita da brapi contém 60
+O INRD11 deixou de ser uma pendência: a série aceita da brapi contém 61
 fechamentos e fornece R$ 72,65 em 27/08/2026, último pregão disponível antes do
 corte. Para 150 cotas, ele acrescenta R$ 10.897,50 à avaliação ativa em BRL.
-A comparação congelada acima preserva o resultado conferido em 06/09; a tela
-dinâmica de conciliação passa a mostrar esse acréscimo do Fin2 e apenas a
-Brasilprev como bloqueio de avaliação.
+A migração `0053_historical_prices_in_valuation.sql` passou a usar a série
+diária aceita nas avaliações por data de corte. Antes dela, os fechamentos
+estavam preservados, mas a avaliação consultava apenas o último preço e a
+referência importada.
+
+A comparação congelada acima preserva o resultado conferido em 06/09. No escopo
+padrão atual, que exclui entidades zeradas, a tela dinâmica apresenta 45
+posições BRL e 13 USD avaliadas e nenhum bloqueio. A diferença de R$ 36.569,21
+entre Fin2 e Fin1 em BRL decorre dos preços históricos aceitos no Fin2; não é
+uma ausência de cobertura. Saldos e quantidades continuam sem pendências.
 
 Nenhum dos 286 documentos preservados contém cota ou saldo atualizado da
 Brasilprev. Completar essa avaliação exige um extrato individual com data e
 valor da cota; o custo médio não será usado como substituto de valor de mercado.
+Essa pendência continua aberta para os escopos em que a aplicação é incluída.
+
+A aceitação final da reconciliação ainda não foi registrada.

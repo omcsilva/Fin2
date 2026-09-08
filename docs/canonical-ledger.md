@@ -22,16 +22,19 @@ e valida as evidências antes de gravar qualquer decisão. Ele registrou:
 
 - SPXI11, MSFT34, TSMC34 e AMER3 como posições encerradas, com quantidade
   canônica zero;
-- “Reais em espécie” como instrumento monetário pendente. Seus cinco movimentos
+- “Reais em espécie” como instrumento monetário então pendente. Seus cinco movimentos
   têm quantidade zero, enquanto os acumulados financeiros e de quantidade do
   Fin1 são incompatíveis entre si.
 
 O banco privado foi copiado para `fin2-before-ledger.duckdb` antes da aplicação.
-Após a migração há 2.379 eventos, 2.379 componentes de posição e 2.656 componentes
-de caixa. Quatro divergências estão resolvidas e uma permanece pendente.
+Após a migração havia 2.379 eventos, 2.379 componentes de posição e 2.656 componentes
+de caixa. Naquela etapa, quatro divergências estavam resolvidas e uma permanecia
+pendente. A revisão posterior comprovou que “Reais em espécie” era um controle
+manual encerrado e registrou quantidade canônica zero. As cinco divergências
+originais estão resolvidas; a produção não possui posição sem quantidade canônica.
 
-O próximo passo é reconciliar os seis saldos de conta divergentes e os quatro
-lançamentos sem conta. Só depois as telas de patrimônio devem consumir saldos
+Na sequência foram reconciliados os seis saldos de conta divergentes e os quatro
+lançamentos sem conta. As telas de patrimônio passaram a consumir os saldos
 canônicos em lugar dos agregados materializados do Fin1.
 
 ## Reconciliação de caixa

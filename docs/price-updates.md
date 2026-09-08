@@ -18,6 +18,11 @@ O histórico do Ibovespa no SGS está descontinuado e cobre apenas parte do
 período. Os arquivos históricos oficiais da B3 completam a série e prevalecem
 nas datas coincidentes. O Fin2 não interpola lacunas nem cria valores sintéticos.
 
+Os fechamentos preservados em `market.daily_close_series` também participam da
+avaliação: para qualquer data de corte, o Fin2 escolhe o último preço aceito que
+não seja posterior à data. A migração `0053_historical_prices_in_valuation.sql`
+ativou esse uso na visão comum de observações de preço.
+
 ```mermaid
 flowchart LR
     UI[Botão no rodapé] --> JOB[Trabalho em segundo plano]
