@@ -303,6 +303,20 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(status.status_code,200)
         self.assertEqual(status.json()['status'],'idle')
 
+    def test_running_price_job_keeps_previous_result_visible(self):
+        with connect(self.fixture.database) as c:
+            batch=c.execute('SELECT batch_id FROM import_batch').fetchone()[0]
+            c.execute("""INSERT INTO price_update_job
+              (job_id,batch_id,status,created_at,finished_at,message)
+              VALUES (? ,?,'completed',now()-INTERVAL 1 MINUTE,now()-INTERVAL 1 MINUTE,?)""",
+              ['a'*64,batch,'Resultado anterior'])
+            c.execute("""INSERT INTO price_update_job(job_id,batch_id,status,created_at,message)
+              VALUES (?,?,'running',now(),'Consultando o último fechamento de PETR4')""",
+              ['b'*64,batch])
+        html=self.client.get('/fin2/').content.decode()
+        self.assertIn('Resultado anterior',html)
+        self.assertNotIn('Consultando o último fechamento',html)
+
     def test_storage_path_cannot_escape_and_corruption_not_served(self):
         with connect(self.fixture.database) as c:
             key = c.execute("SELECT storage_key FROM source_document").fetchone()[0]

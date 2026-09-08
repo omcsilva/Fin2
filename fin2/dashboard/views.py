@@ -83,11 +83,14 @@ def context(request, connection, batch_id=None):
     selected_collection = next((c for c in collections if str(c['legacy_id'])==portfolio),None)
     latest_price_update=connection.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
     latest_job=query(connection,"SELECT * FROM price_update_job ORDER BY created_at DESC LIMIT 1")
+    latest_price_result=query(connection,"""SELECT * FROM price_update_job
+      WHERE status IN ('completed','failed','cancelled') ORDER BY finished_at DESC,created_at DESC LIMIT 1""")
     return {"include_zeroed": request.GET.get("include_zeroed") == "1", "historical": historical, "batches": batches, "batch": batch, "collections":collections,
             "portfolio_filter":portfolio,"selected_collection":selected_collection,
             "years":years,"year_filter":year,"global_query":global_query,
             "analysis_cutoff": date(int(year),12,31) if year else (batch['as_of_date'] if historical else max(batch['as_of_date'],date.today())),
-            "last_price_update":latest_price_update,"latest_price_job":latest_job[0] if latest_job else None}
+            "last_price_update":latest_price_update,"latest_price_job":latest_job[0] if latest_job else None,
+            "latest_price_result":latest_price_result[0] if latest_price_result else None}
 
 
 def one(connection, table, key, identifier):

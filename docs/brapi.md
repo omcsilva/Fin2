@@ -10,7 +10,7 @@ moeda `REAL` ou `BRL` e multiplicador igual a 1. Isso confirma compatibilidade
 com o cadastro legado, não uma identidade canônica ou equivalência econômica.
 Renomes automáticos são recusados. Não há consulta em massa ou agendamento. A
 atualização pelo dashboard consulta o último fechamento diário de um ativo por
-chamada, espera cinco segundos entre chamadas e não repete, no mesmo dia, uma
+chamada, espera um segundo entre chamadas e não repete, no mesmo dia, uma
 consulta já concluída com sucesso.
 Os demais pregões presentes na resposta de três meses completam apenas datas
 ausentes; fechamentos já armazenados não são alterados.

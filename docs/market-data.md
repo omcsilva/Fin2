@@ -14,7 +14,7 @@ Respostas externas guardam bytes, SHA-256, horário, moeda, preço, data e valid
 ## Atualização brapi
 
 O botão consulta ativos BRAPI um por vez. Consulta bem-sucedida no dia impede
-nova chamada; há intervalo de cinco segundos. A resposta atualiza o fechamento e
+nova chamada; há intervalo de um segundo. A resposta atualiza o fechamento e
 pode preencher lacunas dos três meses recentes, sem sobrescrever pontos existentes.
 
 Cada resultado aparece na barra. Cancelar interrompe novas consultas e ainda

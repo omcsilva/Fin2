@@ -99,7 +99,7 @@ lacunas dos últimos três meses em `market.daily_close`. Um pregão já armazen
 é preservado e nunca é sobrescrito por esse fluxo. Portanto, o preenchimento
 recente não consome requisições adicionais.
 
-Depois de uma consulta bem-sucedida, o Fin2 espera cinco segundos antes de
+Depois de uma consulta bem-sucedida, o Fin2 espera um segundo antes de
 consultar o próximo ativo. O resultado recém-gravado é mostrado imediatamente
 na barra de status e permanece visível durante essa espera, sem uma mensagem
 intermediária. Um ativo que já tenha uma consulta

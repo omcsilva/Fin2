@@ -17,7 +17,7 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] Correções auditadas das cinco divergências originais de quantidade.
 - [x] Custo médio, taxas, isenção mensal, prejuízos e candidatos a IRRF.
 - [x] Histórico disponível de ativos e referências oficiais do BCB.
-- [x] Atualização brapi individual, intervalo de cinco segundos, janela recente,
+- [x] Atualização brapi individual, intervalo de um segundo, janela recente,
   cancelamento, mecanismo BRAPI/NENHUM e progresso assíncrono.
 - [x] Produção Proxmox, Git privado, releases, Nginx, systemd e HTTPS.
 - [x] Backup diário, restauração isolada e exportação cifrada ao rpi5.

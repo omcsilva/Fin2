@@ -110,4 +110,5 @@ Uma atualização manual completa de preços em 07/09/2026 processou 66 ativos e
 ignorou 90 conforme as regras de elegibilidade. Todos os 66 foram aceitos, sem
 rejeição ou falha, em 7 minutos e 10 segundos. Durante a amostragem, mestre e
 worker do Gunicorn atingiram aproximadamente 166 MB de RSS e 12,4% de CPU
-agregado. A espera de cinco segundos entre chamadas domina a duração do trabalho.
+agregado. Na medição, a espera de cinco segundos entre chamadas dominou a duração;
+o intervalo operacional foi reduzido posteriormente para um segundo.

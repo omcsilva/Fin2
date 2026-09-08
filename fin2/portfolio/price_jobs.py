@@ -13,7 +13,7 @@ START_LOCK = threading.Lock()
 ACTIVE_JOB_IDS = set()
 CANCELLED_JOB_IDS = set()
 LOCAL_ZONE=ZoneInfo('America/Sao_Paulo')
-QUERY_INTERVAL_SECONDS=5
+QUERY_INTERVAL_SECONDS=1
 
 
 def _money(value):
@@ -87,7 +87,6 @@ def run(database,job_id,batch_id,collection_id=None,fetcher=fetch_latest_close,s
                     sleeper(QUERY_INTERVAL_SECONDS)
                 queries+=1
                 if job_id in CANCELLED_JOB_IDS:return
-                _set(database,job_id,message=f'Consultando o último fechamento de {symbol}')
                 try: body,captured_at=fetcher(symbol)
                 except ValueError as error:
                     if job_id in CANCELLED_JOB_IDS:return

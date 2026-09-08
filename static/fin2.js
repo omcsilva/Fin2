@@ -32,23 +32,22 @@
       const response=await fetch(form.dataset.statusUrl,{headers:{Accept:'application/json'},cache:'no-store'});
       if (!response.ok) throw new Error();
       const job=await response.json();
-      status.textContent=job.message || '';
       last.textContent=formatDate(job.last_price_update);
       active=job.status==='queued'||job.status==='running';
+      if (!active) status.textContent=job.message || '';
       button.disabled=false;button.textContent=active?'■':'⟳';
       button.title=active?'Cancelar atualização de preços':'Atualizar preços';
       button.setAttribute('aria-label',button.title);
       if (previous && active===false && (job.status==='completed'||job.status==='failed'||job.status==='cancelled') && previous!==job.status) show(job.message);
       previous=job.status;
       window.setTimeout(poll,active?1000:15000);
-    } catch { status.textContent='Estado da atualização indisponível'; button.disabled=false; window.setTimeout(poll,15000); }
+    } catch { button.disabled=false; window.setTimeout(poll,15000); }
   }
   form.addEventListener('submit',async event => {
     event.preventDefault();
     const cancelling=active;
     button.disabled=true;button.textContent=cancelling?'■':'◌';
     button.title=cancelling?'Cancelando atualização de preços':'Iniciando atualização de preços';button.setAttribute('aria-label',button.title);
-    status.textContent=cancelling?'Cancelando atualização de preços':'Solicitando atualização';
     try {
       const response=await fetch(cancelling?form.dataset.cancelUrl:form.action,{method:'POST',body:new FormData(form),headers:{Accept:'application/json'}});
       if (!response.ok) throw new Error();
