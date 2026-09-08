@@ -277,6 +277,18 @@ class DashboardTests(unittest.TestCase):
 
     def test_menu_groups_keep_all_destinations(self):
         html=self.client.get('/fin2/').content.decode()
+        shortcuts=[('classe','◕','Classes'),('produto','▤','Produtos'),
+                   ('titular','♟','Titulares'),('instituicao','⛫','Instituições'),
+                   ('conta','▣','Contas')]
+        positions=[]
+        for kind,symbol,label in shortcuts:
+            fragment=f'href="/fin2/cadastros/{kind}/?'
+            self.assertIn(fragment,html)
+            self.assertIn(f'<span aria-hidden="true">{symbol}</span> {label}</a>',html)
+            positions.append(html.index(fragment))
+        self.assertEqual(positions,sorted(positions))
+        self.assertLess(html.index('>Visão geral</a>'),positions[0])
+        self.assertLess(positions[-1],html.index('<summary>Carteira</summary>'))
         for group in ('Carteira','Movimentações','Dados e auditoria'):
             self.assertIn(f'<summary>{group}</summary>',html)
         for path in ('posicoes','alocacao','historico','relatorios','caixa','lancamentos','importar','conciliacao',

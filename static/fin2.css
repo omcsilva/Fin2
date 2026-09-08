@@ -126,6 +126,8 @@ button, .button { font-weight: 650; }
   transition:transform 80ms ease,filter 120ms ease,box-shadow 80ms ease;
 }
 .main-menu a::after{content:"";position:absolute;left:4px;right:4px;bottom:2px;height:1px;background:#0b0e10;opacity:.65}
+.main-menu .catalog-shortcut{gap:6px}
+.catalog-shortcut span{color:#d8eef1;font-size:14px;line-height:1;text-shadow:0 1px 1px #000}
 .main-menu a:last-child{border-right:1px solid #111518}
 .main-menu a:hover,.main-menu a:focus-visible{
   color:#fff;
