@@ -284,11 +284,13 @@ class DashboardTests(unittest.TestCase):
         for kind,symbol,label in shortcuts:
             fragment=f'href="/fin2/cadastros/{kind}/?'
             self.assertIn(fragment,html)
-            self.assertIn(f'<span aria-hidden="true">{symbol}</span> {label}</a>',html)
-            positions.append(html.index(fragment))
+            heading=f'<summary><span aria-hidden="true">{symbol}</span> {label}</summary>'
+            self.assertIn(heading,html)
+            positions.append(html.index(heading))
         self.assertEqual(positions,sorted(positions))
         self.assertLess(html.index('>Visão geral</a>'),positions[0])
         self.assertLess(positions[-1],html.index('<summary>Carteira</summary>'))
+        self.assertIn('<span>TEST</span></a>',html)
         for group in ('Carteira','Movimentações','Dados e auditoria'):
             self.assertIn(f'<summary>{group}</summary>',html)
         for path in ('posicoes','alocacao','historico','relatorios','caixa','lancamentos','importar','conciliacao',

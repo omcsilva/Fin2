@@ -126,8 +126,14 @@ button, .button { font-weight: 650; }
   transition:transform 80ms ease,filter 120ms ease,box-shadow 80ms ease;
 }
 .main-menu a::after{content:"";position:absolute;left:4px;right:4px;bottom:2px;height:1px;background:#0b0e10;opacity:.65}
-.main-menu .catalog-shortcut{gap:6px}
-.catalog-shortcut span{color:#d8eef1;font-size:14px;line-height:1;text-shadow:0 1px 1px #000}
+.catalog-menu summary{gap:6px}
+.catalog-menu summary>span{color:#d8eef1;font-size:14px;line-height:1;text-shadow:0 1px 1px #000}
+.catalog-menu .submenu{min-width:240px;max-width:360px;max-height:min(70vh,520px);overflow-y:auto}
+.main-menu .submenu .catalog-item{justify-content:flex-start;gap:9px;white-space:normal}
+.catalog-item img{flex:0 0 22px;object-fit:contain;border-radius:3px;background:#fff1}
+.catalog-item span{overflow-wrap:anywhere}
+.main-menu .submenu .catalog-all{color:var(--green)}
+.catalog-empty{display:block;padding:8px 13px;color:#b9c2c7;font:600 11px/1.3 Consolas,'Cascadia Code',monospace}
 .main-menu a:last-child{border-right:1px solid #111518}
 .main-menu a:hover,.main-menu a:focus-visible{
   color:#fff;

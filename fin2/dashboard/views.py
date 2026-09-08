@@ -81,6 +81,34 @@ def context(request, connection, batch_id=None):
         raise Http404('Ano não encontrado')
     global_query = urlencode({k:v for k,v in [('batch',selected),('portfolio',portfolio),('year',year),('include_zeroed','1' if request.GET.get('include_zeroed') == '1' else '')] if v})
     selected_collection = next((c for c in collections if str(c['legacy_id'])==portfolio),None)
+    from fin2.dashboard.catalog_images import manifest as image_manifest
+    images=image_manifest()
+    menu_specs=[('classe','◕','Classes','portfolio.reference',
+                  "r.kind='classe' AND r.legacy_id=a.class_id"),
+                ('produto','▤','Produtos','portfolio.reference',
+                  "r.kind='produto' AND r.legacy_id=a.product_id"),
+                ('titular','♟','Titulares','portfolio.investor',
+                  'r.legacy_id=ac.investor_id'),
+                ('instituicao','⛫','Instituições','portfolio.institution',
+                  'r.legacy_id=ac.institution_id'),
+                ('conta','▣','Contas','portfolio.account',
+                  'r.legacy_id=ap.account_id')]
+    navigation_catalogs=[]
+    for kind,symbol,label,relation,join_condition in menu_specs:
+        items=query(connection,f"""SELECT DISTINCT r.source_record_id,
+          COALESCE(r.name,json_extract_string(er.payload,'$.abrev'),'Sem nome') AS name,
+          json_extract_string(er.payload,'$.imagem') image_key
+          FROM portfolio.application ap
+          LEFT JOIN portfolio.asset a ON a.batch_id=ap.batch_id AND a.legacy_id=ap.asset_id
+          JOIN portfolio.account ac ON ac.batch_id=ap.batch_id AND ac.legacy_id=ap.account_id
+          JOIN {relation} r ON r.batch_id=ap.batch_id AND {join_condition}
+          JOIN catalog.effective_record er ON er.record_id=r.source_record_id
+          WHERE ap.batch_id=? AND (?='' OR EXISTS (SELECT 1 FROM portfolio.membership pm
+            WHERE pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
+              AND CAST(pm.collection_id AS VARCHAR)=?))
+          ORDER BY 2,1""",[selected,portfolio,portfolio])
+        for item in items:item['image']=images.get(item['image_key'])
+        navigation_catalogs.append({'kind':kind,'symbol':symbol,'label':label,'items':items})
     latest_price_update=connection.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
     latest_job=query(connection,"SELECT * FROM price_update_job ORDER BY created_at DESC LIMIT 1")
     latest_price_result=query(connection,"""SELECT * FROM price_update_job
@@ -88,6 +116,7 @@ def context(request, connection, batch_id=None):
     return {"include_zeroed": request.GET.get("include_zeroed") == "1", "historical": historical, "batches": batches, "batch": batch, "collections":collections,
             "portfolio_filter":portfolio,"selected_collection":selected_collection,
             "years":years,"year_filter":year,"global_query":global_query,
+            "navigation_catalogs":navigation_catalogs,
             "analysis_cutoff": date(int(year),12,31) if year else (batch['as_of_date'] if historical else max(batch['as_of_date'],date.today())),
             "last_price_update":latest_price_update,"latest_price_job":latest_job[0] if latest_job else None,
             "latest_price_result":latest_price_result[0] if latest_price_result else None}
