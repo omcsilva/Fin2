@@ -409,6 +409,13 @@ def _average_cost(events, cutoff, report_year=None):
             elif operation=='split':
                 if source_quantity<=0 or amount or gross: return failure('unsupported_operation')
                 split_quantity+=qty
+            elif operation=='tax_transfer_in':
+                if source_quantity<=0 or amount<=0: return failure('unsupported_operation')
+                quantity+=source_quantity;cost+=amount
+            elif operation=='tax_transfer_out':
+                if source_quantity<=0 or amount<=0 or quantity<source_quantity or cost<amount:
+                    return failure('unsupported_operation')
+                quantity-=source_quantity;cost-=amount
             elif qty and operation not in ('rendimento','dividendo','juros c p','imposto','taxa'):
                 return failure('unsupported_operation')
         # The imported split quantity is the additional number of units. A
@@ -866,7 +873,8 @@ def reports(request,connection):
       'unsupported_operation':'Portabilidade, split ou outra operação exige decisão de custo'}
     all_cost_events=query(connection,"""SELECT e.application_id,coalesce(e.settlement_date,e.trade_date) event_date,
       coalesce(ov.operation_override,e.operation) operation,
-      coalesce(ov.quantity_override,e.source_quantity) quantity,coalesce(abs(c.amount),abs(e.source_value)) amount,
+      coalesce(ov.quantity_override,e.source_quantity) quantity,
+      coalesce(ov.amount_override,abs(c.amount),abs(e.source_value)) amount,
       abs(e.source_value) gross_amount,c.amount IS NOT NULL allocated_cash
       FROM ledger.event e LEFT JOIN ledger.cash_flow_effective_v3 c ON c.related_event_id=e.event_id
       LEFT JOIN ledger.cost_event_override ov

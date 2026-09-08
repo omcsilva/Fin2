@@ -11,6 +11,12 @@ ficam listadas como excluídas. Um desdobramento com quantidade adicional
 explícita e valor zero aumenta a quantidade e conserva o custo total; qualquer
 outro formato de evento societário continua bloqueado.
 
+Transferências de custódia não contam como venda. Pares auditados podem retirar
+quantidade e custo da aplicação de origem e levá-los à aplicação de destino
+quando titular, ativo, data e quantidade coincidem e o custo reconstruído na
+origem fecha exatamente com o total preservado. Entradas isoladas e pares com
+divergência continuam excluídos.
+
 O caixa líquido de uma nota com vários ativos é rateado proporcionalmente ao
 valor bruto, com fechamento decimal exato. A parcela líquida aumenta o custo da
 compra ou reduz o produto da venda. Operações sem caixa vinculado usam o valor

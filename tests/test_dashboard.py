@@ -181,6 +181,28 @@ class DashboardTests(unittest.TestCase):
         events[1].update(quantity=-10,amount=0,gross_amount=0)
         self.assertEqual(_average_cost(events,date(2024,12,31))['status'],'unsupported_operation')
 
+    def test_custody_transfer_carries_cost_without_a_sale(self):
+        from datetime import date
+        source=[
+            {'event_date':date(2024,1,2),'operation':'Compra','quantity':10,'amount':100,
+             'gross_amount':100,'allocated_cash':True},
+            {'event_date':date(2024,2,1),'operation':'tax_transfer_out','quantity':10,'amount':100,
+             'gross_amount':120,'allocated_cash':True},
+        ]
+        destination=[
+            {'event_date':date(2024,2,1),'operation':'tax_transfer_in','quantity':10,'amount':100,
+             'gross_amount':120,'allocated_cash':True},
+            {'event_date':date(2024,3,1),'operation':'Venda','quantity':4,'amount':60,
+             'gross_amount':60,'allocated_cash':True},
+        ]
+        outgoing=_average_cost(source,date(2024,12,31),2024)
+        incoming=_average_cost(destination,date(2024,12,31),2024)
+        self.assertEqual((outgoing['status'],outgoing['quantity'],outgoing['sale_count']),
+                         ('calculated',Decimal('0'),0))
+        self.assertEqual(incoming['cost_balance'],Decimal('60'))
+        self.assertEqual(incoming['realized_gain'],Decimal('20'))
+        self.assertEqual(incoming['sale_count'],1)
+
     def test_tax_class_uses_catalog_product_instead_of_numeric_id_or_name_guess(self):
         self.assertEqual(_tax_class({'product_name':'Ação'}),'stocks')
         self.assertEqual(_tax_class({'product_name':'ETF'}),'etf')

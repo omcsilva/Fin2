@@ -84,3 +84,17 @@ decisão de custo, e uma pela venda PETR4 sem quantidade e valor. Os dois grupos
 de IRRF continuam sem competência documental. Desdobramentos combinados com
 uma transferência anterior, como BTCI11 e GGRC11, permanecem excluídos pela
 transferência.
+
+## Portabilidades exatas em 07/09/2026
+
+Foram pareadas 24 pernas de transferências de custódia de XP para Warren, Clear
+para XP e entre contas XP do mesmo titular. O cálculo transporta o custo
+reconstruído, sem registrar venda, somente quando ativo, titular, data,
+quantidade e custo fecham exatamente. O valor de mercado legado não substitui o
+custo.
+
+Com XPML11, KNRI11, LUGG11, BBDC4, BERK34 e GGRC11 de Marcos, e BBPO11,
+GGRC11, LUGG11 e SANB11 de Luciana, a revalidação passou a 53 combinações
+mensais e 22 aplicações excluídas: 21 por operações ainda não comprovadas e uma
+pela venda PETR4 sem detalhe. Pares com diferença de custo, conversões de ticker
+e entradas sem saída identificada permanecem bloqueados.
