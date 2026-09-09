@@ -1,10 +1,10 @@
 {% extends 'dashboard/base.html' %}{% load fin2_format %}{% block content %}
-<div class="record-header{% if detail_header.image %} has-image{% endif %}"><div class="record-header-content">
-<p class="eyebrow">CONTAS / DETALHES</p>{% include 'dashboard/detail_header.html' %}
-<p class="lead">Conta #{{ account.legacy_id }} · Aplicações e movimentações até {{ analysis_cutoff|date:'d/m/Y' }}.</p>
-<p class="lead"><strong>Saldo no corte:</strong> {{ account_balance.balance|money:account_balance.currency }}{% if account_balance.pending %} <small>· {{ account_balance.pending }} valores incompletos</small>{% endif %}</p>
-<p><a href="{% url 'catalog-kind' 'conta' %}?{{ global_query }}&amp;edit={{ account.source_record_id }}">Editar cadastro da conta</a></p>
-</div>{% include 'dashboard/detail_header_image.html' %}</div>
+<div class="record-header account-detail-header{% if detail_header.account_images %} account-record-header{% endif %}{% if detail_header.account_images or detail_header.image %} has-image{% endif %}"><div class="record-header-content">
+{% include 'dashboard/detail_header.html' with account_header=True %}
+<p class="lead">Saldo em {{ analysis_cutoff|date:'d/m/Y' }}: <strong>{{ account_balance.balance|money:account_balance.currency }}</strong>{% if account_balance.pending %} <small>· {{ account_balance.pending }} valores incompletos</small>{% endif %}</p>
+</div>{% if detail_header.account_images %}<div class="account-header-images"><div class="account-header-image-row">
+{% for parent in detail_header.account_images %}<a class="account-header-image" href="{{ parent.url }}" title="{{ parent.label }}: {{ parent.name }}"><img src="{% url 'catalog-image' parent.image.hash %}" alt="{{ parent.label }}: {{ parent.name }}"></a>{% endfor %}
+</div></div>{% else %}{% include 'dashboard/detail_header_image.html' %}{% endif %}</div>
 <div class="note">O filtro de carteira limita as aplicações exibidas. O extrato apresenta a conta integralmente, inclusive quando compartilhada entre carteiras. O filtro anual limita as movimentações exibidas; os saldos acumulam os lançamentos até o corte.</div>
 <nav class="page-tabs" aria-label="Detalhes da conta">
 <a href="?{{ global_query }}&amp;tab=resultado"{% if account_tab == 'resultado' %} class="active" aria-current="page"{% endif %}>Resultado</a>

@@ -42,12 +42,14 @@ def detail_header(connection, record_id, global_query, title=None):
             if target not in DETAIL_ROUTES:
                 params += ('&' if params else '') + urlencode({'edit': parent['record_id']})
             parents.append(dict(label=label, name=content.get('nome') or content.get('abrev') or f'#{identifier}',
-                                url=url + ('?' + params if params else '')))
+                                url=url + ('?' + params if params else ''),
+                                image=images.get(content.get('imagem')), kind=target))
             if source_kind == 'aplicacao' and target in ('conta', 'ativo'):
                 add_parents(target, content)
 
     add_parents(kind, payload)
     return {'detail_header': dict(title=title or payload.get('nome') or payload.get('abrev') or f'#{record["legacy_id"]}',
                                   image=image, parents=parents,
+                                  account_images=[p for p in parents if p['kind'] in ('titular', 'instituicao') and p['image']] if kind == 'conta' else [],
                                   catalog_url=reverse('catalog-kind', args=[kind]) + '?' + global_query,
                                   catalog_label=KINDS[kind][0])}

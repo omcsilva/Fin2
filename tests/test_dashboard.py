@@ -80,7 +80,7 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         self.assertIn('<h2>Aplicações</h2>', html)
-        self.assertIn('<strong>Saldo no corte:</strong>', html)
+        self.assertIn('Saldo em ', html)
         self.assertNotIn('tab=saldos', html)
         self.assertNotIn('<h2>Extrato do ledger</h2>', html)
         for tab, heading in [('movimentacoes', 'Extrato do ledger')]:

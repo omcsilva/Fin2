@@ -1,4 +1,4 @@
 <div class="record-heading">
-<div><a class="back" href="{{ detail_header.catalog_url }}">← {{ detail_header.catalog_label }}</a><h1>{{ detail_header.title }}</h1></div>
+<div><a class="back" href="{{ detail_header.catalog_url }}">← {{ detail_header.catalog_label }}</a>{% if account_header %}<p class="eyebrow">Conta #{{ account.legacy_id }}</p><div class="account-title-row"><h1>{{ detail_header.title }}</h1><a href="{% url 'catalog-kind' 'conta' %}?{{ global_query }}&amp;edit={{ account.source_record_id }}">Editar</a></div>{% else %}<h1>{{ detail_header.title }}</h1>{% endif %}</div>
 </div>
 {% if detail_header.parents %}<nav class="record-parents" aria-label="Registros relacionados">{% for parent in detail_header.parents %}<span><strong>{{ parent.label }}:</strong> <a href="{{ parent.url }}">{{ parent.name }}</a></span>{% endfor %}</nav>{% endif %}
