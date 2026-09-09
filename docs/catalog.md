@@ -32,3 +32,8 @@ Os cadastros exibem as fotos e logotipos referenciados no campo `imagem`, com pr
 O utilitário `scripts/import_catalog_images.py` recebe `--snapshot` (SQLite congelado), `--destination` e `--host`. Ele lê o Fin1 sem modificá-lo, valida formatos e tamanho e grava um manifesto por referência com hashes SHA-256. A rota privada verifica o hash e aplica CSP restritiva, inclusive para SVG. O navegador não consulta os sites externos.
 
 Na carga inicial, 64 de 65 referências foram recuperadas. `conta_bancaria.png` não foi encontrado na origem; registros sem arquivo disponível permanecem sem miniatura. Os vínculos e dados financeiros não foram alterados.
+
+Na manutenção de titulares, o campo Imagem aceita PNG, JPEG e WebP de até 5 MB
+e 20 milhões de pixels. O arquivo é validado e armazenado em catalog-images;
+a referência integra a revisão auditada. Salvar sem arquivo mantém a imagem
+atual. Substituições preservam os arquivos anteriores e os dados do Fin1.

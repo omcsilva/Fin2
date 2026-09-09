@@ -75,4 +75,62 @@ class CatalogTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'Já existe'):
    save(self.f.database,batch=self.batch,kind='carteira',values=values,request_key='2'*32)
 
+ def test_owner_image_upload_replacement_preservation_and_validation(self):
+  from io import BytesIO
+  from uuid import uuid4
+  from PIL import Image
+  from django.core.files.uploadedfile import SimpleUploadedFile
+  from fin2.dashboard.catalog_images import manifest
+  from fin2.portfolio.catalog_image_uploads import validate_upload, MAX_BYTES
+  root=self.f.database.parent/'test-catalog-images'
+  identifier=save(self.f.database,batch=self.batch,kind='titular',values={'nome':'Titular com foto'},request_key=uuid4().hex)
+  def upload(color):
+   stream=BytesIO();Image.new('RGB',(12,8),color).save(stream,format='PNG')
+   return SimpleUploadedFile('foto.png',stream.getvalue(),content_type='image/png')
+  with override_settings(WAREHOUSE_PATH=self.f.database,CATALOG_IMAGE_ROOT=root,
+                         ALLOWED_HOSTS=['testserver'],WRITE_ENABLED=True):
+   client=Client()
+   url='/fin2/cadastros/titular/?edit='+identifier
+   page=client.get(url)
+   self.assertContainsPage(page,'enctype="multipart/form-data"')
+   self.assertContainsPage(page,'name="imagem_upload"')
+   def post(revision, image=None):
+    values={'nome':'Titular com foto','revision':str(revision),'request_key':uuid4().hex}
+    if image is not None:values['imagem_upload']=image
+    return client.post(url,values)
+   def row():
+    with connect(self.f.database) as db:
+     return next(r for r in records(db,self.batch,'titular') if r['record_id']==identifier)
+   self.assertEqual(post(1,upload('red')).status_code,302)
+   first=row()['payload']['imagem'];entry=manifest()[first]
+   from django.urls import reverse
+   image_url=reverse('catalog-image',args=[entry['hash']])
+   response=client.get(image_url)
+   self.assertEqual(response.status_code,200)
+   self.assertEqual(response['Content-Type'],'image/png')
+   self.assertEqual(b''.join(response.streaming_content),(root/entry['hash']).read_bytes())
+   self.assertContainsPage(client.get(url),image_url)
+   self.assertEqual(post(2).status_code,302)
+   self.assertEqual(row()['payload']['imagem'],first)
+   self.assertEqual(post(3,upload('blue')).status_code,302)
+   second=row()['payload']['imagem'];self.assertNotEqual(first,second)
+   self.assertIn(first,manifest())
+   with connect(self.f.database) as db:
+    before,after=db.execute('select before_payload,after_payload from catalog.audit where record_id=? and revision=4',[identifier]).fetchone()
+   self.assertEqual(json.loads(before)['imagem'],first)
+   self.assertEqual(json.loads(after)['imagem'],second)
+   response=post(4,SimpleUploadedFile('bad.png',b'not an image',content_type='image/png'))
+   self.assertEqual(response.status_code,400)
+   self.assertEqual(row()['revision'],4)
+   self.assertEqual(post(1,upload('green')).status_code,400)
+   with override_settings(WRITE_ENABLED=False):
+    self.assertEqual(post(4,upload('green')).status_code,403)
+   self.assertEqual(row()['payload']['imagem'],second)
+   large=SimpleUploadedFile('large.png',b'x'*(MAX_BYTES+1))
+   with self.assertRaisesRegex(ValueError,'5 MB'):validate_upload(large)
+
+ def assertContainsPage(self,response,text):
+  self.assertEqual(response.status_code,200)
+  self.assertIn(text,response.content.decode())
+
 if __name__=='__main__':unittest.main()

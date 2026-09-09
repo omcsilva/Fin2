@@ -10,6 +10,19 @@ from warehouse.repositories.dashboard import reader,Unavailable,query
 from fin2.portfolio.catalog import KINDS,OPTIONAL,records,save
 from fin2.dashboard.views import context
 from fin2.dashboard.catalog_images import manifest
+from fin2.portfolio.catalog_image_uploads import validate_upload
+
+
+class CatalogImageField(forms.FileField):
+    def clean(self, data, initial=None):
+        upload = super().clean(data, initial)
+        if not upload:
+            return None
+        try:
+            return validate_upload(upload)
+        except ValueError as exc:
+            raise forms.ValidationError(str(exc)) from exc
+
 
 @require_http_methods(['GET','POST'])
 def catalog(request,kind='titular'):
@@ -23,6 +36,7 @@ def catalog(request,kind='titular'):
             selected=next((r for r in items if r['record_id']==identifier),None)
             if identifier and not selected:raise Http404
             form=forms.Form(request.POST if request.method=='POST' else None,
+                            files=request.FILES if request.method=='POST' else None,
                             initial=selected['payload'] if selected else {})
             labels={}
             for field,(label,target) in KINDS[kind][1].items():
@@ -36,6 +50,11 @@ def catalog(request,kind='titular'):
                     labels[field]=dict(choices)
                     form.fields[field]=forms.ChoiceField(label=label,choices=[('','Selecione')]+choices,required=field not in OPTIONAL)
                 else:form.fields[field]=forms.CharField(label=label,max_length=200,required=field not in OPTIONAL)
+            if kind == 'titular':
+                form.fields['imagem_upload'] = CatalogImageField(
+                    label='Imagem', required=False,
+                    help_text='PNG, JPEG ou WebP, até 5 MB. Sem novo arquivo, a imagem atual será mantida.',
+                    widget=forms.FileInput(attrs={'accept': 'image/png,image/jpeg,image/webp'}))
             images = manifest()
             for item in items:
                 item['image'] = images.get(item['payload'].get('imagem'))
@@ -53,6 +72,7 @@ def catalog(request,kind='titular'):
             if form.is_valid():
                 try:
                     record=save(settings.WAREHOUSE_PATH,batch=batch,kind=kind,values=form.cleaned_data,
+                      image=form.cleaned_data.get('imagem_upload'),image_root=settings.CATALOG_IMAGE_ROOT,
                       record_id=identifier,revision=request.POST.get('revision','0'),request_key=request.POST.get('request_key',''))
                     return redirect('/fin2/cadastros/'+kind+'/?'+urlencode({'batch':batch,'edit':record,'saved':'1'}))
                 except ValueError as exc:error=str(exc)

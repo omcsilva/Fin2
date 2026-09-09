@@ -96,7 +96,7 @@ def context(request, connection, batch_id=None):
     menu_connection = scoped_connection(connection, request.GET.get('include_zeroed') == '1')
     navigation_catalogs=[]
     for kind,symbol,label,relation,join_condition in menu_specs:
-        items=query(menu_connection,f"""SELECT DISTINCT r.source_record_id,
+        items=query(menu_connection,f"""SELECT DISTINCT r.source_record_id,r.legacy_id,
           COALESCE(r.name,json_extract_string(er.payload,'$.abrev'),'Sem nome') AS name,
           json_extract_string(er.payload,'$.imagem') image_key
           FROM portfolio.application ap
@@ -107,7 +107,7 @@ def context(request, connection, batch_id=None):
           WHERE ap.batch_id=? AND (?='' OR EXISTS (SELECT 1 FROM portfolio.membership pm
             WHERE pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
               AND CAST(pm.collection_id AS VARCHAR)=?))
-          ORDER BY 2,1""",[selected,portfolio,portfolio])
+          ORDER BY name,1""",[selected,portfolio,portfolio])
         for item in items:item['image']=images.get(item['image_key'])
         navigation_catalogs.append({'kind':kind,'symbol':symbol,'label':label,'items':items})
     latest_price_update=connection.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
@@ -694,7 +694,7 @@ def price_update_status(request):
 
 @page_view
 def quantity_detail(request, connection, identifier):
-    item=one(connection,'source_record','record_id',identifier)
+    item=one(connection,'catalog.effective_record','record_id',identifier)
     if item['table_name']!='fin1_aplicacao' or item['database_name']!='db.sqlite3':
         raise Http404
     data=context(request,connection,item['batch_id'])
@@ -704,6 +704,23 @@ def quantity_detail(request, connection, identifier):
         raise Http404('Aplicação fora da carteira selecionada')
     data['position']=positions[0]
     if not data.get('historical'):
+        from fin2.dashboard.ledger_views import summarize_application_results
+        from fin2.dashboard.detail_headers import detail_header
+        data.update(detail_header(connection, identifier, data['global_query'],
+                                  positions[0]['asset_name'] or positions[0]['name']))
+        tab = request.GET.get('tab', 'resultado')
+        data['application_tab'] = tab if tab in ('resultado', 'movimentacoes') else 'resultado'
+        account = query(connection, '''SELECT a.legacy_id,
+            coalesce(i.name,i.abbreviation) institution_name,
+            coalesce(c.name,c.abbreviation) currency_name,c.abbreviation currency
+            FROM portfolio.account a
+            LEFT JOIN portfolio.institution i ON i.batch_id=a.batch_id AND i.legacy_id=a.institution_id
+            LEFT JOIN portfolio.currency c ON c.batch_id=a.batch_id AND c.legacy_id=a.currency_id
+            WHERE a.batch_id=? AND a.legacy_id=?''', [item['batch_id'],positions[0]['account_id']])
+        data['application_account'] = account[0] if account else {}
+        if data['application_tab'] == 'resultado':
+            data['application_result'] = summarize_application_results(
+                positions, application_cost_events(connection,item['batch_id']),data['analysis_cutoff'])
         activity = """WITH activity AS (
           SELECT q.source_record_id entry_id,q.settlement_date,q.operation_name operation,
             q.signed_quantity, 'Importado' origin
@@ -914,25 +931,7 @@ def reports(request,connection):
     status_labels={'missing_trade_detail':'Compra ou venda sem quantidade/valor',
       'insufficient_quantity':'Venda excede a quantidade reconstruída',
       'unsupported_operation':'Portabilidade, split ou outra operação exige decisão de custo'}
-    all_cost_events=query(connection,"""SELECT e.application_id,coalesce(e.settlement_date,e.trade_date) event_date,
-      coalesce(ov.operation_override,e.operation) operation,
-      coalesce(ov.quantity_override,e.source_quantity) quantity,
-      coalesce(ov.amount_override,abs(c.amount),abs(e.source_value)) amount,
-      abs(e.source_value) gross_amount,c.amount IS NOT NULL allocated_cash
-      FROM ledger.event e LEFT JOIN ledger.cash_flow_effective_v3 c ON c.related_event_id=e.event_id
-      LEFT JOIN ledger.cost_event_override ov
-        ON ov.batch_id=e.batch_id AND ov.legacy_movement_id=e.legacy_event_id
-      WHERE e.batch_id=?
-      UNION ALL SELECT ap.legacy_id,coalesce(me.trade_date,me.settlement_date),me.event_type,me.quantity,
-        CASE WHEN me.event_type='buy' THEN abs(me.amount)+coalesce(x.expense,0)
-             WHEN me.event_type IN ('sell','redemption') THEN greatest(abs(me.amount)-coalesce(x.expense,0),0)
-             ELSE abs(me.amount) END,abs(me.amount),true
-      FROM ledger.manual_event me JOIN portfolio.application ap
-        ON ap.source_record_id=me.application_source_record_id
-      LEFT JOIN (SELECT trade_event_id,sum(amount) expense FROM ledger.file_import_event_allocation GROUP BY 1) x
-        ON x.trade_event_id=me.event_id
-      WHERE ap.batch_id=? AND NOT ?
-      ORDER BY event_date""",[batch,batch,data.get('historical',False)])
+    all_cost_events=application_cost_events(connection,batch,data.get('historical',False))
     events_by_application={}
     for event in all_cost_events:
         events_by_application.setdefault(event['application_id'],[]).append(event)
@@ -1443,3 +1442,26 @@ def issues(request, connection):
     for row in data["rows"]:
         row["label"] = ISSUES.get(row["code"],row["code"])
     return render(request,"dashboard/issues.html",data)
+
+
+def application_cost_events(connection, batch, historical=False):
+    """Cost events shared by reports and account results."""
+    return query(connection,"""SELECT e.application_id,coalesce(e.settlement_date,e.trade_date) event_date,
+      coalesce(ov.operation_override,e.operation) operation,
+      coalesce(ov.quantity_override,e.source_quantity) quantity,
+      coalesce(CAST(json_extract_string(to_json(ov),'$.amount_override') AS DECIMAL(28,10)),abs(c.amount),abs(e.source_value)) amount,
+      abs(e.source_value) gross_amount,c.amount IS NOT NULL allocated_cash
+      FROM ledger.event e LEFT JOIN ledger.cash_flow_effective_v3 c ON c.related_event_id=e.event_id
+      LEFT JOIN ledger.cost_event_override ov
+        ON ov.batch_id=e.batch_id AND ov.legacy_movement_id=e.legacy_event_id
+      WHERE e.batch_id=?
+      UNION ALL SELECT ap.legacy_id,coalesce(me.trade_date,me.settlement_date),me.event_type,me.quantity,
+        CASE WHEN me.event_type='buy' THEN abs(me.amount)+coalesce(x.expense,0)
+             WHEN me.event_type IN ('sell','redemption') THEN greatest(abs(me.amount)-coalesce(x.expense,0),0)
+             ELSE abs(me.amount) END,abs(me.amount),true
+      FROM ledger.manual_event me JOIN portfolio.application ap
+        ON ap.source_record_id=me.application_source_record_id
+      LEFT JOIN (SELECT trade_event_id,sum(amount) expense FROM ledger.file_import_event_allocation GROUP BY 1) x
+        ON x.trade_event_id=me.event_id
+      WHERE ap.batch_id=? AND NOT ?
+      ORDER BY event_date""",[batch,batch,historical])

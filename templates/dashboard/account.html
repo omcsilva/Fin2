@@ -1,0 +1,34 @@
+{% extends 'dashboard/base.html' %}{% load fin2_format %}{% block content %}
+<div class="record-header{% if detail_header.image %} has-image{% endif %}"><div class="record-header-content">
+<p class="eyebrow">CONTAS / DETALHES</p>{% include 'dashboard/detail_header.html' %}
+<p class="lead">Conta #{{ account.legacy_id }} · Aplicações e movimentações até {{ analysis_cutoff|date:'d/m/Y' }}.</p>
+<p class="lead"><strong>Saldo no corte:</strong> {{ account_balance.balance|money:account_balance.currency }}{% if account_balance.pending %} <small>· {{ account_balance.pending }} valores incompletos</small>{% endif %}</p>
+<p><a href="{% url 'catalog-kind' 'conta' %}?{{ global_query }}&amp;edit={{ account.source_record_id }}">Editar cadastro da conta</a></p>
+</div>{% include 'dashboard/detail_header_image.html' %}</div>
+<div class="note">O filtro de carteira limita as aplicações exibidas. O extrato apresenta a conta integralmente, inclusive quando compartilhada entre carteiras. O filtro anual limita as movimentações exibidas; os saldos acumulam os lançamentos até o corte.</div>
+<nav class="page-tabs" aria-label="Detalhes da conta">
+<a href="?{{ global_query }}&amp;tab=resultado"{% if account_tab == 'resultado' %} class="active" aria-current="page"{% endif %}>Resultado</a>
+<a href="?{{ global_query }}&amp;tab=aplicacoes"{% if account_tab == 'aplicacoes' %} class="active" aria-current="page"{% endif %}>Aplicações</a>
+<a href="?{{ global_query }}&amp;tab=movimentacoes"{% if account_tab == 'movimentacoes' %} class="active" aria-current="page"{% endif %}>Movimentações</a>
+</nav>
+<div class="catalog-content">
+{% if account_tab == 'resultado' %}
+<h2>Resultado das aplicações</h2>
+<p class="lead">Valor investido corresponde ao custo das posições mantidas no corte. Resultado = valor presente − valor investido; representa a valorização ainda não realizada. O saldo da conta e os rendimentos já recebidos não entram nesta comparação.</p>
+{% if account_result.pending %}<div class="note">Totais parciais: {{ account_result.pending }} aplicações com custo ou avaliação pendente não entram nas somas.</div>{% endif %}
+{% if account_result.stale %}<div class="note">{{ account_result.stale }} aplicações com cotação antiga; valores indicativos.</div>{% endif %}
+<div class="stats">
+<article><span>Valor investido{% if account_result.pending %} · parcial{% endif %}</span><strong>{{ account_result.invested|money:account_balance.currency }}</strong></article>
+<article><span>Valor presente{% if account_result.pending %} · parcial{% endif %}</span><strong>{{ account_result.present|money:account_balance.currency }}</strong></article>
+<article><span>Resultado{% if account_result.pending %} · parcial{% endif %}</span><strong>{{ account_result.result|money:account_balance.currency }}</strong></article>
+</div>
+
+{% endif %}
+{% if account_tab == 'aplicacoes' %}
+<section class="panel table-wrap"><h2>Aplicações</h2><table><thead><tr><th>Ativo / aplicação</th><th>Classe</th><th class="number">Quantidade no corte</th><th class="number">Valor da posição</th><th>Situação</th></tr></thead><tbody>
+{% for p in applications %}<tr><td><a href="{% url 'quantity-detail' p.source_record_id %}?{{ global_query }}">{{ p.asset_name|default:p.name|default:'Sem nome' }}</a> <small class="muted">#{{ p.legacy_id }}</small></td><td>{{ p.class_name|default:'—' }}</td><td class="number">{{ p.quantity_at_cutoff|number }}</td><td class="number">{{ p.reference_value|money:p.currency }}</td><td>{{ p.status_label }}</td></tr>{% empty %}<tr><td colspan="5">Nenhuma aplicação neste escopo.</td></tr>{% endfor %}
+</tbody></table></section>
+{% endif %}
+{% include 'dashboard/account_statement.html' %}
+</div>
+{% endblock %}

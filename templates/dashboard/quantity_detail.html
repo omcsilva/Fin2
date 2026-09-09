@@ -1,6 +1,30 @@
 {% extends 'dashboard/base.html' %}{% load fin2_format %}{% block content %}
-<a class="back" href="{% url 'positions' %}?{{ global_query }}">← Posições</a><p class="eyebrow">LEDGER FIN2 / MOVIMENTOS DA POSIÇÃO</p><h1>{{ position.asset_name|default:position.name }}</h1><p class="lead">{{ position.account_name }} · {{ position.investor_name }} · {{ analysis_cutoff|date:'d/m/Y' }}</p>
-<div class="stats"><article><span>Quantidade no corte</span><strong>{{ position.quantity_at_cutoff|number }}</strong></article><article><span>Valor da posição</span><strong>{{ position.reference_value|money:position.currency }}</strong></article></div>
-<section class="panel table-wrap"><table><thead><tr><th>Liquidação</th><th>Operação</th><th>Origem</th><th class="number">Variação de quantidade</th></tr></thead><tbody>{% for r in rows %}<tr><td>{{ r.settlement_date|date:'d/m/Y' }}</td><td>{% if r.origin == 'Importado' %}<a href="{% url 'record' r.entry_id %}">{{ r.operation }}</a>{% else %}<a href="{% url 'manual-events' %}">{{ r.operation }}</a>{% endif %}</td><td>{{ r.origin }}</td><td class="number">{{ r.signed_quantity|number }}</td></tr>{% empty %}<tr><td colspan="4">Sem movimentos neste período.</td></tr>{% endfor %}</tbody></table></section>{% include 'dashboard/pagination.html' %}
+<div class="record-header{% if detail_header.image %} has-image{% endif %}"><div class="record-header-content">
+{% if position.account_id %}<a class="back" href="{% url 'account-detail' position.account_id %}?{{ global_query }}&amp;tab=aplicacoes">← {{ position.account_name|default:'Conta' }}</a>{% else %}<a class="back" href="{% url 'positions' %}?{{ global_query }}">← Posições</a>{% endif %}
+<p class="eyebrow">APLICAÇÕES / DETALHES</p>{% include 'dashboard/detail_header.html' %}
+<p class="lead">Aplicação #{{ position.legacy_id }} · {{ position.name|default:'' }} · Posição em {{ analysis_cutoff|date:'d/m/Y' }}.</p>
+<p class="lead"><strong>Quantidade no corte:</strong> {{ position.quantity_at_cutoff|number }}</p>
+</div>{% include 'dashboard/detail_header_image.html' %}</div>
+<nav class="page-tabs" aria-label="Detalhes da aplicação">
+<a href="?{{ global_query }}&amp;tab=resultado"{% if application_tab == 'resultado' %} class="active" aria-current="page"{% endif %}>Resultado</a>
+<a href="?{{ global_query }}&amp;tab=movimentacoes"{% if application_tab == 'movimentacoes' %} class="active" aria-current="page"{% endif %}>Movimentações</a>
+</nav>
+<div class="catalog-content">
+{% if application_tab == 'resultado' %}
+<h2>Resultado da aplicação</h2>
+<p class="lead">Valor investido corresponde ao custo da posição mantida no corte. Resultado = valor presente − valor investido; representa a valorização ainda não realizada. Rendimentos já recebidos não entram nesta comparação.</p>
+{% if application_result.pending %}<div class="note">Custo ou avaliação pendente. O resultado será apresentado quando ambos estiverem disponíveis.</div>{% endif %}
+{% if application_result.stale %}<div class="note">Cotação antiga; valor presente indicativo.</div>{% endif %}
+<div class="stats">
+<article><span>Valor investido</span><strong>{{ position.invested|money:position.currency }}</strong></article>
+<article><span>Valor presente</span><strong>{{ position.present|money:position.currency }}</strong></article>
+<article><span>Resultado</span><strong>{{ position.result|money:position.currency }}</strong></article>
+</div>
+{% else %}
+<h2>Movimentações da aplicação</h2>
+<p class="lead">Operações até {{ analysis_cutoff|date:'d/m/Y' }}. O filtro anual limita os movimentos exibidos.</p>
+<section class="panel table-wrap"><table><thead><tr><th>Liquidação</th><th>Operação</th><th class="number">Variação de quantidade</th><th>Origem</th></tr></thead><tbody>{% for r in rows %}<tr><td>{{ r.settlement_date|date:'d/m/Y' }}</td><td>{% if r.origin == 'Importado' %}<a href="{% url 'record' r.entry_id %}?{{ global_query }}">{{ r.operation }}</a>{% else %}<a href="{% url 'manual-events' %}?{{ global_query }}">{{ r.operation }}</a>{% endif %}</td><td class="number">{{ r.signed_quantity|number }}</td><td>{{ r.origin }}</td></tr>{% empty %}<tr><td colspan="4">Sem movimentos neste período.</td></tr>{% endfor %}</tbody></table></section>{% include 'dashboard/pagination.html' %}
+{% endif %}
+</div>
 <p><a href="{% url 'legacy-quantity-detail' position.source_record_id %}?{{ global_query }}">Consultar conferência da origem no Histórico</a></p>
 {% endblock %}

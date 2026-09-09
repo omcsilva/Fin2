@@ -6,3 +6,4 @@ tzdata==2026.3
 pytz==2026.3.post1
 openpyxl==3.1.5
 pypdf==6.16.2
+Pillow==12.3.0

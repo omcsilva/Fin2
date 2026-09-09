@@ -1,0 +1,33 @@
+{% extends 'dashboard/base.html' %}{% load fin2_format %}{% block content %}
+<div class="record-header{% if detail_header.image %} has-image{% endif %}"><div class="record-header-content">
+<p class="eyebrow">CLASSES / DETALHES</p>{% include 'dashboard/detail_header.html' %}
+<p class="lead">Classe #{{ asset_class.legacy_id }} · {{ asset_class_accounts|length }} contas · {{ applications|length }} aplicações · Posição em {{ analysis_cutoff|date:'d/m/Y' }}.</p>
+<p><a href="{% url 'catalog-kind' 'classe' %}?{{ global_query }}&amp;edit={{ asset_class.source_record_id }}">Editar cadastro da classe</a></p>
+</div>{% include 'dashboard/detail_header_image.html' %}</div>
+<div class="note">Valores separados por moeda e limitados às aplicações desta classe na carteira selecionada. As movimentações apresentam apenas lançamentos vinculados a essas aplicações. O filtro anual limita os movimentos exibidos.</div>
+<nav class="page-tabs" aria-label="Detalhes da classe">
+<a href="?{{ global_query }}&amp;tab=resultado"{% if asset_class_tab == 'resultado' %} class="active" aria-current="page"{% endif %}>Resultado</a>
+<a href="?{{ global_query }}&amp;tab=contas"{% if asset_class_tab == 'contas' %} class="active" aria-current="page"{% endif %}>Contas</a>
+<a href="?{{ global_query }}&amp;tab=aplicacoes"{% if asset_class_tab == 'aplicacoes' %} class="active" aria-current="page"{% endif %}>Aplicações</a>
+<a href="?{{ global_query }}&amp;tab=movimentacoes"{% if asset_class_tab == 'movimentacoes' %} class="active" aria-current="page"{% endif %}>Movimentações</a>
+</nav><div class="catalog-content">
+{% if asset_class_tab == 'resultado' %}
+<h2>Resultado da classe</h2><p class="lead">Soma do custo e do valor presente das posições mantidas. Resultado = valor presente − valor investido; representa a valorização ainda não realizada. Saldos das contas e rendimentos já recebidos não entram nesta comparação.</p>
+{% for r in asset_class_results %}<h3>{{ r.currency|default:'Moeda não informada' }}</h3>
+{% if r.pending %}<div class="note">Totais parciais: {{ r.pending }} aplicações com custo ou avaliação pendente não entram nas somas.</div>{% endif %}
+{% if r.stale %}<div class="note">{{ r.stale }} aplicações com cotação antiga; valores indicativos.</div>{% endif %}
+<div class="stats"><article><span>Valor investido{% if r.pending %} · parcial{% endif %}</span><strong>{{ r.invested|money:r.currency }}</strong></article><article><span>Valor presente{% if r.pending %} · parcial{% endif %}</span><strong>{{ r.present|money:r.currency }}</strong></article><article><span>Resultado{% if r.pending %} · parcial{% endif %}</span><strong>{{ r.result|money:r.currency }}</strong></article></div>
+{% empty %}<p>Nenhuma aplicação neste escopo.</p>{% endfor %}
+{% elif asset_class_tab == 'contas' %}
+<h2>Contas da classe</h2><section class="panel table-wrap"><table><thead><tr><th>Conta</th><th>Instituição</th><th>Moeda</th><th>Titular</th></tr></thead><tbody>
+{% for a in asset_class_accounts %}<tr><td><a href="{% url 'account-detail' a.legacy_id %}?{{ global_query }}">{{ a.name|default:'Sem nome' }}</a></td><td>{{ a.institution_name|default:'—' }}</td><td>{{ a.currency|default:'—' }}</td><td>{{ a.investor_name|default:'—' }}</td></tr>{% empty %}<tr><td colspan="4">Nenhuma conta neste escopo.</td></tr>{% endfor %}
+</tbody></table></section>
+{% elif asset_class_tab == 'aplicacoes' %}
+<h2>Aplicações da classe</h2><section class="panel table-wrap"><table><thead><tr><th>Aplicação</th><th>Conta</th><th>Moeda</th><th class="number">Quantidade</th><th class="number">Valor presente</th><th>Situação</th></tr></thead><tbody>
+{% for p in applications %}<tr><td><a href="{% url 'quantity-detail' p.source_record_id %}?{{ global_query }}">{{ p.asset_name|default:p.name|default:'Sem nome' }}</a></td><td><a href="{% url 'account-detail' p.account_id %}?{{ global_query }}">{{ p.account_name }}</a></td><td>{{ p.currency|default:'—' }}</td><td class="number">{{ p.quantity_at_cutoff|number }}</td><td class="number">{{ p.reference_value|money:p.currency }}</td><td>{{ p.status_label }}</td></tr>{% empty %}<tr><td colspan="6">Nenhuma aplicação neste escopo.</td></tr>{% endfor %}
+</tbody></table></section>
+{% else %}
+<h2>Movimentações da classe</h2><section class="panel table-wrap"><table><thead><tr><th>Data</th><th>Conta</th><th>Descrição</th><th class="number">Valor</th><th>Aplicação</th><th>Origem</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.settlement_date|date:'d/m/Y' }}</td><td><a href="{% url 'account-detail' r.account_id %}?{{ global_query }}&amp;tab=movimentacoes">{{ r.account_name }}</a></td><td>{{ r.description }}</td><td class="number">{{ r.amount|money:r.currency }}</td><td><a href="{% url 'quantity-detail' r.application_record %}?{{ global_query }}">{{ r.application_name|default:'Sem nome' }}</a></td><td>{{ r.origin }}</td></tr>{% empty %}<tr><td colspan="6">Nenhum lançamento neste período.</td></tr>{% endfor %}
+</tbody></table></section>{% include 'dashboard/pagination.html' %}
+{% endif %}</div>{% endblock %}

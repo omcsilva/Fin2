@@ -41,7 +41,7 @@ def records(db,batch,kind):
       order by lower(coalesce(json_extract_string(e.payload,'$.nome'),'')),e.legacy_id''',[batch,'fin1_'+kind]).fetchall()
     return [{'record_id':r[0],'legacy_id':r[1],'payload':json.loads(r[2]),'revision':r[3]} for r in rows]
 
-def save(database,*,batch,kind,values,record_id=None,revision=0,request_key):
+def save(database,*,batch,kind,values,record_id=None,revision=0,request_key,image=None,image_root=None):
     if kind not in KINDS:raise ValueError('Cadastro desconhecido')
     if not re.fullmatch('[a-f0-9]{32}',request_key or ''):raise ValueError('Chave de envio inválida')
     with connect(database) as db:
@@ -107,6 +107,11 @@ def save(database,*,batch,kind,values,record_id=None,revision=0,request_key):
             payload['id']=legacy_id
             if kind=='conta':payload['saldo']='0'
             if kind=='aplicacao':payload.update(em_carteira='0',financeiro='0',preco_medio='0',recebido='0')
+        if image is not None:
+            if kind != 'titular' or image_root is None:
+                raise ValueError('Upload de imagem disponível apenas para titulares.')
+            from fin2.portfolio.catalog_image_uploads import store_image
+            payload['imagem'] = store_image(image_root, image)
         new_revision=int(revision)+1
         db.execute('BEGIN')
         try:

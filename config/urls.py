@@ -2,7 +2,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 from fin2.dashboard import views
 from fin2.dashboard.manual_price_views import manual_prices
-from fin2.dashboard.ledger_views import cash, historical
+from fin2.dashboard.ledger_views import cash, historical, product_detail
 from fin2.dashboard.catalog_views import catalog
 from fin2.dashboard.catalog_images import catalog_image
 
@@ -23,6 +23,11 @@ urlpatterns = [
     path("fin2/", views.overview, name="overview"),
     path("fin2/posicoes/", views.positions, name="positions"),
     path("fin2/posicoes/<str:identifier>/", views.quantity_detail, name="quantity-detail"),
+    path("fin2/classes/<int:class_id>/", product_detail, name="class-detail"),
+    path("fin2/produtos/<int:product_id>/", product_detail, name="product-detail"),
+    path("fin2/titulares/<int:investor_id>/", cash, name="investor-detail"),
+    path("fin2/instituicoes/<int:institution_id>/", cash, name="institution-detail"),
+    path("fin2/contas/<int:account_id>/", cash, name="account-detail"),
     path("fin2/caixa/", cash, name="cash"),
     path("fin2/lancamentos/", views.manual_events, name="manual-events"),
     path("fin2/lancamentos/transferir/", views.manual_transfer, name="manual-transfer"),

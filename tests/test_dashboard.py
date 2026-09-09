@@ -72,6 +72,196 @@ class DashboardTests(unittest.TestCase):
             self.assertIn('Histórico · Fin1',archived.content.decode())
             self.assertNotIn('Aporte exclusivo do ledger Fin2',archived.content.decode())
 
+    def test_account_detail_and_menu_links(self):
+        with connect(self.fixture.database) as c:
+            account_id = c.execute('SELECT legacy_id FROM portfolio.account LIMIT 1').fetchone()[0]
+            application = c.execute('SELECT source_record_id FROM portfolio.application WHERE account_id=? LIMIT 1', [account_id]).fetchone()[0]
+        response = self.client.get(f'/fin2/contas/{account_id}/?account=999999&tab=aplicacoes')
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('<h2>Aplicações</h2>', html)
+        self.assertIn('<strong>Saldo no corte:</strong>', html)
+        self.assertNotIn('tab=saldos', html)
+        self.assertNotIn('<h2>Extrato do ledger</h2>', html)
+        for tab, heading in [('movimentacoes', 'Extrato do ledger')]:
+            response = self.client.get(f'/fin2/contas/{account_id}/?tab={tab}')
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(f'<h2>{heading}</h2>', response.content.decode())
+            self.assertNotIn('<h2>Aplicações</h2>', response.content.decode())
+        self.assertIn(f'/fin2/posicoes/{application}/', html)
+        self.assertIn(f'/fin2/contas/{account_id}/?', html)
+        self.assertEqual(self.client.get('/fin2/contas/999999/').status_code, 404)
+        self.assertEqual(self.client.get('/fin2/contas/invalida/').status_code, 404)
+
+    def test_account_result_sums_remaining_cost_and_flags_missing_prices(self):
+        from datetime import date
+        from fin2.dashboard.ledger_views import summarize_application_results
+        positions = [dict(legacy_id=1, quantity_at_cutoff=Decimal(5),
+                          reference_value=Decimal(80), valuation_status='priced'),
+                     dict(legacy_id=2, quantity_at_cutoff=Decimal(1),
+                          reference_value=None, valuation_status='missing_price')]
+        events = [dict(application_id=1, event_date=date(2024,1,1), operation='buy',
+                       quantity=Decimal(10), amount=Decimal(100)),
+                  dict(application_id=1, event_date=date(2024,2,1), operation='sell',
+                       quantity=Decimal(5), amount=Decimal(70)),
+                  dict(application_id=2, event_date=date(2024,1,1), operation='buy',
+                       quantity=Decimal(1), amount=Decimal(20))]
+        result = summarize_application_results(positions, events, date(2024,12,31))
+        self.assertEqual(result['invested'], Decimal(50))
+        self.assertEqual(result['present'], Decimal(80))
+        self.assertEqual(result['result'], Decimal(30))
+        self.assertEqual(result['pending'], 1)
+        self.assertIsNone(positions[1]['result'])
+        response = self.client.get('/fin2/contas/1/')
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('Resultado das aplicações', html)
+        self.assertLess(html.index('tab=resultado'), html.index('tab=aplicacoes'))
+
+    def test_institution_details_scope_accounts_and_movements(self):
+        import json
+        from django.shortcuts import render
+        with connect(self.fixture.database) as c:
+            batch = c.execute('SELECT batch_id FROM import_batch').fetchone()[0]
+            for record, table, identifier, payload in [
+                ('a'*64, 'fin1_instituicao', 1, {'nome':'Instituição A'}),
+                ('b'*64, 'fin1_instituicao', 2, {'nome':'Instituição B'}),
+                ('c'*64, 'fin1_conta', 2, {'nome':'Conta B','instituicao_id':2})]:
+                c.execute('INSERT INTO source_record VALUES (?,?,?,?,?,?)',
+                          [record,batch,'db.sqlite3',table,identifier,json.dumps(payload)])
+            c.execute("UPDATE source_record SET payload=? WHERE table_name='fin1_conta' AND legacy_id=1",
+                      [json.dumps({'nome':'Conta A','instituicao_id':1})])
+            for account, in c.execute('SELECT source_record_id FROM portfolio.account').fetchall():
+                c.execute("""INSERT INTO ledger.manual_event
+                    (event_id,account_source_record_id,event_type,settlement_date,currency,amount,description)
+                    VALUES (?,?,'deposit','2024-01-01','BRL',100,?)""", [account,account,account])
+        for tab in ('resultado','contas','aplicacoes','movimentacoes'):
+            with patch('fin2.dashboard.ledger_views.render', wraps=render) as rendered:
+                response = self.client.get('/fin2/instituicoes/1/', {'tab':tab})
+                self.assertEqual(response.status_code,200)
+                data = rendered.call_args.args[2]
+                self.assertEqual([a['legacy_id'] for a in data['institution_accounts']],[1])
+                self.assertTrue(all(p['account_id']==1 for p in data['applications']))
+                self.assertTrue(data['rows'])
+                self.assertTrue(all(r['account_id']==1 for r in data['rows']))
+        self.assertEqual(self.client.get('/fin2/instituicoes/99999/').status_code,404)
+        self.assertIn('/fin2/instituicoes/1/?',self.client.get('/fin2/').content.decode())
+
+    def test_investor_details_scope_accounts_and_movements(self):
+        import json
+        from django.shortcuts import render
+        with connect(self.fixture.database) as c:
+            batch = c.execute('SELECT batch_id FROM import_batch').fetchone()[0]
+            for record, table, identifier, payload in [
+                ('a'*64, 'fin1_titular', 1, {'nome':'Titular A'}),
+                ('b'*64, 'fin1_titular', 2, {'nome':'Titular B'}),
+                ('c'*64, 'fin1_conta', 2, {'nome':'Conta B','titular_id':2})]:
+                c.execute('INSERT INTO source_record VALUES (?,?,?,?,?,?)',
+                          [record,batch,'db.sqlite3',table,identifier,json.dumps(payload)])
+            c.execute("UPDATE source_record SET payload=? WHERE table_name='fin1_conta' AND legacy_id=1",
+                      [json.dumps({'nome':'Conta A','titular_id':1})])
+            for account, in c.execute('SELECT source_record_id FROM portfolio.account').fetchall():
+                c.execute("""INSERT INTO ledger.manual_event
+                    (event_id,account_source_record_id,event_type,settlement_date,currency,amount,description)
+                    VALUES (?,?,'deposit','2024-01-01','BRL',100,?)""", [account,account,account])
+        for tab in ('resultado','contas','aplicacoes','movimentacoes'):
+            with patch('fin2.dashboard.ledger_views.render', wraps=render) as rendered:
+                response = self.client.get('/fin2/titulares/1/', {'tab':tab})
+                self.assertEqual(response.status_code,200)
+                data = rendered.call_args.args[2]
+                self.assertEqual([a['legacy_id'] for a in data['investor_accounts']],[1])
+                self.assertTrue(all(p['account_id']==1 for p in data['applications']))
+                self.assertTrue(data['rows'])
+                self.assertTrue(all(r['account_id']==1 for r in data['rows']))
+        self.assertEqual(self.client.get('/fin2/titulares/99999/').status_code,404)
+        self.assertIn('/fin2/titulares/1/?',self.client.get('/fin2/').content.decode())
+
+    def test_product_detail_excludes_other_products_in_same_account(self):
+        import json
+        from django.shortcuts import render
+        with connect(self.fixture.database) as c:
+            batch = c.execute('SELECT batch_id FROM import_batch').fetchone()[0]
+            account = c.execute('SELECT source_record_id FROM portfolio.account LIMIT 1').fetchone()[0]
+            for record, table, identifier, payload in [
+                ('a'*64,'fin1_produto',1,{'nome':'Produto A'}),
+                ('b'*64,'fin1_produto',2,{'nome':'Produto B'}),
+                ('c'*64,'fin1_ativo',1,{'nome':'Ativo A','produto_id':1}),
+                ('d'*64,'fin1_ativo',2,{'nome':'Ativo B','produto_id':2}),
+                ('e'*64,'fin1_aplicacao',2,{'nome':'Aplicação B','conta_id':1,'ativo_id':2})]:
+                c.execute('INSERT INTO source_record VALUES (?,?,?,?,?,?)',
+                          [record,batch,'db.sqlite3',table,identifier,json.dumps(payload)])
+            c.execute("UPDATE source_record SET payload=? WHERE table_name='fin1_aplicacao' AND legacy_id=1",
+                      [json.dumps({'nome':'Aplicação A','conta_id':1,'ativo_id':1})])
+            for application, in c.execute('SELECT source_record_id FROM portfolio.application').fetchall():
+                c.execute("""INSERT INTO ledger.manual_event
+                    (event_id,account_source_record_id,application_source_record_id,event_type,settlement_date,currency,amount,description)
+                    VALUES (?,?,?,'income','2024-01-01','BRL',100,?)""", [application,account,application,application])
+        for tab in ('resultado','contas','aplicacoes','movimentacoes'):
+            with patch('fin2.dashboard.ledger_views.render', wraps=render) as rendered:
+                response = self.client.get('/fin2/produtos/1/', {'tab':tab})
+                self.assertEqual(response.status_code,200)
+                data = rendered.call_args.args[2]
+                self.assertEqual([p['legacy_id'] for p in data['applications']],[1])
+                self.assertEqual([a['legacy_id'] for a in data['product_accounts']],[1])
+                if tab == 'movimentacoes':
+                    self.assertTrue(data['rows'])
+                    self.assertTrue(all(r['application_record']==data['applications'][0]['source_record_id'] for r in data['rows']))
+        self.assertEqual(self.client.get('/fin2/produtos/99999/').status_code,404)
+        self.assertIn('/fin2/produtos/1/?',self.client.get('/fin2/').content.decode())
+
+    def test_class_detail_excludes_other_classes_in_same_account(self):
+        import json
+        from django.shortcuts import render
+        with connect(self.fixture.database) as c:
+            batch = c.execute('SELECT batch_id FROM import_batch').fetchone()[0]
+            account = c.execute('SELECT source_record_id FROM portfolio.account LIMIT 1').fetchone()[0]
+            for record, table, identifier, payload in [
+                ('a'*64,'fin1_classe',1,{'nome':'Classe A'}),
+                ('b'*64,'fin1_classe',2,{'nome':'Classe B'}),
+                ('c'*64,'fin1_ativo',1,{'nome':'Ativo A','classe_id':1}),
+                ('d'*64,'fin1_ativo',2,{'nome':'Ativo B','classe_id':2}),
+                ('e'*64,'fin1_aplicacao',2,{'nome':'Aplicação B','conta_id':1,'ativo_id':2})]:
+                c.execute('INSERT INTO source_record VALUES (?,?,?,?,?,?)',
+                          [record,batch,'db.sqlite3',table,identifier,json.dumps(payload)])
+            c.execute("UPDATE source_record SET payload=? WHERE table_name='fin1_aplicacao' AND legacy_id=1",
+                      [json.dumps({'nome':'Aplicação A','conta_id':1,'ativo_id':1})])
+            for application, in c.execute('SELECT source_record_id FROM portfolio.application').fetchall():
+                c.execute("""INSERT INTO ledger.manual_event
+                    (event_id,account_source_record_id,application_source_record_id,event_type,settlement_date,currency,amount,description)
+                    VALUES (?,?,?,'income','2024-01-01','BRL',100,?)""", [application,account,application,application])
+        for tab in ('resultado','contas','aplicacoes','movimentacoes'):
+            with patch('fin2.dashboard.ledger_views.render', wraps=render) as rendered:
+                response = self.client.get('/fin2/classes/1/', {'tab':tab})
+                self.assertEqual(response.status_code,200)
+                data = rendered.call_args.args[2]
+                self.assertEqual([p['legacy_id'] for p in data['applications']],[1])
+                self.assertEqual([a['legacy_id'] for a in data['asset_class_accounts']],[1])
+                if tab == 'movimentacoes':
+                    self.assertTrue(data['rows'])
+                    self.assertTrue(all(r['application_record']==data['applications'][0]['source_record_id'] for r in data['rows']))
+        self.assertEqual(self.client.get('/fin2/classes/99999/').status_code,404)
+        self.assertIn('/fin2/classes/1/?',self.client.get('/fin2/').content.decode())
+
+    def test_detail_header_uses_record_image_and_parent_links(self):
+        import json
+        from fin2.dashboard.detail_headers import detail_header
+        with connect(self.fixture.database) as c:
+            batch = c.execute('SELECT batch_id FROM import_batch').fetchone()[0]
+            app = c.execute('SELECT source_record_id FROM portfolio.application LIMIT 1').fetchone()[0]
+            c.execute("INSERT INTO source_record VALUES (?,?,'db.sqlite3','fin1_instituicao',9,?)",
+                      ['f'*64,batch,json.dumps({'nome':'Instituição pai'})])
+            c.execute("UPDATE source_record SET payload=? WHERE table_name='fin1_conta' AND legacy_id=1",
+                      [json.dumps({'nome':'Conta pai','instituicao_id':9})])
+            c.execute("UPDATE source_record SET payload=? WHERE record_id=?",
+                      [json.dumps({'nome':'Aplicação imagem','conta_id':1,'imagem':'app.png'}),app])
+            with patch('fin2.dashboard.detail_headers.manifest',return_value={'app.png':{'hash':'a'*64}}):
+                header = detail_header(c,app,'year=2024')['detail_header']
+            self.assertEqual(header['image']['hash'],'a'*64)
+            self.assertEqual([p['url'] for p in header['parents']],
+                             ['/fin2/contas/1/?year=2024','/fin2/instituicoes/9/?year=2024'])
+            with patch('fin2.dashboard.detail_headers.manifest',return_value={}):
+                self.assertIsNone(detail_header(c,app,'')['detail_header']['image'])
+
     def test_reports_distinguish_market_return_from_portfolio_return(self):
         response=self.client.get('/fin2/relatorios/')
         html=response.content.decode()
@@ -288,10 +478,10 @@ class DashboardTests(unittest.TestCase):
             self.assertIn(heading,html)
             positions.append(html.index(heading))
         self.assertEqual(positions,sorted(positions))
-        self.assertLess(html.index('>Visão geral</a>'),positions[0])
-        self.assertLess(positions[-1],html.index('<summary>Carteira</summary>'))
+        self.assertLess(html.index('<summary>Visão geral</summary>'),positions[0])
+        self.assertLess(positions[-1],html.index('<summary>Dados e auditoria</summary>'))
         self.assertIn('<span>TEST</span></a>',html)
-        for group in ('Carteira','Movimentações','Dados e auditoria'):
+        for group in ('Visão geral','Dados e auditoria','Histórico'):
             self.assertIn(f'<summary>{group}</summary>',html)
         for path in ('posicoes','alocacao','historico','relatorios','caixa','lancamentos','importar','conciliacao',
                      'cotacoes','registros','documentos','revisao'):
@@ -303,7 +493,18 @@ class DashboardTests(unittest.TestCase):
     def test_quantity_detail_and_invalid_account(self):
         with connect(self.fixture.database) as c:
             application=c.execute("SELECT source_record_id FROM portfolio.application LIMIT 1").fetchone()[0]
-        self.assertEqual(self.client.get(f'/fin2/posicoes/{application}/').status_code,200)
+        response = self.client.get(f'/fin2/posicoes/{application}/')
+        self.assertEqual(response.status_code,200)
+        html = response.content.decode()
+        self.assertIn('Resultado da aplicação', html)
+        self.assertIn('record-heading', html)
+        self.assertIn('Valor investido', html)
+        self.assertLess(html.index('tab=resultado'),html.index('tab=movimentacoes'))
+        movements = self.client.get(f'/fin2/posicoes/{application}/?tab=movimentacoes')
+        self.assertEqual(movements.status_code,200)
+        self.assertIn('Movimentações da aplicação',movements.content.decode())
+        self.assertIn('<th>Origem</th></tr>',movements.content.decode())
+        self.assertNotIn('<h2>Resultado da aplicação</h2>',movements.content.decode())
         self.assertEqual(self.client.get(f'/fin2/posicoes/{self.record}/').status_code,404)
         self.assertEqual(self.client.get('/fin2/caixa/?account=999').status_code,404)
 
