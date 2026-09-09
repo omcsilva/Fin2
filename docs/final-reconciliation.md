@@ -58,3 +58,23 @@ valor da cota; o custo médio não será usado como substituto de valor de merca
 Essa pendência continua aberta para os escopos em que a aplicação é incluída.
 
 A aceitação final da reconciliação ainda não foi registrada.
+
+## Revisão local da Brasilprev em 09/09/2026
+
+A consulta somente leitura ao banco de desenvolvimento encontrou uma cotação
+manual já registrada em 07/09/2026: R$ 4,638418, referência 02/09/2026, moeda BRL,
+sem documento vinculado. A [fonte cadastrada no Gorila](https://gorila.com.br/produtos-de-investimento/fundos/brasilprev-renda-total-ciclo-de-vida-2030-e-fic-fim)
+foi consultada e confirma valor e data para **BRASILPREV RENDA TOTAL CICLO DE
+VIDA 2030 E FIC FIM**, CNPJ 09.272.869/0001-60.
+
+O cadastro local tem nome **Brasilprev CICLO DE VIDA 2030 I PGBL** e CNPJ vazio.
+Portanto, a correspondência entre o plano cadastrado e o fundo da fonte ainda
+precisa de comprovação por extrato ou identificação documental do fundo.
+A cotação de 02/09 também é posterior ao corte de 31/08/2026 e não pode ser
+usada para fechar aquela conciliação.
+
+Para concluir: identificar o fundo pelo CNPJ no extrato do plano e obter a cota
+com data até 31/08/2026, registrando fonte e referência pelo mecanismo existente
+de cotações manuais. O banco local agora contém 298 documentos; a contagem de
+286 acima descreve a revisão anterior, não uma nova inspeção integral.
+Nenhuma cotação foi alterada nesta revisão e a produção não foi consultada.

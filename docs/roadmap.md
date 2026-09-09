@@ -40,7 +40,9 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
   além de dois grupos de IRRF, continuam pendentes. Eventos posteriores à última
   venda não descartam mais ganhos já reconstruídos.
 - [ ] Completar a avaliação de Brasilprev CICLO DE VIDA 2030 I PGBL com fonte e
-  data; nenhum dos 286 documentos preservados contém um extrato com a cota.
+  data; [revisão local de 09/09/2026](final-reconciliation.md#revisão-local-da-brasilprev-em-09092026)
+  encontrou cota manual de 02/09/2026, mas falta comprovar a identidade do fundo
+  (cadastro 2030 I versus fonte 2030 E) e obter cota válida até 31/08/2026.
   O INRD11 foi resolvido pela brapi, com fechamento de R$ 72,65 em 27/08/2026
   para o corte de 31/08/2026, e deixou de bloquear a conciliação em produção.
 - [x] Normalizar REAL, DOL e EUR para códigos ISO, preservando os valores originais no payload importado.
