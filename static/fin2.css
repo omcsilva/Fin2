@@ -22,18 +22,7 @@ header::before {
   z-index: -1;
   pointer-events: none;
   opacity: .75;
-  /* Skew the repeating tile, not the navigation or logo. */
-  transform: skewX(-45deg);
-  background-image:
-    linear-gradient(110deg, #03080d33, #62748012 45%, #03080d55),
-    linear-gradient(27deg, #101214 2.5px, transparent 2.5px),
-    linear-gradient(207deg, #101214 2.5px, transparent 2.5px),
-    linear-gradient(27deg, #24282d 2.5px, transparent 2.5px),
-    linear-gradient(207deg, #24282d 2.5px, transparent 2.5px),
-    linear-gradient(90deg, #191c20 5px, transparent 5px),
-    linear-gradient(#1d2024 25%, #15181b 25%, #15181b 50%, transparent 50%, transparent 75%, #272b30 75%);
-  background-size: 100% 100%, 10px 10px, 10px 10px, 10px 10px, 10px 10px, 10px 10px, 10px 10px;
-  background-position: 0 0, 0 2.5px, 5px 0, 0 5px, 5px 2.5px, 0 0, 0 0;
+  background:#151515 url("carbon3.png") repeat-x; background-size:384px 180px;
 }
 .brand { letter-spacing: -2.5px; }
 .brand span { text-shadow: 0 0 22px #62dce84d; }
@@ -462,3 +451,15 @@ a[href]:hover{cursor:pointer}
 .account-title-row{display:flex;align-items:baseline;justify-content:flex-start;gap:12px}.account-title-row h1{min-width:0;margin-top:0}.account-title-row>a{flex-shrink:0}
 
 .account-detail-header .record-heading{margin-top:0}.account-detail-header .record-header-content{align-self:start}.account-detail-header .account-header-image-row{align-items:flex-start}
+
+main:has(.account-detail-header){padding-block:12px 16px}
+.account-detail-header .account-back{margin:0}
+.account-detail-header .eyebrow{margin:0}
+.account-detail-header .account-title-row{align-items:last baseline}
+@media(max-width:800px){main:has(.account-detail-header){padding-block:8px 12px}}
+
+.account-detail-header{margin-top:0;margin-bottom:0}
+.account-detail-header .record-header-content>.lead:last-child{margin-bottom:0}
+.account-detail-header+.note{margin-top:.25rem}
+
+

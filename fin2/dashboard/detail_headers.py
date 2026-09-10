@@ -48,8 +48,14 @@ def detail_header(connection, record_id, global_query, title=None):
                 add_parents(target, content)
 
     add_parents(kind, payload)
+    status = (payload.get('decisao') if kind == 'conta' else payload.get('status'))
+    status = str(status or payload.get('situacao') or '').strip().upper()
+    status = 'ZERADO' if status == 'ZERADA' else status
     return {'detail_header': dict(title=title or payload.get('nome') or payload.get('abrev') or f'#{record["legacy_id"]}',
-                                  image=image, parents=parents,
+                                  image=image, parents=parents, status=status or 'Sem status',
+                                  identifier=record['legacy_id'],
+                                  label={'conta':'Conta','titular':'Titular','instituicao':'Instituição','classe':'Classe','produto':'Produto','aplicacao':'Aplicação'}.get(kind,KINDS[kind][0]),
+                                  edit_url=reverse('catalog-kind', args=[kind]) + '?' + global_query + ('&' if global_query else '') + urlencode({'edit':record['record_id']}),
                                   account_images=[p for p in parents if p['kind'] in ('titular', 'instituicao') and p['image']] if kind == 'conta' else [],
                                   catalog_url=reverse('catalog-kind', args=[kind]) + '?' + global_query,
                                   catalog_label=KINDS[kind][0])}

@@ -1,10 +1,8 @@
 {% extends 'dashboard/base.html' %}{% load fin2_format %}{% block content %}
-<div class="record-header{% if detail_header.image %} has-image{% endif %}"><div class="record-header-content">
-<p class="eyebrow">INSTITUIÇÕES / DETALHES</p>{% include 'dashboard/detail_header.html' %}
-<p class="lead">Instituição #{{ institution.legacy_id }} · {{ institution_accounts|length }} contas · {{ applications|length }} aplicações · Posição em {{ analysis_cutoff|date:'d/m/Y' }}.</p>
-<p><a href="{% url 'catalog-kind' 'instituicao' %}?{{ global_query }}&amp;edit={{ institution.source_record_id }}">Editar cadastro da instituição</a></p>
+<div class="record-header account-detail-header{% if detail_header.image %} has-image{% endif %}"><div class="record-header-content">
+{% include 'dashboard/detail_header.html' with compact_header=True %}
 </div>{% include 'dashboard/detail_header_image.html' %}</div>
-<div class="note">Valores separados por moeda. O filtro de carteira limita as aplicações; saldos e movimentos das contas compartilhadas são apresentados integralmente. O filtro anual limita os movimentos exibidos, e os saldos acumulam os lançamentos até o corte.</div>
+
 <nav class="page-tabs" aria-label="Detalhes da instituição">
 <a href="?{{ global_query }}&amp;tab=resultado"{% if institution_tab == 'resultado' %} class="active" aria-current="page"{% endif %}>Resultado</a>
 <a href="?{{ global_query }}&amp;tab=contas"{% if institution_tab == 'contas' %} class="active" aria-current="page"{% endif %}>Contas</a>

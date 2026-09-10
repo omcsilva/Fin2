@@ -1,10 +1,8 @@
 {% extends 'dashboard/base.html' %}{% load fin2_format %}{% block content %}
-<div class="record-header{% if detail_header.image %} has-image{% endif %}"><div class="record-header-content">
-<p class="eyebrow">TITULARES / DETALHES</p>{% include 'dashboard/detail_header.html' %}
-<p class="lead">Titular #{{ investor.legacy_id }} · {{ investor_accounts|length }} contas · {{ applications|length }} aplicações · Posição em {{ analysis_cutoff|date:'d/m/Y' }}.</p>
-<p><a href="{% url 'catalog-kind' 'titular' %}?{{ global_query }}&amp;edit={{ investor.source_record_id }}">Editar cadastro do titular</a></p>
+<div class="record-header account-detail-header{% if detail_header.image %} has-image{% endif %}"><div class="record-header-content">
+{% include 'dashboard/detail_header.html' with compact_header=True %}
 </div>{% include 'dashboard/detail_header_image.html' %}</div>
-<div class="note">Valores separados por moeda. O filtro de carteira limita as aplicações; saldos e movimentos das contas compartilhadas são apresentados integralmente. O filtro anual limita os movimentos exibidos, e os saldos acumulam os lançamentos até o corte.</div>
+
 <nav class="page-tabs" aria-label="Detalhes do titular">
 <a href="?{{ global_query }}&amp;tab=resultado"{% if investor_tab == 'resultado' %} class="active" aria-current="page"{% endif %}>Resultado</a>
 <a href="?{{ global_query }}&amp;tab=contas"{% if investor_tab == 'contas' %} class="active" aria-current="page"{% endif %}>Contas</a>

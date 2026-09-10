@@ -1,11 +1,9 @@
 {% extends 'dashboard/base.html' %}{% load fin2_format %}{% block content %}
 <div class="record-header account-detail-header{% if detail_header.account_images %} account-record-header{% endif %}{% if detail_header.account_images or detail_header.image %} has-image{% endif %}"><div class="record-header-content">
 {% include 'dashboard/detail_header.html' with account_header=True %}
-<p class="lead">Saldo em {{ analysis_cutoff|date:'d/m/Y' }}: <strong>{{ account_balance.balance|money:account_balance.currency }}</strong>{% if account_balance.pending %} <small>· {{ account_balance.pending }} valores incompletos</small>{% endif %}</p>
 </div>{% if detail_header.account_images %}<div class="account-header-images"><div class="account-header-image-row">
 {% for parent in detail_header.account_images %}<a class="account-header-image" href="{{ parent.url }}" title="{{ parent.label }}: {{ parent.name }}"><img src="{% url 'catalog-image' parent.image.hash %}" alt="{{ parent.label }}: {{ parent.name }}"></a>{% endfor %}
 </div></div>{% else %}{% include 'dashboard/detail_header_image.html' %}{% endif %}</div>
-<div class="note">O filtro de carteira limita as aplicações exibidas. O extrato apresenta a conta integralmente, inclusive quando compartilhada entre carteiras. O filtro anual limita as movimentações exibidas; os saldos acumulam os lançamentos até o corte.</div>
 <nav class="page-tabs" aria-label="Detalhes da conta">
 <a href="?{{ global_query }}&amp;tab=resultado"{% if account_tab == 'resultado' %} class="active" aria-current="page"{% endif %}>Resultado</a>
 <a href="?{{ global_query }}&amp;tab=aplicacoes"{% if account_tab == 'aplicacoes' %} class="active" aria-current="page"{% endif %}>Aplicações</a>
@@ -25,9 +23,13 @@
 
 {% endif %}
 {% if account_tab == 'aplicacoes' %}
+{% if portfolio_filter %}<div class="note">O filtro de carteira limita as aplicações exibidas.</div>{% endif %}
 <section class="panel table-wrap"><h2>Aplicações</h2><table><thead><tr><th>Ativo / aplicação</th><th>Classe</th><th class="number">Quantidade no corte</th><th class="number">Valor da posição</th><th>Situação</th></tr></thead><tbody>
 {% for p in applications %}<tr><td><a href="{% url 'quantity-detail' p.source_record_id %}?{{ global_query }}">{{ p.asset_name|default:p.name|default:'Sem nome' }}</a> <small class="muted">#{{ p.legacy_id }}</small></td><td>{{ p.class_name|default:'—' }}</td><td class="number">{{ p.quantity_at_cutoff|number }}</td><td class="number">{{ p.reference_value|money:p.currency }}</td><td>{{ p.status_label }}</td></tr>{% empty %}<tr><td colspan="5">Nenhuma aplicação neste escopo.</td></tr>{% endfor %}
 </tbody></table></section>
+{% endif %}
+{% if account_tab == 'movimentacoes' %}
+{% if year_filter %}<div class="note">O filtro anual limita as movimentações exibidas.</div>{% endif %}
 {% endif %}
 {% include 'dashboard/account_statement.html' %}
 </div>
