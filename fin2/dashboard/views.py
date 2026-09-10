@@ -1311,7 +1311,7 @@ def file_imports(request):
                     selected['page']=Paginator(selected['rows'],20).get_page(request.GET.get('page'))
                     selected['rows']=selected['page'].object_list
                     data['supporting_documents']=query(connection,'select document_id,original_filename from source_document where batch_id=? order by original_filename',[selected['batch_id']])
-            
+
             wizard_step = 1
             if identifier and selected:
                 if selected['status'] == 'completed' or selected.get('financial_status') == 'confirmed':
@@ -1322,7 +1322,7 @@ def file_imports(request):
                     else:
                         wizard_step = 2
             data['wizard_step'] = wizard_step
-            
+
             data.update(import_error=request.GET.get('error'),selected_import=selected)
             return render(request,'dashboard/file_imports.html',data,status=400 if request.GET.get('error') else 200)
     except (ValueError,OSError) as exc:

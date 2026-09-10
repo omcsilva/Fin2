@@ -318,6 +318,12 @@ def _validate(db, item, row, decision, used):
                'transfer': {'deposit','withdrawal','transfer'}, 'redemption_tax': {'tax'},
                'redemption': {'redemption'}, 'pension': {'buy'}}
     event_type = decision.get('event_type')
+    if event_type == 'transfer' and decision.get('counterparty') == 'RESULTADO':
+        amount = Decimal(row['amount'])
+        event_type = 'deposit' if amount > 0 else 'withdrawal'
+        decision['event_type'] = event_type
+        decision['counterparty'] = None
+
     if event_type not in allowed.get(kind, set()):
         raise ValueError('Categoria exige vínculo com registros existentes ou documento detalhado; não gere operação pelo saldo líquido')
     amount = Decimal(row['amount'])
