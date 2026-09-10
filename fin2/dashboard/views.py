@@ -1300,11 +1300,29 @@ def file_imports(request):
                 if selected['adapter_id']=='xp-account-statement':
                     from fin2.imports.xp_reconciliation import detail
                     selected=detail(connection,identifier)
-                    if request.GET.get('pending')=='1':
+                    if request.GET.get('review_line'):
+                        try:
+                            review_line = int(request.GET.get('review_line'))
+                            selected['rows'] = [r for r in selected['rows'] if r['row_number'] == review_line]
+                        except ValueError:
+                            pass
+                    elif request.GET.get('pending')=='1':
                         selected['rows']=[r for r in selected['rows'] if r['situation'] in ('pending','divergent')]
                     selected['page']=Paginator(selected['rows'],20).get_page(request.GET.get('page'))
                     selected['rows']=selected['page'].object_list
                     data['supporting_documents']=query(connection,'select document_id,original_filename from source_document where batch_id=? order by original_filename',[selected['batch_id']])
+            
+            wizard_step = 1
+            if identifier and selected:
+                if selected['status'] == 'completed' or selected.get('financial_status') == 'confirmed':
+                    wizard_step = 4
+                elif selected['status'] == 'preview':
+                    if selected.get('documented_at'):
+                        wizard_step = 3
+                    else:
+                        wizard_step = 2
+            data['wizard_step'] = wizard_step
+            
             data.update(import_error=request.GET.get('error'),selected_import=selected)
             return render(request,'dashboard/file_imports.html',data,status=400 if request.GET.get('error') else 200)
     except (ValueError,OSError) as exc:
