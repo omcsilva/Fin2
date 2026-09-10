@@ -1279,12 +1279,16 @@ def file_imports(request):
             identifier,_=stage_file_import(settings.WAREHOUSE_PATH,settings.DOCUMENT_ROOT,
               upload.name,upload.read(),upload.content_type,
               options={'account_record':request.POST.get('account') or None,
-                       'adapter_id':request.POST.get('adapter') or None})
+                       'adapter_id':request.POST.get('adapter') or None,
+                       'confirm_identity':request.POST.get('confirm_identity')=='on',
+                       'identity_reason':request.POST.get('identity_reason','')})
             return redirect('/fin2/importar/?preview='+identifier)
         with reader(settings.WAREHOUSE_PATH) as connection:
             data=context(request,connection)
-            data['accounts']=query(connection,"""select source_record_id,name from portfolio.account
-              where batch_id=? order by name""",[data['batch']['batch_id']])
+            from fin2.imports.xp_reconciliation import accounts as import_accounts
+            data['accounts']=[a for a in import_accounts(connection) if a['batch_id']==data['batch']['batch_id']]
+            data['selected_upload_account']=request.GET.get('account','')
+            data['selected_upload_adapter']=request.GET.get('adapter','')
             data['imports']=query(connection,'select * exclude(preview) from ledger.file_import order by created_at desc limit 50')
             identifier=request.GET.get('preview','');selected=None
             if identifier:
@@ -1293,12 +1297,25 @@ def file_imports(request):
                 if not rows:raise Http404
                 selected=rows[0];selected['rows']=json.loads(selected['preview'])
                 selected['document_metadata']=json.loads(selected['document_metadata']) if selected.get('document_metadata') else None
+                if selected['adapter_id']=='xp-account-statement':
+                    from fin2.imports.xp_reconciliation import detail
+                    selected=detail(connection,identifier)
+                    if request.GET.get('pending')=='1':
+                        selected['rows']=[r for r in selected['rows'] if r['situation'] in ('pending','divergent')]
+                    selected['page']=Paginator(selected['rows'],20).get_page(request.GET.get('page'))
+                    selected['rows']=selected['page'].object_list
+                    data['supporting_documents']=query(connection,'select document_id,original_filename from source_document where batch_id=? order by original_filename',[selected['batch_id']])
             data.update(import_error=request.GET.get('error'),selected_import=selected)
             return render(request,'dashboard/file_imports.html',data,status=400 if request.GET.get('error') else 200)
     except (ValueError,OSError) as exc:
         try:
             with reader(settings.WAREHOUSE_PATH) as connection:
-                data=context(request,connection);data.update(imports=query(connection,'select * exclude(preview) from ledger.file_import order by created_at desc limit 50'),import_error=str(exc),selected_import=None)
+                data=context(request,connection)
+                from fin2.imports.xp_reconciliation import accounts as import_accounts
+                data['accounts']=[a for a in import_accounts(connection) if a['batch_id']==data['batch']['batch_id']]
+                data['selected_upload_account']=request.POST.get('account','')
+                data['selected_upload_adapter']=request.POST.get('adapter','')
+                data.update(imports=query(connection,'select * exclude(preview) from ledger.file_import order by created_at desc limit 50'),import_error=str(exc),selected_import=None)
                 return render(request,'dashboard/file_imports.html',data,status=400)
         except Unavailable:return render(request,'dashboard/unavailable.html',status=503)
 

@@ -6,7 +6,10 @@ from fin2.dashboard.ledger_views import cash, historical, product_detail
 from fin2.dashboard.catalog_views import catalog
 from fin2.dashboard.catalog_images import catalog_image
 
+from fin2.dashboard.xp_statement_views import update as xp_statement_update
+
 urlpatterns = [
+    path('fin2/importar/<str:identifier>/revisar-xp/', xp_statement_update, name='xp-statement-update'),
     path('fin2/cotacoes/manuais/', manual_prices, name='manual-prices'),
     path('fin2/historico/fin1/cotacoes/', historical(views.prices), name='legacy-prices'),
     path('fin2/historico/fin1/', historical(views.overview), name='legacy-overview'),

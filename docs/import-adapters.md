@@ -53,3 +53,34 @@ compra somente quando corresponde a uma aplicação da conta escolhida. Os termo
 ficam em `ledger.file_import_investment_term` e o comprovante permanece ligado
 ao evento. A seleção explícita do formato permite informar que uma imagem é um
 comprovante BB; sem Tesseract, a prévia é recusada com uma mensagem operacional.
+
+`xp-account-statement` versão 1 lê extratos XLSX de conta XP em BRL, incluindo
+movimentação, liquidação, descrição, valor e saldo. O primeiro upload exige
+associação explícita e justificada do número XP ao cadastro e ao titular;
+associações posteriores são verificadas. Nomes curtos do cadastro são aceitos
+quando seus termos constam do nome documental. Contas de titulares diferentes
+usam associações independentes; nenhum número ou titular está fixado no código.
+
+A prévia XP permite registrar a evidência sem gerar eventos, revisar linhas e
+vincular uma liquidação a vários movimentos existentes. A confirmação financeira
+exige resolver todas as linhas; extratos sobrepostos reutilizam vínculos já
+confirmados. Correspondências por data/valor são sugestões para revisão, não
+confirmação automática. Proventos, transferências próprias, fluxos externos,
+resgates documentados e impostos têm validações específicas. Operações de bolsa
+não geram compras ou vendas pelo sinal da liquidação. Resgate/previdência exigem
+quantidade e documento complementar já disponível em Documentos. IRRF exige
+vínculo à linha de resgate. O original e as revisões ficam preservados.
+
+Veja [plano e validação XP](xp-account-statement-plan.md) para as regras e a
+auditoria isolada da amostra. O teste `tests/test_xp_statement.py` produz XLSX
+sintéticos; extratos pessoais não integram as fixtures versionadas.
+
+A prévia XP oferece **Aceitar sugestões em lote**: apresenta todas as sugestões
+do arquivo, inclusive de outras páginas, e permite desmarcar linhas. Sugere
+vínculo somente quando existe um único candidato de mesma conta, liquidação,
+valor e descrição normalizada; sugere novo provento somente com uma aplicação
+única pelo ativo e sem candidato de mesma data/valor. Casos ambíguos, revisões
+individuais já salvas e operações sem dados suficientes permanecem fora do lote.
+A aceitação revalida a prévia, salva decisões e auditoria em uma transação e não
+cria eventos financeiros. A confirmação financeira segue separada e exige que
+as demais pendências estejam resolvidas.

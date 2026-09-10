@@ -94,9 +94,13 @@ def stage(database,storage_root,filename,body,media_type='application/octet-stre
     from fin2.imports.clear_brokerage import CLEAR_ADAPTER  # register built-in PDF adapter
     from fin2.imports.apex_statement import APEX_ADAPTER
     from fin2.imports.bb_fixed_income import BB_FIXED_INCOME_ADAPTER
+    from fin2.imports.xp_statement import XP_ADAPTER
     selected=(options or {}).get('adapter_id')
     if selected:adapter=get(selected);confidence=100
     else:adapter,confidence=detect(filename,body)
+    if adapter.adapter_id=='xp-account-statement':
+        from fin2.imports.xp_reconciliation import stage as stage_xp
+        return stage_xp(database,storage_root,filename,body,media_type,options or {})
     raw=list(adapter.parse(filename,body))
     if not raw: raise ValueError('Arquivo sem lançamentos')
     missing=[h for h in HEADERS if h not in raw[0].values] if adapter.adapter_id=='generic-ledger' else []
@@ -131,6 +135,12 @@ def stage(database,storage_root,filename,body,media_type='application/octet-stre
     return import_id,'preview'
 
 def commit(database,import_id):
+    with connect(Path(database).resolve(strict=True)) as db:
+        migrate(db)
+        adapter=db.execute('select adapter_id from ledger.file_import where import_id=?',[import_id]).fetchone()
+    if adapter and adapter[0]=='xp-account-statement':
+        from fin2.imports.xp_reconciliation import commit as commit_xp
+        return commit_xp(database,import_id)
     with connect(Path(database).resolve(strict=True)) as db:
         migrate(db);item=db.execute("select status,error_count,preview,document_id,document_metadata,batch_id from ledger.file_import where import_id=?",[import_id]).fetchone()
         if not item or item[0]!='preview': raise ValueError('Pré-visualização indisponível')

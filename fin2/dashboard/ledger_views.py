@@ -1,5 +1,9 @@
 """Operational Fin2 ledger pages and explicit Fin1 archive routes."""
 from decimal import Decimal
+from urllib.parse import urlencode
+
+from django.conf import settings
+from django.urls import reverse
 
 from fin2.dashboard.detail_headers import detail_header
 from django.http import Http404
@@ -113,6 +117,11 @@ def cash(request, connection, account_id=None, institution_id=None, investor_id=
         data['accounts'] = [a for a in data['accounts'] if str(a['account_id']) == account]
         account_currency = (data['account']['currency'] or '').upper()
         account_currency = {'REAL': 'BRL', 'DOL': 'USD', 'DOLAR': 'USD'}.get(account_currency, account_currency)
+        if settings.WRITE_ENABLED:
+            import_options = {'account': data['account']['source_record_id']}
+            if account_currency == 'BRL' and 'XP' in (data['account']['institution_name'] or '').upper():
+                import_options['adapter'] = 'xp-account-statement'
+            data['account_import_url'] = reverse('file-imports') + '?' + data['global_query'] + '&' + urlencode(import_options)
         data['account_balance'] = next(
             (row for row in data['accounts'] if row['currency'] == account_currency),
             {'balance': 0, 'pending': 0, 'currency': account_currency})
