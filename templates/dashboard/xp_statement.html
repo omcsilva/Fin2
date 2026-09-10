@@ -44,16 +44,44 @@
             {% for error in r.errors %}<p class="note">{{ error }}</p>{% endfor %}
             {% if r.decision %}<p>Decisão atual: {{ r.decision.reason }}</p>{% endif %}
 
-            <label>Decisão<select name="action"><option value="pending">Manter pendente</option>{% if r.candidates %}<option value="link" {% if r.decision.action == 'link' %}selected{% endif %}>Vincular a movimentos existentes</option>{% endif %}<option value="new" {% if r.decision.action == 'new' %}selected{% endif %}>Criar lançamento novo</option></select></label>
-            {% if r.candidates %}<label>Movimentos nas datas de movimentação ou liquidação (seleção múltipla para uma nota)<select name="entry_ids" multiple size="4">{% for e in r.candidates %}<option value="{{ e.entry_id }}" {% if e.entry_id in r.decision.entry_ids %}selected{% endif %}>{% if e.entry_id in r.suggested_ids %}Mesmo valor · {% endif %}{{ e.label }}</option>{% endfor %}</select></label>{% endif %}
-            <label>Tipo do lançamento novo<select name="event_type"><option value="">Selecione</option><option value="income" {% if r.decision.event_type == "income" %}selected{% endif %}>Provento / rendimento</option><option value="transfer" {% if r.decision.event_type == "transfer" %}selected{% endif %}>Transferência entre contas próprias</option><option value="deposit" {% if r.decision.event_type == "deposit" %}selected{% endif %}>Aporte externo</option><option value="withdrawal" {% if r.decision.event_type == "withdrawal" %}selected{% endif %}>Retirada externa</option><option value="tax" {% if r.decision.event_type == "tax" %}selected{% endif %}>Imposto do resgate</option><option value="redemption" {% if r.decision.event_type == "redemption" %}selected{% endif %}>Resgate documentado</option><option value="buy" {% if r.decision.event_type == "buy" %}selected{% endif %}>Aplicação em previdência documentada</option></select></label>
-            <label>Aplicação{% if r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}</label>
-            <label>Outra conta da transferência<select name="counterparty"><option value="">Selecione</option>{% for a in selected_import.transfer_accounts %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.decision.counterparty %}selected{% endif %}>{{ a.name }} · {{ a.holder }}</option>{% endfor %}</select></label>
-            <label>Resgate relacionado ao imposto<select name="related_line"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date }}</option>{% endfor %}</select></label>
-            <label>Quantidade comprovada (resgate/previdência)<input name="quantity" value="{{ r.decision.quantity|default:'' }}"></label>
-            <label>Documento complementar (resgate/previdência)<select name="document_id"><option value="">Selecione</option>{% for d in supporting_documents %}<option value="{{ d.document_id }}" {% if d.document_id == r.decision.document_id %}selected{% endif %}>{{ d.original_filename }}</option>{% endfor %}</select></label>
-            <label><input type="checkbox" name="distinct_confirmed" {% if r.decision.distinct_confirmed %}checked{% endif %}> Conferi os movimentos semelhantes; esta é uma ocorrência distinta</label>
-            <label>Justificativa / identificação da contraparte<input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}" required></label><button type="submit">Salvar revisão</button>
+            <div style="display: grid; grid-template-columns: minmax(200px, 1fr) 2fr; gap: 10px 20px; align-items: center; margin-bottom: 15px;">
+                <label>Decisão</label>
+                <div><select name="action" style="width: 100%;"><option value="pending">Manter pendente</option>{% if r.candidates %}<option value="link" {% if r.decision.action == 'link' %}selected{% endif %}>Vincular a movimentos existentes</option>{% endif %}<option value="new" {% if r.decision.action == 'new' %}selected{% endif %}>Criar lançamento novo</option></select></div>
+                
+                {% if r.candidates %}
+                <label>Movimentos nas datas (múltipla escolha)</label>
+                <div><select name="entry_ids" multiple size="4" style="width: 100%;">{% for e in r.candidates %}<option value="{{ e.entry_id }}" {% if e.entry_id in r.decision.entry_ids %}selected{% endif %}>{% if e.entry_id in r.suggested_ids %}Mesmo valor · {% endif %}{{ e.label }}</option>{% endfor %}</select></div>
+                {% endif %}
+                
+                <label>Tipo do lançamento novo</label>
+                <div><select name="event_type" style="width: 100%;"><option value="">Selecione</option><option value="income" {% if r.decision.event_type == "income" %}selected{% endif %}>Provento / rendimento</option><option value="transfer" {% if r.decision.event_type == "transfer" %}selected{% endif %}>Transferência entre contas próprias</option><option value="deposit" {% if r.decision.event_type == "deposit" %}selected{% endif %}>Aporte externo</option><option value="withdrawal" {% if r.decision.event_type == "withdrawal" %}selected{% endif %}>Retirada externa</option><option value="tax" {% if r.decision.event_type == "tax" %}selected{% endif %}>Imposto do resgate</option><option value="redemption" {% if r.decision.event_type == "redemption" %}selected{% endif %}>Resgate documentado</option><option value="buy" {% if r.decision.event_type == "buy" %}selected{% endif %}>Aplicação em previdência documentada</option></select></div>
+                
+                <label>Aplicação</label>
+                <div>
+                {% if r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override" style="width: 100%;"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record" style="width: 100%;"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}
+                </div>
+                
+                <label>Outra conta da transferência</label>
+                <div><select name="counterparty" style="width: 100%;"><option value="">Selecione</option>{% for a in selected_import.transfer_accounts %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.decision.counterparty %}selected{% endif %}>{{ a.name }} · {{ a.holder }}</option>{% endfor %}</select></div>
+                
+                <label>Resgate relacionado ao imposto</label>
+                <div><select name="related_line" style="width: 100%;"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date }}</option>{% endfor %}</select></div>
+                
+                <label>Quantidade comprovada</label>
+                <div><input name="quantity" value="{{ r.decision.quantity|default:'' }}" style="width: 100%;"></div>
+                
+                <label>Documento complementar</label>
+                <div><select name="document_id" style="width: 100%;"><option value="">Selecione</option>{% for d in supporting_documents %}<option value="{{ d.document_id }}" {% if d.document_id == r.decision.document_id %}selected{% endif %}>{{ d.original_filename }}</option>{% endfor %}</select></div>
+                
+                <div style="grid-column: 1 / -1;">
+                    <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" name="distinct_confirmed" {% if r.decision.distinct_confirmed %}checked{% endif %}> Conferi os movimentos semelhantes; esta é uma ocorrência distinta</label>
+                </div>
+                
+                <label>Justificativa / contraparte</label>
+                <div><input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}" required style="width: 100%;"></div>
+            </div>
+            
+            <button type="submit">Salvar revisão</button>
             </form>
         {% endfor %}
 
