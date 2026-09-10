@@ -212,7 +212,7 @@ class XPFlowTests(unittest.TestCase):
         create(self.db,account_record=self.account,event_type='income',settlement_date='2025-01-03',currency='BRL',amount=5,description='DIVIDENDOS  DE CLIENTES TEST3')
         with connect(self.db) as db: item=xp.detail(db,identifier)
         self.assertEqual((item['bulk_new_count'],item['bulk_link_count']),(2,1))
-        self.assertEqual(xp.bulk_review(self.db,identifier,[p['row_number'] for p in item['bulk_suggestions']],item['bulk_token']),3)
+        self.assertEqual(xp.bulk_review(self.db,identifier,[p['row_number'] for p in item['bulk_suggestions'] if not p['needs_input']],item['bulk_token']),3)
         with connect(self.db) as db:
             item=xp.detail(db,identifier)
             self.assertEqual(item['counts'],{'new':2,'linked':1,'pending':1,'divergent':0})
@@ -257,3 +257,147 @@ class XPFlowTests(unittest.TestCase):
         with connect(self.db) as db:
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_decision').fetchone()[0],0)
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_line where decision is not null').fetchone()[0],0)
+
+
+class IdentifyApplicationTests(unittest.TestCase):
+    """Unit tests for the identify_application() cascade."""
+
+    def _app(self, source_record_id, name, symbol=None, asset_name=None,
+             cnpj=None, issuer=None, asset_aliases=None, app_aliases=None):
+        return {
+            'source_record_id': source_record_id, 'name': name,
+            'symbol': symbol, 'asset_name': asset_name,
+            'cnpj': cnpj, 'issuer': issuer,
+            'asset_aliases': asset_aliases, 'app_aliases': app_aliases,
+        }
+
+    def _row(self, description, symbol=None, category='income'):
+        return {'description': description, 'symbol': symbol, 'category': category}
+
+    # ---- Step 1: exact symbol -----------------------------------------------
+
+    def test_ticker_exact_unique(self):
+        apps = [self._app('a1', 'PETR4 XP', symbol='PETR4')]
+        row = self._row('JUROS S/ CAPITAL PROPRIO S/100 PETR4 - PN', symbol='PETR4')
+        app_id, method = xp.identify_application(row, apps)
+        self.assertEqual(app_id, 'a1')
+        self.assertEqual(method, 'exact_symbol')
+
+    def test_ticker_ambiguous_two_apps(self):
+        apps = [self._app('a1', 'PETR4 A', symbol='PETR4'),
+                self._app('a2', 'PETR4 B', symbol='PETR4')]
+        row = self._row('DIVIDENDOS PETR4', symbol='PETR4')
+        app_id, method = xp.identify_application(row, apps)
+        self.assertIsNone(app_id)
+
+    # ---- Step 2: CNPJ -------------------------------------------------------
+
+    def test_cnpj_formatted(self):
+        apps = [self._app('a1', 'Fundo A', cnpj='12345678000190')]
+        row = self._row('RENDIMENTOS 12.345.678/0001-90 CDB')
+        app_id, method = xp.identify_application(row, apps)
+        self.assertEqual(app_id, 'a1')
+        self.assertEqual(method, 'cnpj')
+
+    def test_cnpj_no_match(self):
+        apps = [self._app('a1', 'Fundo A', cnpj='00000000000000')]
+        row = self._row('RENDIMENTOS 12.345.678/0001-90 CDB')
+        app_id, _ = xp.identify_application(row, apps)
+        self.assertIsNone(app_id)
+
+    # ---- Step 3: aliases ----------------------------------------------------
+
+    def test_asset_alias_match(self):
+        apps = [self._app('a1', 'Trend Ações FIA', asset_aliases='TREND ACOES FI|TREND ACOES')]
+        row = self._row('RESGATE TREND ACOES FI')
+        app_id, method = xp.identify_application(row, apps)
+        self.assertEqual(app_id, 'a1')
+        self.assertEqual(method, 'alias')
+
+    def test_app_alias_match(self):
+        apps = [self._app('a1', 'CDB Inter', app_aliases='CDB BANCO INTER')]
+        row = self._row('RENDIMENTOS CDB BANCO INTER 2025')
+        app_id, method = xp.identify_application(row, apps)
+        self.assertEqual(app_id, 'a1')
+        self.assertEqual(method, 'alias')
+
+    def test_alias_ambiguous(self):
+        apps = [self._app('a1', 'Fundo X', asset_aliases='TREND'),
+                self._app('a2', 'Fundo Y', app_aliases='TREND')]
+        row = self._row('RESGATE TREND ACOES FI')
+        app_id, _ = xp.identify_application(row, apps)
+        self.assertIsNone(app_id)
+
+    # ---- Step 4: asset name -------------------------------------------------
+
+    def test_asset_name_match(self):
+        apps = [self._app('a1', 'Trend', asset_name='TREND ACOES FIA')]
+        row = self._row('RESGATE TREND ACOES FIA')
+        app_id, method = xp.identify_application(row, apps)
+        self.assertEqual(app_id, 'a1')
+        self.assertEqual(method, 'asset_name')
+
+    # ---- Step 5: application name -------------------------------------------
+
+    def test_app_name_match(self):
+        apps = [self._app('a1', 'CICLO DE VIDA 2030')]
+        row = self._row('APLICACAO PREVIDENCIA CICLO DE VIDA 2030', category='pension')
+        app_id, method = xp.identify_application(row, apps)
+        self.assertEqual(app_id, 'a1')
+        self.assertEqual(method, 'app_name')
+
+    # ---- Step 6: issuer -----------------------------------------------------
+
+    def test_issuer_match(self):
+        apps = [self._app('a1', 'CDB Inter', issuer='BANCO INTER')]
+        row = self._row('RENDIMENTOS CDB BANCO INTER')
+        app_id, method = xp.identify_application(row, apps)
+        self.assertEqual(app_id, 'a1')
+        self.assertEqual(method, 'issuer')
+
+    # ---- No match / empty ---------------------------------------------------
+
+    def test_no_apps(self):
+        app_id, method = xp.identify_application(self._row('TRANSFERENCIA'), [])
+        self.assertIsNone(app_id)
+        self.assertIsNone(method)
+
+    def test_generic_transfer_no_match(self):
+        apps = [self._app('a1', 'PETR4 XP', symbol='PETR4')]
+        app_id, method = xp.identify_application(
+            self._row('TRANSFERENCIA DA CONTA DIGITAL', category='transfer'), apps)
+        self.assertIsNone(app_id)
+
+
+class ValidateAliasesTests(unittest.TestCase):
+    """Unit tests for catalog._validate_aliases()."""
+
+    def test_valid_aliases(self):
+        from fin2.portfolio.catalog import _validate_aliases
+        payload = {'statement_aliases': 'Alias A | Alias B | Alias C'}
+        _validate_aliases(payload)
+        self.assertEqual(payload['statement_aliases'], 'Alias A|Alias B|Alias C')
+
+    def test_empty_aliases_becomes_none(self):
+        from fin2.portfolio.catalog import _validate_aliases
+        payload = {'statement_aliases': ''}
+        _validate_aliases(payload)
+        self.assertIsNone(payload['statement_aliases'])
+
+    def test_missing_field_becomes_none(self):
+        from fin2.portfolio.catalog import _validate_aliases
+        payload = {}
+        _validate_aliases(payload)
+        self.assertIsNone(payload['statement_aliases'])
+
+    def test_too_many_aliases(self):
+        from fin2.portfolio.catalog import _validate_aliases
+        payload = {'statement_aliases': '|'.join([f'a{i}' for i in range(21)])}
+        with self.assertRaises(ValueError):
+            _validate_aliases(payload)
+
+    def test_alias_too_long(self):
+        from fin2.portfolio.catalog import _validate_aliases
+        payload = {'statement_aliases': 'A' * 101}
+        with self.assertRaises(ValueError):
+            _validate_aliases(payload)
