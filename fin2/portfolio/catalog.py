@@ -23,15 +23,31 @@ KINDS={
     'setor_id':('Setor','setor'),'indice_id':('Índice','indice'),
     'isin':('ISIN',None),'cnpj':('CNPJ',None),'emissor':('Emissor',None),
     'vencimento':('Vencimento (AAAA-MM-DD)',None),'indexador':('Indexador contratado',None),
-    'taxa':('Taxa contratada (%)',None)}),
- 'aplicacao':('Aplicações',{'nome':('Nome',None),'conta_id':('Conta','conta'),'ativo_id':('Ativo','ativo')}),
+    'taxa':('Taxa contratada (%)',None),
+    'statement_aliases':('Nomes alternativos em extratos (separados por |)',None)}),
+ 'aplicacao':('Aplicações',{'nome':('Nome',None),'conta_id':('Conta','conta'),'ativo_id':('Ativo','ativo'),
+    'statement_aliases':('Nomes alternativos em extratos (separados por |)',None)}),
  'aplicacao_carteira':('Vínculos com carteiras',{'aplicacao_id':('Aplicação','aplicacao'),'carteira_id':('Carteira','carteira')})
 }
 STATUS_KINDS = {'titular','instituicao','produto','ativo'}
 for _kind in STATUS_KINDS:
     KINDS[_kind][1]['status'] = ('Status',None)
 KINDS['conta'][1]['decisao'] = ('Status',None)
-OPTIONAL={'abrev','tipo_id','produto_id','setor_id','indice_id','isin','cnpj','emissor','vencimento','indexador','taxa','status','decisao'}
+OPTIONAL={'abrev','tipo_id','produto_id','setor_id','indice_id','isin','cnpj','emissor','vencimento','indexador','taxa','status','decisao','statement_aliases'}
+
+def _validate_aliases(payload):
+    """Validate and normalise the statement_aliases field (pipe-separated)."""
+    raw = payload.get('statement_aliases')
+    if not raw:
+        payload['statement_aliases'] = None
+        return
+    aliases = [a.strip() for a in str(raw).split('|') if a.strip()]
+    if len(aliases) > 20:
+        raise ValueError('Nomes alternativos: máximo de 20 entradas')
+    if any(len(a) > 100 for a in aliases):
+        raise ValueError('Nome alternativo: máximo de 100 caracteres cada')
+    payload['statement_aliases'] = '|'.join(aliases)
+
 
 def records(db,batch,kind):
     if kind not in KINDS:raise ValueError('Cadastro desconhecido')
@@ -95,6 +111,9 @@ def save(database,*,batch,kind,values,record_id=None,revision=0,request_key,imag
                     if not rate.is_finite():raise InvalidOperation
                 except InvalidOperation:raise ValueError('Taxa contratada inválida') from None
                 payload['taxa']=str(rate)
+            _validate_aliases(payload)
+        if kind=='aplicacao':
+            _validate_aliases(payload)
         others=[r for r in records(db,batch,kind) if r['record_id']!=record_id]
         if kind=='aplicacao_carteira':
             if any(all(r['payload'].get(f)==payload[f] for f in KINDS[kind][1]) for r in others):raise ValueError('Vínculo já cadastrado')

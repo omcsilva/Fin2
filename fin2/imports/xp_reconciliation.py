@@ -33,7 +33,10 @@ def account(db, identifier):
 
 
 def applications(db, identifier):
-    return records(db, """select ap.source_record_id,ap.name,upper(a.symbol) symbol
+    return records(db, """select ap.source_record_id, ap.name, upper(a.symbol) symbol,
+      a.name asset_name, a.cnpj, a.issuer,
+      a.statement_aliases asset_aliases,
+      ap.statement_aliases app_aliases
       from portfolio.application ap join portfolio.account c on c.batch_id=ap.batch_id and c.legacy_id=ap.account_id
       left join portfolio.asset a on a.batch_id=ap.batch_id and a.legacy_id=ap.asset_id
       where c.source_record_id=? order by ap.name""", [identifier])
@@ -60,6 +63,111 @@ def _dates_match(entry, row):
     if entry.get('settlement_date') is not None:
         dates.add(str(entry['settlement_date']))
     return bool(dates & {row.get('trade_date'), row.get('settlement_date')})
+
+
+def _extract_asset_hint(description):
+    """Strip XP category prefixes and auxiliary fragments from a statement description,
+    returning the residual tokens that identify the underlying asset or fund."""
+    text = plain(description)
+    for prefix in (
+        'JUROS S/ CAPITAL PROPRIO', 'JUROS S/ CAPITAL',
+        'DIVIDENDOS', 'RENDIMENTOS', 'IRRF S/RESGATE', 'RESGATE',
+        'APLICACAO PREVIDENCIA', 'OPERACOES EM BOLSA',
+        'TRANSFERENCIA', 'TED ',
+    ):
+        if text.startswith(prefix):
+            text = text[len(prefix):].strip()
+            break
+    text = re.sub(r'\bS/\d[\d.,]*\b', '', text)              # income base: S/100
+    text = re.sub(r'\s*-\s*(PN|ON|UNT|CI|ED)\b', '', text)   # share class suffix
+    text = re.sub(r'\bNOTA\s*N[OoºO.]?\s*\d+\b', '', text)   # brokerage note ref
+    return ' '.join(text.split())
+
+
+def _match_aliases(alias_string, description_plain):
+    """Return True if any pipe-separated alias occurs in the normalised description."""
+    if not alias_string:
+        return False
+    return any(
+        plain(alias) in description_plain
+        for alias in str(alias_string).split('|')
+        if alias.strip()
+    )
+
+
+def _resolve_unique(candidates):
+    """Return the single source_record_id if exactly one candidate, else None."""
+    ids = {a['source_record_id'] for a in candidates}
+    return next(iter(ids)) if len(ids) == 1 else None
+
+
+def identify_application(row, apps):
+    """Cascade match a statement row against the account's applications.
+
+    Returns (source_record_id, method) or (None, None) when ambiguous.
+
+    Cascade order (most-to-least reliable):
+      1. exact_symbol  — ticker regex matches app.symbol
+      2. cnpj          — 14-digit CNPJ in description matches app.cnpj
+      3. alias         — app.asset_aliases or app.app_aliases substring match
+      4. asset_name    — residual hint tokens match app.asset_name
+      5. app_name      — residual hint tokens match app.name
+      6. issuer        — issuer tokens appear in description
+    """
+    if not apps:
+        return None, None
+
+    desc_plain = plain(row.get('description', ''))
+
+    # Step 1: ticker symbol
+    symbol = row.get('symbol')
+    if symbol:
+        matches = [a for a in apps if a.get('symbol') == symbol]
+        result = _resolve_unique(matches)
+        if result:
+            return result, 'exact_symbol'
+
+    # Step 2: CNPJ (14 digits, with or without formatting)
+    cnpj_match = re.search(r'\d{2}[.\-]?\d{3}[.\-]?\d{3}[/]?\d{4}[-]?\d{2}', row.get('description', ''))
+    if cnpj_match:
+        raw_cnpj = re.sub(r'[./-]', '', cnpj_match.group())
+        if len(raw_cnpj) == 14:
+            matches = [a for a in apps if a.get('cnpj') and re.sub(r'[./-]', '', a['cnpj']) == raw_cnpj]
+            result = _resolve_unique(matches)
+            if result:
+                return result, 'cnpj'
+
+    # Step 3: statement aliases (asset or application)
+    matches = [a for a in apps
+               if _match_aliases(a.get('asset_aliases'), desc_plain)
+               or _match_aliases(a.get('app_aliases'), desc_plain)]
+    result = _resolve_unique(matches)
+    if result:
+        return result, 'alias'
+
+    # Steps 4 & 5: name-based matching using residual hint from description
+    hint = _extract_asset_hint(row.get('description', ''))
+    if hint:
+        # Step 4: asset name
+        matches = [a for a in apps if a.get('asset_name') and plain(a['asset_name']) and hint in plain(a['asset_name'])]
+        result = _resolve_unique(matches)
+        if result:
+            return result, 'asset_name'
+
+        # Step 5: application name
+        matches = [a for a in apps if a.get('name') and hint in plain(a['name'])]
+        result = _resolve_unique(matches)
+        if result:
+            return result, 'app_name'
+
+    # Step 6: issuer tokens
+    matches = [a for a in apps
+               if a.get('issuer') and plain(a['issuer']) and plain(a['issuer']) in desc_plain]
+    result = _resolve_unique(matches)
+    if result:
+        return result, 'issuer'
+
+    return None, None
 
 
 def _load(db, identifier, mutable=False):
@@ -146,7 +254,11 @@ def detail(db, identifier):
                              if _dates_match(e, row)]
         row['suggested_ids'] = [e['entry_id'] for e in row['candidates'] if e['amount'] == Decimal(row.get('amount', '0'))]
         row['applications'] = apps
-        row['suggested_application'] = next((a['source_record_id'] for a in apps if a['symbol'] == row.get('symbol')), '')
+        _app_id, _match_method = identify_application(row, apps)
+        row['suggested_application'] = _app_id or ''
+        row['match_method'] = _match_method or ''
+        row['suggested_application_name'] = next(
+            (a['name'] for a in apps if a['source_record_id'] == _app_id), '') if _app_id else ''
         claim = db.execute('select import_id,line_number from ledger.xp_statement_claim where account_record=? and fingerprint=?',
                            [item['account_record'], row['fingerprint']]).fetchone()
         row['prior_claim'] = claim[0] if claim and claim[0] != identifier else None
@@ -276,7 +388,6 @@ def _bulk_suggestions(db, item, available=None, apps=None):
         dated = [e for e in available if _dates_match(e, row)]
         candidates = [e for e in dated if e['amount'] == Decimal(row['amount'])]
         exact = [e for e in candidates if plain(e['description']) == plain(row['description'])]
-        matches = [a for a in apps if row.get('symbol') and a['symbol'] == row['symbol']]
         decision = None
         label = ''
         needs_input = False
@@ -284,16 +395,40 @@ def _bulk_suggestions(db, item, available=None, apps=None):
             decision = {'action': 'link', 'entry_ids': [exact[0]['entry_id']],
                         'reason': 'Revisão em lote: mesma conta, liquidação, valor e descrição'}
             label = 'Vincular ao registro existente'
-        elif not candidates and row['category'] in {'income', 'jcp', 'dividend'} and len(matches) == 1:
-            decision = {'action': 'new', 'event_type': 'income',
-                        'application_record': matches[0]['source_record_id'], 'reviewed_entries': [],
-                        'reason': 'Revisão em lote: provento com aplicação única pelo ativo, sem candidato de mesma data e valor'}
-            label = 'Novo provento · ' + (matches[0]['name'] or row['symbol'])
-        elif not dated and row['category'] in {'transfer','redemption','redemption_tax','pension','income','jcp','dividend'}:
-            decision = {'action': 'new', 'reviewed_entries': [],
-                        'reason': 'Revisão em lote: novo lançamento sem movimento nas datas de movimentação ou liquidação'}
-            needs_input = True
-            label = 'Novo lançamento — completar dados'
+        else:
+            app_id, match_method = identify_application(row, apps)
+            app_name = next((a['name'] for a in apps if a['source_record_id'] == app_id), '') if app_id else ''
+            category_event = {
+                'jcp': 'income', 'dividend': 'income', 'income': 'income',
+                'redemption_tax': 'tax',
+            }
+            if not candidates and app_id and row['category'] in category_event:
+                event_type = category_event[row['category']]
+                decision = {
+                    'action': 'new', 'event_type': event_type,
+                    'application_record': app_id, 'reviewed_entries': [],
+                    'match_method': match_method,
+                    'reason': f'Revisão em lote: {match_method}, sem candidato de mesma data e valor',
+                }
+                if row['category'] == 'redemption_tax':
+                    same_date = [r for r in item['rows']
+                                 if r['category'] == 'redemption'
+                                 and r.get('settlement_date') == row.get('settlement_date')]
+                    if len(same_date) == 1:
+                        decision['related_line'] = same_date[0]['row_number']
+                label = f"Novo provento · {app_name}" if event_type == 'income' else f"Novo imposto · {app_name}"
+            elif not dated and row['category'] in {'transfer', 'redemption', 'redemption_tax', 'pension', 'income', 'jcp', 'dividend'}:
+                base_decision = {
+                    'action': 'new', 'reviewed_entries': [],
+                    'reason': 'Revisão em lote: novo lançamento sem movimento nas datas de movimentação ou liquidação',
+                }
+                if app_id:
+                    base_decision['application_record'] = app_id
+                    base_decision['match_method'] = match_method
+                decision = base_decision
+                needs_input = True
+                label = (f'Novo lançamento · {app_name} — completar dados' if app_name
+                         else 'Novo lançamento — completar dados')
         if decision is None:
             continue
         if not needs_input:
@@ -304,7 +439,9 @@ def _bulk_suggestions(db, item, available=None, apps=None):
         proposals.append({'row_number': row['row_number'], 'source_locator': row['source_locator'],
                           'description': row['description'], 'settlement_date': row['settlement_date'],
                           'amount': row['amount'], 'label': label, 'decision': decision,
-                          'category': row['category'], 'needs_input': needs_input})
+                          'category': row['category'], 'needs_input': needs_input,
+                          'application_name': next((a['name'] for a in apps
+                                                    if a['source_record_id'] == decision.get('application_record')), '')})
     usage = Counter(entry for proposal in proposals for entry in proposal['decision'].get('entry_ids', []))
     proposals = [p for p in proposals if all(usage[e] == 1 for e in p['decision'].get('entry_ids', []))]
     token = hashlib.sha256(json.dumps(proposals, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
