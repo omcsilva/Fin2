@@ -1,3 +1,7 @@
+<style>
+.table-wrap table { table-layout: fixed; width: 100%; }
+.table-wrap th, .table-wrap td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
 {% if wizard_step == 2 %}
 {% include 'dashboard/xp_statement_approval.html' %}
 {% else %}
@@ -9,7 +13,7 @@
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
 
 {% if wizard_step == 3 or wizard_step == 4 %}
-<div class="table-wrap"><table><thead><tr><th>Conciliação</th><th class="number">Extrato</th><th class="number">Fin2</th><th class="number">Diferença</th></tr></thead><tbody>
+<div class="table-wrap"><table><colgroup><col style="width: 30%;"><col style="width: 23%;"><col style="width: 23%;"><col style="width: 23%;"></colgroup><thead><tr><th>Conciliação</th><th class="number">Extrato</th><th class="number">Fin2</th><th class="number">Diferença</th></tr></thead><tbody>
 <tr><td>Saldo inicial (inferido)</td><td class="number">{{ selected_import.document_metadata.opening_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_opening|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.opening_difference|money:'BRL' }}</td></tr>
 <tr><td>Saldo final</td><td class="number">{{ selected_import.document_metadata.closing_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_closing|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.closing_difference|money:'BRL' }}</td></tr>
 </tbody></table></div>
@@ -95,7 +99,7 @@
         <form method="post" action="{% url 'xp-statement-update' selected_import.import_id %}">{% csrf_token %}
         <input type="hidden" name="operation" value="bulk_review"><input type="hidden" name="bulk_token" value="{{ selected_import.bulk_token }}">
         
-        <div class="table-wrap"><table><thead><tr><th>SEL.</th><th class="number">Linha</th><th class="number">Mov.</th><th class="number">Liq.</th><th>Lançamento</th><th>Tipo</th><th>Aplicação</th><th class="number">Quantidade</th><th class="number">Valor</th><th class="number">Saldo</th><th>Situação</th><th>Revisão</th><th>Ação</th></tr></thead><tbody>
+        <div class="table-wrap"><table><colgroup><col style="width:35px;"><col style="width:50px;"><col style="width:75px;"><col style="width:75px;"><col style="width:14%;"><col style="width:10%;"><col style="width:14%;"><col style="width:80px;"><col style="width:90px;"><col style="width:90px;"><col style="width:9%;"><col style="width:14%;"><col style="width:70px;"></colgroup><thead><tr><th>SEL.</th><th class="number">Linha</th><th class="number">Mov.</th><th class="number">Liq.</th><th>Lançamento</th><th>Tipo</th><th>Aplicação</th><th class="number">Quantidade</th><th class="number">Valor</th><th class="number">Saldo</th><th>Situação</th><th>Revisão</th><th>Ação</th></tr></thead><tbody>
         {% for r in selected_import.rows %}<tr>
         <td>{% if r.bulk_suggestion %}
             {% if not r.bulk_suggestion.needs_input %}<input type="checkbox" name="bulk_line" value="{{ r.row_number }}" checked aria-label="Aceitar sugestão da linha {{ r.source_locator.row }}">{% endif %}
@@ -134,7 +138,7 @@
 
 {% if wizard_step == 4 %}
     <div class="note" style="background-color: #d4edda; color: #155724;">Importação concluída com sucesso! Todos os movimentos foram registrados.</div>
-    <div class="table-wrap"><table><thead><tr><th class="number">Linha</th><th class="number">Mov.</th><th class="number">Liq.</th><th>Lançamento</th><th>Tipo</th><th>Aplicação</th><th class="number">Quantidade</th><th class="number">Valor</th><th class="number">Saldo</th><th>Status da Revisão</th></tr></thead><tbody>
+    <div class="table-wrap"><table><colgroup><col style="width:50px;"><col style="width:75px;"><col style="width:75px;"><col style="width:20%;"><col style="width:15%;"><col style="width:20%;"><col style="width:80px;"><col style="width:90px;"><col style="width:90px;"><col style="width:20%;"></colgroup><thead><tr><th class="number">Linha</th><th class="number">Mov.</th><th class="number">Liq.</th><th>Lançamento</th><th>Tipo</th><th>Aplicação</th><th class="number">Quantidade</th><th class="number">Valor</th><th class="number">Saldo</th><th>Status da Revisão</th></tr></thead><tbody>
     {% for r in selected_import.rows %}<tr>
     <td class="number">{{ r.source_locator.row }}</td><td class="number">{{ r.trade_date|short_date }}</td><td class="number">{{ r.settlement_date|short_date }}</td>
     <td>{{ r.description }}</td><td>{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</td>
