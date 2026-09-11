@@ -194,48 +194,4 @@
 
 
 
-<div id="debug-info" style="background: red; color: white; padding: 20px; font-size: 16px; font-family: monospace; position: fixed; bottom: 0; right: 0; z-index: 9999; box-shadow: 0 0 10px black;">
-    <strong>Debug Info:</strong><br>
-    <span id="debug-text">Loading...</span>
-</div>
-<script>
-(function() {
-    function measure() {
-        var wrap = document.querySelector('.table-wrap');
-        var table = wrap ? wrap.querySelector('table') : null;
-        var info = [];
-        info.push('window.innerWidth: ' + window.innerWidth);
-        if (wrap) {
-            info.push('wrap.clientWidth: ' + wrap.clientWidth);
-            info.push('wrap.scrollWidth: ' + wrap.scrollWidth);
-            info.push('wrap.offsetWidth: ' + wrap.offsetWidth);
-            var computedWrap = window.getComputedStyle(wrap);
-            info.push('wrap CSS width: ' + computedWrap.width);
-            info.push('wrap CSS overflow-x: ' + computedWrap.overflowX);
-        }
-        if (table) {
-            info.push('table.clientWidth: ' + table.clientWidth);
-            info.push('table.scrollWidth: ' + table.scrollWidth);
-            info.push('table.offsetWidth: ' + table.offsetWidth);
-            var computedTable = window.getComputedStyle(table);
-            info.push('table CSS width: ' + computedTable.width);
-            
-            var row = table.querySelector('tbody tr');
-            if (row) {
-                var cells = row.querySelectorAll('td');
-                var cellWidths = [];
-                for(var i=0; i<cells.length; i++) {
-                    cellWidths.push(cells[i].offsetWidth);
-                }
-                info.push('cellWidths: ' + cellWidths.join(', '));
-            }
-        }
-        var el = document.getElementById('debug-text');
-        if (el) el.innerHTML = info.join('<br>');
-    }
-    
-    // Run immediately and every second
-    measure();
-    setInterval(measure, 1000);
-})();
-</script>
+
