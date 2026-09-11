@@ -329,6 +329,59 @@ class XPFlowTests(unittest.TestCase):
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_line where decision is not null').fetchone()[0],0)
 
 
+    def test_resultado_counterparty_becomes_deposit(self):
+        body = workbook(movements=[('2025-01-02', '2025-01-02', 'Transferência', 150.00, 150.00)])
+        identifier = self.stage(body)
+        from fin2.imports import xp_reconciliation as xp
+        from warehouse.database import connect
+        xp.document(self.db, identifier)
+        with connect(self.db) as db:
+            item_before = xp._load(db, identifier, True)
+            row_num = item_before['rows'][0]['row_number']
+        
+        # Review as transfer but with RESULTADO
+        xp.review(self.db, identifier, row_num, self.decision(
+            action='new', event_type='transfer', counterparty='RESULTADO', reason='From P&L'
+        ))
+        
+        # Check if it was mutated
+        with connect(self.db) as db:
+            item = xp._load(db, identifier, True)
+            self.assertEqual(item['rows'][0]['decision']['event_type'], 'deposit')
+            self.assertIsNone(item['rows'][0]['decision']['counterparty'])
+        
+        # Commit should create a deposit, not a transfer
+        xp.commit(self.db, identifier)
+        with connect(self.db) as db:
+            events = db.execute('select event_type, amount, transfer_id from ledger.manual_event').fetchall()
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0][0], 'deposit')
+            self.assertIsNone(events[0][2]) # transfer_id should be None
+
+    def test_resultado_counterparty_becomes_withdrawal(self):
+        body = workbook(movements=[('2025-01-02', '2025-01-02', 'Transferência', -150.00, -150.00)])
+        identifier = self.stage(body)
+        from fin2.imports import xp_reconciliation as xp
+        from warehouse.database import connect
+        xp.document(self.db, identifier)
+        with connect(self.db) as db:
+            item_before = xp._load(db, identifier, True)
+            row_num = item_before['rows'][0]['row_number']
+        
+        xp.review(self.db, identifier, row_num, self.decision(
+            action='new', event_type='transfer', counterparty='RESULTADO', reason='To P&L'
+        ))
+        
+        with connect(self.db) as db:
+            item = xp._load(db, identifier, True)
+            self.assertEqual(item['rows'][0]['decision']['event_type'], 'withdrawal')
+        
+        xp.commit(self.db, identifier)
+        with connect(self.db) as db:
+            events = db.execute('select event_type, amount, transfer_id from ledger.manual_event').fetchall()
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0][0], 'withdrawal')
+
 class IdentifyApplicationTests(unittest.TestCase):
     """Unit tests for the identify_application() cascade."""
 
