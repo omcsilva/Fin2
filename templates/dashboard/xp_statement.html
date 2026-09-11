@@ -98,7 +98,7 @@
         <div class="table-wrap"><table><thead><tr><th>Lote</th><th>Origem / datas</th><th>Lançamento</th><th>Valor / saldo</th><th>Situação e revisão</th></tr></thead><tbody>
         {% for r in selected_import.rows %}<tr>
         <td>{% if r.bulk_suggestion %}
-            <input type="checkbox" name="bulk_line" value="{{ r.row_number }}" {% if not r.bulk_suggestion.needs_input %}checked{% endif %} aria-label="Aceitar sugestão da linha {{ r.source_locator.row }}">
+            {% if not r.bulk_suggestion.needs_input %}<input type="checkbox" name="bulk_line" value="{{ r.row_number }}" checked aria-label="Aceitar sugestão da linha {{ r.source_locator.row }}">{% endif %}
             {% endif %}</td>
         <td>{{ r.source_locator.sheet }}:{{ r.source_locator.row }}<br>Mov.: {{ r.trade_date }}<br>Liq.: {{ r.settlement_date }}</td>
         <td>{{ r.description }}<br>{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</td>
@@ -107,9 +107,7 @@
         {% if r.bulk_suggestion %}
             <div style="background-color: #f8f9fa; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
             <strong>Sugerido:</strong> {{ r.bulk_suggestion.label }}
-            {% if r.bulk_suggestion.needs_input %}
-                {% with suggestion=r.bulk_suggestion %}{% include "dashboard/xp_bulk_fields.html" %}{% endwith %}
-            {% endif %}
+
             </div>
         {% endif %}
         {% if r.situation == 'new' %}Novo{% elif r.situation == 'linked' %}Já registrado{% elif r.situation == 'divergent' %}Divergente{% else %}Pendente{% endif %}
