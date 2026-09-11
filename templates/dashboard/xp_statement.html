@@ -3,7 +3,7 @@
 {% else %}
 <section class="panel">
 <h2><a href="{% url 'file-import-file' selected_import.import_id %}">{{ selected_import.original_filename }}</a></h2>
-<p>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start }} a {{ selected_import.document_metadata.period_end }}</p>
+<p>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start|short_date }} a {{ selected_import.document_metadata.period_end|short_date }}</p>
 <p>{{ selected_import.row_count }} movimentos · {{ selected_import.counts.new }} novos · {{ selected_import.counts.linked }} já registrados · {{ selected_import.counts.pending }} pendentes · {{ selected_import.counts.divergent }} divergentes · {{ selected_import.created_count }} eventos criados</p>
 <p>Documento: {% if selected_import.documented_at %}registrado{% else %}em prévia{% endif %} · Financeiro: {% if selected_import.financial_status == 'confirmed' %}confirmado{% else %}pendente{% endif %}{% if selected_import.status == 'rejected' %} · Rejeitado: {{ selected_import.rejection_reason }}{% endif %}</p>
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
@@ -35,7 +35,7 @@
 
             <p><strong>Descrição:</strong> {{ r.description }}<br>
                <strong>Categoria:</strong> {{ r.category }}<br>
-               <strong>Data Mov.:</strong> {{ r.trade_date }} · <strong>Liq.:</strong> {{ r.settlement_date }}<br>
+               <strong>Data Mov.:</strong> {{ r.trade_date|short_date }} · <strong>Liq.:</strong> {{ r.settlement_date|short_date }}<br>
                <strong>Valor:</strong> {{ r.amount|money:'BRL' }}
             </p>
             {% for error in r.errors %}<p class="note">{{ error }}</p>{% endfor %}
@@ -62,7 +62,7 @@
                 <div><select name="counterparty" style="width: 100%;"><option value="">Selecione</option><option value="RESULTADO">Conta de Resultado (Gera aporte/retirada)</option>{% for a in selected_import.transfer_accounts %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.decision.counterparty %}selected{% endif %}>{{ a.name }} · {{ a.holder }}</option>{% endfor %}</select></div>
 
                 <label>Resgate relacionado ao imposto</label>
-                <div><select name="related_line" style="width: 100%;"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date }}</option>{% endfor %}</select></div>
+                <div><select name="related_line" style="width: 100%;"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date|short_date }}</option>{% endfor %}</select></div>
 
                 <label>Quantidade comprovada</label>
                 <div><input name="quantity" value="{{ r.decision.quantity|default:'' }}" style="width: 100%;"></div>
@@ -95,12 +95,12 @@
         <form method="post" action="{% url 'xp-statement-update' selected_import.import_id %}">{% csrf_token %}
         <input type="hidden" name="operation" value="bulk_review"><input type="hidden" name="bulk_token" value="{{ selected_import.bulk_token }}">
         
-        <div class="table-wrap"><table><thead><tr><th>Lote</th><th>Origem</th><th>Mov.</th><th>Liq.</th><th>Lançamento</th><th>Valor / saldo</th><th>Situação e revisão</th></tr></thead><tbody>
+        <div class="table-wrap"><table><thead><tr><th>Lote</th><th>Linha</th><th>Mov.</th><th>Liq.</th><th>Lançamento</th><th>Valor / saldo</th><th>Situação e revisão</th></tr></thead><tbody>
         {% for r in selected_import.rows %}<tr>
         <td>{% if r.bulk_suggestion %}
             {% if not r.bulk_suggestion.needs_input %}<input type="checkbox" name="bulk_line" value="{{ r.row_number }}" checked aria-label="Aceitar sugestão da linha {{ r.source_locator.row }}">{% endif %}
             {% endif %}</td>
-        <td>{{ r.source_locator.sheet }}:{{ r.source_locator.row }}</td><td>{{ r.trade_date }}</td><td>{{ r.settlement_date }}</td>
+        <td>{{ r.source_locator.row }}</td><td>{{ r.trade_date|short_date }}</td><td>{{ r.settlement_date|short_date }}</td>
         <td>{{ r.description }}<br>{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</td>
         <td>{{ r.amount|money:'BRL' }}<br>{{ r.balance|money:'BRL' }}</td>
         <td>
@@ -131,9 +131,9 @@
 
 {% if wizard_step == 4 %}
     <div class="note" style="background-color: #d4edda; color: #155724;">Importação concluída com sucesso! Todos os movimentos foram registrados.</div>
-    <div class="table-wrap"><table><thead><tr><th>Origem</th><th>Mov.</th><th>Liq.</th><th>Lançamento</th><th>Valor / saldo</th><th>Status da Revisão</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>Linha</th><th>Mov.</th><th>Liq.</th><th>Lançamento</th><th>Valor / saldo</th><th>Status da Revisão</th></tr></thead><tbody>
     {% for r in selected_import.rows %}<tr>
-    <td>{{ r.source_locator.sheet }}:{{ r.source_locator.row }}</td><td>{{ r.trade_date }}</td><td>{{ r.settlement_date }}</td>
+    <td>{{ r.source_locator.row }}</td><td>{{ r.trade_date|short_date }}</td><td>{{ r.settlement_date|short_date }}</td>
     <td>{{ r.description }}<br>{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</td>
     <td>{{ r.amount|money:'BRL' }}<br>{{ r.balance|money:'BRL' }}</td>
     <td>{% if r.situation == 'new' %}Novo criado{% elif r.situation == 'linked' %}Vinculado{% else %}{{ r.situation }}{% endif %}<br>
