@@ -1,3 +1,26 @@
+
+<style>
+.table-wrap table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+}
+.table-wrap th, .table-wrap td {
+    padding: 8px 4px !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+}
+.t {
+    display: block !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+</style>
 {% load fin2_format %}
 <section class="panel">
 <h2><a href="{% url 'file-import-file' selected_import.import_id %}">{{ selected_import.original_filename }}</a></h2>
@@ -12,15 +35,25 @@
 <a href="?preview={{ selected_import.import_id }}">Limpar</a>
 </form>
 <p>{{ selected_import.page.paginator.count }} lançamentos encontrados. A aprovação ou rejeição se aplica ao arquivo inteiro.</p>
-    <div class="table-wrap" data-table="xp-approval"><table><thead><tr><th class="number"><button type="button" class="sort-button" data-sort="line">Linha</button></th><th class="number"><button type="button" class="sort-button" data-sort="trade_date">Movimentação</button></th><th class="number"><button type="button" class="sort-button" data-sort="settlement_date">Liquidação</button></th><th><button type="button" class="sort-button" data-sort="description">Lançamento</button></th><th class="number"><button type="button" class="sort-button" data-sort="amount">Valor</button></th><th class="number"><button type="button" class="sort-button" data-sort="balance">Saldo</button></th>{% if selected_import.has_reading_errors %}<th><button type="button" class="sort-button" data-sort="errors">Problemas de leitura</button></th>{% endif %}</tr></thead><tbody>
+    <div class="table-wrap" data-table="xp-approval"><table style="table-layout: fixed; width: 100%;">
+    <colgroup>
+        <col style="width: 5%;">
+        <col style="width: 12%;">
+        <col style="width: 12%;">
+        <col style="width: 40%;">
+        <col style="width: 15%;">
+        <col style="width: 15%;">
+        {% if selected_import.has_reading_errors %}<col style="width: 20%;">{% endif %}
+    </colgroup>
+    <thead><tr><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="line">Linha</button></div></th><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="trade_date">Movimentação</button></div></th><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="settlement_date">Liquidação</button></div></th><th><div class="t"><button type="button" class="sort-button" data-sort="description">Lançamento</button></div></th><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="amount">Valor</button></div></th><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="balance">Saldo</button></div></th>{% if selected_import.has_reading_errors %}<th><div class="t"><button type="button" class="sort-button" data-sort="errors">Problemas de leitura</button></div></th>{% endif %}</tr></thead><tbody>
     {% for r in selected_import.rows %}<tr>
-    <td class="number">{{ r.source_locator.row|number }}</td>
-    <td class="number">{{ r.trade_date|short_date }}</td>
-    <td class="number">{{ r.settlement_date|short_date }}</td>
-    <td>{{ r.description }}</td>
-    <td class="number">{{ r.amount|money:'BRL' }}</td>
-    <td class="number">{{ r.balance|money:'BRL' }}</td>
-    {% if selected_import.has_reading_errors %}<td>{% for error in r.errors %}<p class="note">{{ error }}</p>{% empty %}—{% endfor %}</td>{% endif %}
+    <td class="number"><div class="t">{{ r.source_locator.row|number }}</div></td>
+    <td class="number"><div class="t">{{ r.trade_date|short_date }}</div></td>
+    <td class="number"><div class="t">{{ r.settlement_date|short_date }}</div></td>
+    <td><div class="t" title="{{ r.description }}">{{ r.description }}</div></td>
+    <td class="number"><div class="t">{{ r.amount|money:'BRL' }}</div></td>
+    <td class="number"><div class="t">{{ r.balance|money:'BRL' }}</div></td>
+    {% if selected_import.has_reading_errors %}<td><div class="t">{% for error in r.errors %}<div style="color: #d3aa58; font-size: 0.9em; margin-top: 4px;">{{ error }}</div>{% empty %}—{% endfor %}</div></td>{% endif %}
     </tr>{% empty %}<tr><td colspan="{% if selected_import.has_reading_errors %}7{% else %}6{% endif %}">Nenhum lançamento encontrado.</td></tr>{% endfor %}
     </tbody></table></div>
     <p>{% if selected_import.page.has_previous %}<a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
