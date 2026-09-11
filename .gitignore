@@ -11,6 +11,7 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+node_modules/
 
 # Secrets and local settings
 .env
