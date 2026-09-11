@@ -3,6 +3,7 @@
 .table-wrap table {
     table-layout: fixed !important;
     width: 100% !important;
+    min-width: 100% !important;
     border-collapse: collapse !important;
     border-spacing: 0 !important;
 }
@@ -16,9 +17,22 @@
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
-    width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
+}
+.table-wrap .button {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+}
+.panel, .panel * {
+    overflow-wrap: anywhere !important;
+}
+.table-wrap {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto;
 }
 </style>
 {% load fin2_format %}
@@ -36,15 +50,26 @@
 </form>
 <p>{{ selected_import.page.paginator.count }} lançamentos encontrados. A aprovação ou rejeição se aplica ao arquivo inteiro.</p>
     <div class="table-wrap" data-table="xp-approval"><table style="table-layout: fixed; width: 100%;">
+    {% if selected_import.has_reading_errors %}
+    <colgroup>
+        <col style="width: 4%;">
+        <col style="width: 10%;">
+        <col style="width: 10%;">
+        <col style="width: 31%;">
+        <col style="width: 12%;">
+        <col style="width: 13%;">
+        <col style="width: 20%;">
+    </colgroup>
+    {% else %}
     <colgroup>
         <col style="width: 5%;">
         <col style="width: 12%;">
         <col style="width: 12%;">
-        <col style="width: 40%;">
+        <col style="width: 41%;">
         <col style="width: 15%;">
         <col style="width: 15%;">
-        {% if selected_import.has_reading_errors %}<col style="width: 20%;">{% endif %}
     </colgroup>
+    {% endif %}
     <thead><tr><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="line">Linha</button></div></th><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="trade_date">Movimentação</button></div></th><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="settlement_date">Liquidação</button></div></th><th><div class="t"><button type="button" class="sort-button" data-sort="description">Lançamento</button></div></th><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="amount">Valor</button></div></th><th class="number"><div class="t"><button type="button" class="sort-button" data-sort="balance">Saldo</button></div></th>{% if selected_import.has_reading_errors %}<th><div class="t"><button type="button" class="sort-button" data-sort="errors">Problemas de leitura</button></div></th>{% endif %}</tr></thead><tbody>
     {% for r in selected_import.rows %}<tr>
     <td class="number"><div class="t">{{ r.source_locator.row|number }}</div></td>
