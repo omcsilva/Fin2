@@ -95,12 +95,12 @@
         <form method="post" action="{% url 'xp-statement-update' selected_import.import_id %}">{% csrf_token %}
         <input type="hidden" name="operation" value="bulk_review"><input type="hidden" name="bulk_token" value="{{ selected_import.bulk_token }}">
         
-        <div class="table-wrap"><table><thead><tr><th>Lote</th><th>Origem / datas</th><th>Lançamento</th><th>Valor / saldo</th><th>Situação e revisão</th></tr></thead><tbody>
+        <div class="table-wrap"><table><thead><tr><th>Lote</th><th>Origem</th><th>Mov.</th><th>Liq.</th><th>Lançamento</th><th>Valor / saldo</th><th>Situação e revisão</th></tr></thead><tbody>
         {% for r in selected_import.rows %}<tr>
         <td>{% if r.bulk_suggestion %}
             {% if not r.bulk_suggestion.needs_input %}<input type="checkbox" name="bulk_line" value="{{ r.row_number }}" checked aria-label="Aceitar sugestão da linha {{ r.source_locator.row }}">{% endif %}
             {% endif %}</td>
-        <td>{{ r.source_locator.sheet }}:{{ r.source_locator.row }}<br>Mov.: {{ r.trade_date }}<br>Liq.: {{ r.settlement_date }}</td>
+        <td>{{ r.source_locator.sheet }}:{{ r.source_locator.row }}</td><td>{{ r.trade_date }}</td><td>{{ r.settlement_date }}</td>
         <td>{{ r.description }}<br>{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</td>
         <td>{{ r.amount|money:'BRL' }}<br>{{ r.balance|money:'BRL' }}</td>
         <td>
@@ -131,9 +131,9 @@
 
 {% if wizard_step == 4 %}
     <div class="note" style="background-color: #d4edda; color: #155724;">Importação concluída com sucesso! Todos os movimentos foram registrados.</div>
-    <div class="table-wrap"><table><thead><tr><th>Origem / datas</th><th>Lançamento</th><th>Valor / saldo</th><th>Status da Revisão</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>Origem</th><th>Mov.</th><th>Liq.</th><th>Lançamento</th><th>Valor / saldo</th><th>Status da Revisão</th></tr></thead><tbody>
     {% for r in selected_import.rows %}<tr>
-    <td>{{ r.source_locator.sheet }}:{{ r.source_locator.row }}<br>Mov.: {{ r.trade_date }}<br>Liq.: {{ r.settlement_date }}</td>
+    <td>{{ r.source_locator.sheet }}:{{ r.source_locator.row }}</td><td>{{ r.trade_date }}</td><td>{{ r.settlement_date }}</td>
     <td>{{ r.description }}<br>{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</td>
     <td>{{ r.amount|money:'BRL' }}<br>{{ r.balance|money:'BRL' }}</td>
     <td>{% if r.situation == 'new' %}Novo criado{% elif r.situation == 'linked' %}Vinculado{% else %}{{ r.situation }}{% endif %}<br>
