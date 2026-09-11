@@ -2,16 +2,28 @@
 .table-wrap table {
     table-layout: fixed !important;
     width: 100% !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
 }
 .table-wrap th, .table-wrap td {
     padding: 8px 4px !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
 }
 .t {
-    display: block;
+    display: block !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
-    width: 100%;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
+.table-wrap .button {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
 }
 </style>
 {% if wizard_step == 2 %}
