@@ -7,6 +7,12 @@
   const notification = document.querySelector('#async-notification');
   let previous = null;
   let active = false;
+  let pollTimer = null;
+  let generation = 0;
+  const schedulePoll = delay => {
+    window.clearTimeout(pollTimer);
+    pollTimer = window.setTimeout(poll, delay);
+  };
   const formatDate = value => value ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : 'Nunca';
   const show = message => { notification.textContent=message; notification.hidden=false; window.setTimeout(()=>notification.hidden=true,8000); };
   async function copyStatus() {
@@ -28,10 +34,12 @@
     if (event.key==='Enter'||event.key===' ') { event.preventDefault();copyStatus(); }
   });
   async function poll() {
+    const currentGeneration = generation;
     try {
       const response=await fetch(form.dataset.statusUrl,{headers:{Accept:'application/json'},cache:'no-store'});
       if (!response.ok) throw new Error();
       const job=await response.json();
+      if (currentGeneration !== generation) return;
       last.textContent=formatDate(job.last_price_update);
       active=job.status==='queued'||job.status==='running';
       status.textContent=job.message || '';
@@ -40,11 +48,18 @@
       button.setAttribute('aria-label',button.title);
       if (previous && active===false && (job.status==='completed'||job.status==='failed'||job.status==='cancelled') && previous!==job.status) show(job.message);
       previous=job.status;
-      window.setTimeout(poll,active?1000:15000);
-    } catch { button.disabled=false; window.setTimeout(poll,15000); }
+      if (active) schedulePoll(1000);
+    } catch {
+      if (currentGeneration !== generation) return;
+      button.disabled=false;
+      schedulePoll(15000);
+    }
   }
   form.addEventListener('submit',async event => {
     event.preventDefault();
+    if (button.disabled) return;
+    window.clearTimeout(pollTimer);
+    generation += 1;
     const cancelling=active;
     button.disabled=true;button.textContent=cancelling?'■':'◌';
     button.title=cancelling?'Cancelando atualização de preços':'Iniciando atualização de preços';button.setAttribute('aria-label',button.title);
@@ -52,8 +67,8 @@
     try {
       const response=await fetch(cancelling?form.dataset.cancelUrl:form.action,{method:'POST',body:new FormData(form),headers:{Accept:'application/json'}});
       if (!response.ok) throw new Error();
-      previous=cancelling?'running':'queued';window.setTimeout(poll,100);
-    } catch { show(cancelling?'Não foi possível cancelar a atualização de preços.':'Não foi possível iniciar a atualização de preços.');button.disabled=false;window.setTimeout(poll,300); }
+      previous=cancelling?'running':'queued';schedulePoll(100);
+    } catch { show(cancelling?'Não foi possível cancelar a atualização de preços.':'Não foi possível iniciar a atualização de preços.');button.disabled=false;schedulePoll(300); }
   });
   poll();
 })();

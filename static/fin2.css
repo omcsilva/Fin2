@@ -22,7 +22,7 @@ header::before {
   z-index: -1;
   pointer-events: none;
   opacity: .75;
-  background:#151515 url("carbon3.png") repeat-x; background-size:384px 180px;
+  background:#151515 url("carbono.png") repeat-x; background-size:384px 180px;
 }
 .brand { letter-spacing: -2.5px; }
 .brand span { text-shadow: 0 0 22px #62dce84d; }
@@ -463,3 +463,27 @@ main:has(.account-detail-header){padding-block:12px 16px}
 .account-detail-header+.note{margin-top:.25rem}
 
 
+
+/* Etapas da importação. */
+.import-steps{display:flex;gap:28px;list-style:none;padding:0;margin:20px 0 24px}
+.import-step{position:relative;display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--muted)}
+.import-step:not(:last-child)::after{content:"→";position:absolute;right:-23px;color:var(--muted);font-size:20px}
+.import-step-number{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;border:1px solid var(--muted);border-radius:50%;font-weight:700;background:var(--paper)}
+.import-step-text{display:flex;flex-direction:column;gap:4px}
+.import-step-text strong{font-size:14px}
+.import-step-text small{font-size:12px;line-height:1.4}
+.import-step.is-current{border:2px solid var(--green);padding:15px;background:#122d39;color:var(--ink)}
+.import-step.is-current .import-step-number{background:var(--green);border-color:var(--green);color:var(--paper)}
+.import-step.is-complete{border-color:#39765b;background:#102a23;color:#9de2ba}
+.import-step.is-complete .import-step-number{background:#9de2ba;border-color:#9de2ba;color:var(--paper)}
+@media(max-width:900px){.import-steps{flex-direction:column;gap:24px}.import-step{flex:auto}.import-step:not(:last-child)::after{content:"↓";right:auto;left:24px;bottom:-24px}}
+
+.import-approval-actions{display:flex;align-items:center;gap:12px}
+.import-approval-actions label{white-space:nowrap}
+.import-approval-actions input{flex:1;min-width:0;width:0}
+.import-approval-actions button{flex-shrink:0}
+#import-approval-actions .reject-import{order:1;background:#3b171d;color:#ffb4b4;border-color:#e57373}
+#import-approval-actions .approve-import{order:2;margin-left:auto;font-weight:650;background:#9de2ba;color:#092719;border-color:#9de2ba}
+
+#import-approval-actions .reject-import:hover{background:#63232d;color:#fff4f4;border-color:#ef9292}
+#import-approval-actions .approve-import:hover{background:#b8efcf;color:#092719;border-color:#b8efcf}

@@ -1,7 +1,7 @@
 # Plano: upload e processamento de extratos XP
 
-Data: 10/09/2026. Plano aprovado e implementado localmente; sem confirmação
-financeira do extrato real ou implantação em produção.
+Plano original: 10/09/2026. Fluxo de interface atualizado em 11/09/2026.
+A confirmação financeira de cada extrato depende da revisão explícita do usuário.
 
 ## Amostra examinada
 
@@ -198,3 +198,38 @@ backup em `backups/pre-xp-statement-20260910T132627.duckdb`. A contagem de event
 financeiros permaneceu igual, e não há uploads XP no banco em uso. A prévia real
 permanece apenas na cópia isolada de auditoria. Não houve commit, push ou
 implantação em produção nesta execução.
+
+
+## Fluxo de interface em 11/09/2026
+
+1. **Carregar:** selecionar o XLSX e a conta. A associação inicial de número e
+   titular continua exigindo confirmação explícita.
+2. **Aprovar carga:** conferir o arquivo inteiro em uma tabela de leitura,
+   com Linha, Movimentação, Liquidação, Lançamento, Valor e Saldo. Linha contém
+   somente o número original; Lançamento preserva apenas a descrição. Datas
+   aparecem em DD/MM/AA, valores em `R$ 1.234,56`; números, datas e valores
+   ficam alinhados à direita. Problemas de leitura aparecem em coluna adicional
+   somente quando existem erros no arquivo.
+   A pesquisa e a ordenação pelos cabeçalhos abrangem todas as linhas antes da
+   paginação de 20 itens; os controles permanecem ao trocar de página.
+   A observação opcional (até 500 caracteres), a rejeição vermelha e a aprovação
+   verde à direita compartilham um formulário. Aprovar ou rejeitar sempre vale
+   para o arquivo inteiro, mesmo com pesquisa ativa.
+3. **Revisão:** após aprovar a carga, abrir a rota própria
+   `/fin2/importar/<identificador>/revisao/`, com sugestões em lote, revisão
+   individual e conciliação. Aprovar a carga não cria eventos financeiros.
+4. **Concluído:** confirmar novos lançamentos e vínculos somente depois da
+   revisão e das validações financeiras.
+
+O reenvio de um arquivo ainda em prévia reutiliza o registro documental, mas
+volta a **Aprovar carga**, mesmo quando já existe aprovação documental anterior.
+Não apaga decisões anteriores nem duplica movimentos; arquivos financeiramente
+confirmados continuam no resultado da importação.
+
+As decisões de carga são registradas em `ledger.audit_log`, com
+`entity_type='file_import_decision'`, `entity_id=import_id`, `action='create'`
+e payload contendo `action` (`approve` ou `reject`) e `observation`. A gravação
+é transacional com a decisão. Na rejeição, a observação também fica em
+`ledger.file_import.rejection_reason`. O campo é opcional para extratos XP;
+outros adaptadores mantêm a justificativa obrigatória. Não há migração nova
+para esse histórico.

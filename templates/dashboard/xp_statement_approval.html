@@ -1,0 +1,35 @@
+{% load fin2_format %}
+<section class="panel">
+<h2><a href="{% url 'file-import-file' selected_import.import_id %}">{{ selected_import.original_filename }}</a></h2>
+<p>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start }} a {{ selected_import.document_metadata.period_end }}</p>
+<p>{{ selected_import.row_count }} lançamentos identificados</p>
+{% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
+<form method="get" class="filters" data-table-controls="xp-approval">
+<input type="hidden" name="preview" value="{{ selected_import.import_id }}">
+<input type="hidden" name="sort" value="{{ selected_import.table_sort }}">
+<input type="hidden" name="dir" value="{{ selected_import.table_direction }}">
+<label>Pesquisar<input name="q" value="{{ selected_import.table_term }}" maxlength="200" placeholder="Linha, lançamento, data ou valor"></label><button type="submit">Pesquisar</button>
+<a href="?preview={{ selected_import.import_id }}">Limpar</a>
+</form>
+<p>{{ selected_import.page.paginator.count }} lançamentos encontrados. A aprovação ou rejeição se aplica ao arquivo inteiro.</p>
+    <div class="table-wrap" data-table="xp-approval"><table><thead><tr><th class="number"><button type="button" class="sort-button" data-sort="line">Linha</button></th><th class="number"><button type="button" class="sort-button" data-sort="trade_date">Movimentação</button></th><th class="number"><button type="button" class="sort-button" data-sort="settlement_date">Liquidação</button></th><th><button type="button" class="sort-button" data-sort="description">Lançamento</button></th><th class="number"><button type="button" class="sort-button" data-sort="amount">Valor</button></th><th class="number"><button type="button" class="sort-button" data-sort="balance">Saldo</button></th>{% if selected_import.has_reading_errors %}<th><button type="button" class="sort-button" data-sort="errors">Problemas de leitura</button></th>{% endif %}</tr></thead><tbody>
+    {% for r in selected_import.rows %}<tr>
+    <td class="number">{{ r.source_locator.row|number }}</td>
+    <td class="number">{{ r.trade_date|short_date }}</td>
+    <td class="number">{{ r.settlement_date|short_date }}</td>
+    <td>{{ r.description }}</td>
+    <td class="number">{{ r.amount|money:'BRL' }}</td>
+    <td class="number">{{ r.balance|money:'BRL' }}</td>
+    {% if selected_import.has_reading_errors %}<td>{% for error in r.errors %}<p class="note">{{ error }}</p>{% empty %}—{% endfor %}</td>{% endif %}
+    </tr>{% empty %}<tr><td colspan="{% if selected_import.has_reading_errors %}7{% else %}6{% endif %}">Nenhum lançamento encontrado.</td></tr>{% endfor %}
+    </tbody></table></div>
+    <p>{% if selected_import.page.has_previous %}<a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
+{% if selected_import.status == 'preview' %}
+<form id="import-approval-actions" class="import-approval-actions" method="post" action="{% url 'xp-statement-update' selected_import.import_id %}">{% csrf_token %}
+<input type="hidden" name="operation" value="document">
+<label for="import-observation">Observação: </label><input id="import-observation" name="reason" maxlength="500">
+<button class="approve-import" type="submit">Aprovar carga</button>
+<button class="reject-import" type="submit" formaction="{% url 'file-import-reject' selected_import.import_id %}">Rejeitar arquivo</button>
+</form>
+{% endif %}
+</section>

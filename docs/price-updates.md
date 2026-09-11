@@ -75,6 +75,15 @@ inicia uma thread em segundo plano. A página continua utilizável e consulta o
 estado do trabalho periodicamente. Ao terminar, o Fin2 exibe uma notificação
 assíncrona e atualiza a data mostrada na barra de status.
 
+O navegador consulta `/fin2/cotacoes/atualizacao/` uma vez ao abrir a página.
+Enquanto o trabalho está em `queued` ou `running`, repete a consulta a cada
+segundo. Ao receber `idle`, `completed`, `failed` ou `cancelled`, encerra as
+consultas. Um novo clique reinicia o acompanhamento; o temporizador anterior
+é cancelado e respostas de consultas anteriores ao clique são ignoradas.
+Falhas de comunicação são tentadas novamente após 15 segundos. Essas consultas
+de estado não buscam preços na brapi.
+
+
 Durante a execução, o mesmo botão muda para **Cancelar atualização**. O pedido
 não exige confirmação, é persistido imediatamente e impede novas consultas
 assim que o trabalhador alcança o próximo ponto seguro. Uma resposta da
@@ -82,11 +91,9 @@ consulta que já estava em andamento ainda é validada e gravada. Essa chamada
 tem timeout de cinco segundos, evitando que o cancelamento permaneça preso a
 uma consulta pendente por mais tempo.
 
-Se houver uma carteira selecionada, somente os ativos dessa carteira entram no
-trabalho. Sem filtro de carteira, o lote inteiro é considerado. São elegíveis
-apenas ativos que satisfaçam todos estes critérios:
+O botão considera o lote inteiro, independentemente da carteira selecionada.
+A configuração `BRAPI` seleciona os ativos; a validação do mapeamento exige:
 
-- provedor configurado como `atuBrAPI`;
 - moeda legada `REAL` ou `BRL`;
 - multiplicador igual a 1;
 - ticker único no lote e no formato brasileiro suportado, como `PETR4` ou

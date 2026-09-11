@@ -35,6 +35,26 @@ def workbook(movements=None, holder='ANA TESTE', number='123456', shift=0, futur
 
 
 class XPParserTests(unittest.TestCase):
+    def test_approval_search_and_numeric_sort_before_pagination(self):
+        from types import SimpleNamespace
+        from fin2.dashboard.xp_statement_views import approval_table
+        rows = [dict(source_locator={'row':i}, description=f'Movimento {i}',
+                     amount=str(i), balance='1234.50', trade_date='2025-01-02',
+                     settlement_date='2025-01-06', errors=[]) for i in range(1, 26)]
+        selected = {'import_id':'a'*32, 'rows':rows}
+        approval_table(SimpleNamespace(GET={'sort':'amount','dir':'desc'}), selected)
+        self.assertEqual([r['amount'] for r in selected['rows']], [str(i) for i in range(25,5,-1)])
+        selected['rows'] = rows
+        approval_table(SimpleNamespace(GET={'q':'Movimento 25'}), selected)
+        self.assertEqual(selected['page'].paginator.count, 1)
+        self.assertEqual(selected['rows'][0]['source_locator']['row'], 25)
+        for term in ('02/01/25', 'R$ 1.234,50'):
+            selected['rows'] = rows
+            approval_table(SimpleNamespace(GET={'q':term,'sort':'amount','dir':'desc','page':'2'}), selected)
+            self.assertEqual(selected['page'].paginator.count, 25)
+            self.assertEqual([r['amount'] for r in selected['rows']], ['5','4','3','2','1'])
+            self.assertIn('sort=amount&dir=desc', selected['table_query'])
+
     def test_shifted_headers_settlement_order_futures_and_decimal(self):
         body=workbook([
             ('2025-01-02','2025-01-06','OPERAÇÕES EM BOLSA PR 02/01/2025 NOTA Nº 54321',-20,100),
@@ -80,6 +100,56 @@ class XPFlowTests(unittest.TestCase):
             db.execute("update source_record set payload=json_merge_patch(payload,?) where record_id=?",[json.dumps({'nome':'Teste','ativo_id':1}),self.application])
 
     def tearDown(self): self.fixture.tearDown()
+
+    def test_reupload_documented_statement_requires_load_approval(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import Client, override_settings
+
+        body = workbook()
+        identifier = self.stage(body)
+        xp.document(self.db, identifier)
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            response = client.post('/fin2/importar/', {
+                'file': SimpleUploadedFile('extrato.xlsx', body),
+                'adapter': 'xp-account-statement', 'account': self.account,
+            }, follow=True)
+            self.assertEqual(response.status_code, 200)
+            html = response.content.decode()
+            self.assertIn('<h1>Aprovar carga</h1>', html)
+            self.assertIn('DIVIDENDOS DE CLIENTES TEST3', html)
+            self.assertIn('Rejeitar arquivo', html)
+            self.assertNotIn('Revisão em lote', html)
+            self.assertEqual(len(response.redirect_chain), 1)
+            from django.urls import reverse
+            response = client.post(reverse('xp-statement-update', args=[identifier]),
+                                   {'operation': 'document', 'reason': 'Conferido para revisão'}, follow=True)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('<h1>Revisão do extrato</h1>', response.content.decode())
+        with connect(self.db) as db:
+            self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0], 0)
+            self.assertEqual(db.execute("""select count(*) from ledger.audit_log
+              where entity_type='file_import_decision' and entity_id=?
+                and json_extract_string(payload,'$.observation')='Conferido para revisão'
+                and json_extract_string(payload,'$.action')='approve'""", [identifier]).fetchone()[0], 1)
+
+    def test_optional_load_observation_is_saved_for_both_decisions(self):
+        for observation in ('', 'Conferência do arquivo'):
+            identifier = self.stage(workbook(tag=observation))
+            xp.document(self.db, identifier, observation)
+            reject(self.db, identifier, observation)
+            with connect(self.db) as db:
+                decisions = db.execute("""select json_extract_string(payload,'$.action'),
+                  json_extract_string(payload,'$.observation') from ledger.audit_log
+                  where entity_type='file_import_decision' and entity_id=?""", [identifier]).fetchall()
+                self.assertCountEqual(decisions, [('approve', observation), ('reject', observation)])
+                self.assertEqual(db.execute('select rejection_reason from ledger.file_import where import_id=?',
+                                            [identifier]).fetchone()[0], observation)
 
     def stage(self,body=None,account=None,**options):
         return stage(self.db,self.documents,'extrato.xlsx',body or workbook(),options=dict(account_record=account or self.account,confirm_identity=True,identity_reason='Número e titular conferidos',**options))[0]

@@ -1,6 +1,6 @@
 # Atualizações por Git
 
-O remoto `production` aponta para o repositório bare privado
+O remoto `origin` aponta para o repositório bare privado
 `mcsil@t1django.lan:/home/mcsil/fin2.git`. Não há GitHub nem publicação externa.
 Push apenas transfere commits; não dispara implantação automática.
 
@@ -9,7 +9,7 @@ commit dos arquivos desejados. `.env`, bancos, documentos e `tmp/` não devem se
 versionados. Depois:
 
 ```powershell
-git push production main
+git push origin main
 git rev-parse HEAD
 ssh mcsil@t1django.lan "sudo /usr/local/sbin/update-fin2 COMMIT_COMPLETO"
 ```

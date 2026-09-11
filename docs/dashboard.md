@@ -87,3 +87,18 @@ relações e projeções usadas em relatórios antes de agregar ou paginar, tant
 ledger atual quanto no Histórico. A opção marcada usa as consultas integrais.
 As telas de edição e os registros originais continuam acessíveis para permitir
 revisão de status; o filtro não apaga dados nem altera lançamentos.
+
+
+## Aprovação de extratos XP
+
+O assistente destaca as etapas Carregar, Aprovar carga, Revisão e Concluído.
+A aprovação tem tabela de leitura com pesquisa, ordenação e paginação; os
+formulários de decisões por movimento ficam exclusivamente na revisão.
+O formulário de aprovação usa observação opcional para ambas as ações, rejeição
+vermelha e aprovação verde à direita. As regras de cor são específicas do
+formulário para prevalecer sobre o estilo geral dos botões, inclusive no hover.
+Veja o [fluxo de extratos XP](xp-account-statement-plan.md#fluxo-de-interface-em-11092026).
+
+O cabeçalho utiliza o recurso `static/carbono.png`; os recursos antigos
+`carbon.png` e `carbon3.png` foram substituídos. A coleta de estáticos deve ser
+executada na implantação para publicar o CSS e os recursos com seus hashes.

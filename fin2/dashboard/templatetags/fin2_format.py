@@ -1,9 +1,23 @@
 """Presentation filters for financial values."""
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from datetime import date, datetime
 
 from django import template
 
 register = template.Library()
+
+
+@register.filter
+def short_date(value):
+    """Format date objects and imported ISO dates as DD/MM/YY."""
+    if isinstance(value, str):
+        try:
+            value = date.fromisoformat(value)
+        except ValueError:
+            return '—'
+    if not isinstance(value, (date, datetime)):
+        return '—'
+    return value.strftime('%d/%m/%y')
 
 SYMBOLS = {
     'BRL': 'R$', 'REAL': 'R$',

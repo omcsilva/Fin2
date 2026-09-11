@@ -193,12 +193,22 @@ def commit(database,import_id):
 
 
 def reject(database,import_id,reason):
-    reason=' '.join(str(reason).split())
-    if not reason or len(reason)>500:raise ValueError('Informe uma justificativa válida')
+    reason=str(reason or '').strip()
+    if len(reason)>500:raise ValueError('A observação deve ter no máximo 500 caracteres')
     with connect(Path(database).resolve(strict=True)) as db:
         migrate(db)
-        item=db.execute('select status from ledger.file_import where import_id=?',[import_id]).fetchone()
+        item=db.execute('select status,adapter_id from ledger.file_import where import_id=?',[import_id]).fetchone()
         if not item or item[0]!='preview':raise ValueError('Pré-visualização indisponível')
-        db.execute("update ledger.file_import set status='rejected',rejection_reason=?,rejected_at=now() where import_id=?",
-                   [reason,import_id])
+        if not reason and item[1]!='xp-account-statement':raise ValueError('Informe uma justificativa válida')
+        db.execute('BEGIN')
+        try:
+            db.execute("update ledger.file_import set status='rejected',rejection_reason=?,rejected_at=now() where import_id=?",
+                       [reason,import_id])
+            db.execute("""insert into ledger.audit_log(audit_id,entity_type,entity_id,action,payload)
+              values (?,'file_import_decision',?,'create',?)""",
+              [uuid4().hex,import_id,json.dumps({'action':'reject','observation':reason})])
+            db.execute('COMMIT')
+        except Exception:
+            db.execute('ROLLBACK')
+            raise
     return import_id

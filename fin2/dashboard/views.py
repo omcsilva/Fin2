@@ -1300,16 +1300,8 @@ def file_imports(request):
                 if selected['adapter_id']=='xp-account-statement':
                     from fin2.imports.xp_reconciliation import detail
                     selected=detail(connection,identifier)
-                    if request.GET.get('review_line'):
-                        try:
-                            review_line = int(request.GET.get('review_line'))
-                            selected['rows'] = [r for r in selected['rows'] if r['row_number'] == review_line]
-                        except ValueError:
-                            pass
-                    elif request.GET.get('pending')=='1':
-                        selected['rows']=[r for r in selected['rows'] if r['situation'] in ('pending','divergent')]
-                    selected['page']=Paginator(selected['rows'],20).get_page(request.GET.get('page'))
-                    selected['rows']=selected['page'].object_list
+                    from fin2.dashboard.xp_statement_views import approval_table
+                    approval_table(request, selected)
                     data['supporting_documents']=query(connection,'select document_id,original_filename from source_document where batch_id=? order by original_filename',[selected['batch_id']])
 
             wizard_step = 1
@@ -1317,10 +1309,9 @@ def file_imports(request):
                 if selected['status'] == 'completed' or selected.get('financial_status') == 'confirmed':
                     wizard_step = 4
                 elif selected['status'] == 'preview':
-                    if selected.get('documented_at'):
-                        wizard_step = 3
-                    else:
-                        wizard_step = 2
+                    # Re-uploaded files retain their documentary history, but
+                    # their preview must still let the user approve the load.
+                    wizard_step = 2
             data['wizard_step'] = wizard_step
 
             data.update(import_error=request.GET.get('error'),selected_import=selected)
@@ -1336,6 +1327,36 @@ def file_imports(request):
                 data.update(imports=query(connection,'select * exclude(preview) from ledger.file_import order by created_at desc limit 50'),import_error=str(exc),selected_import=None)
                 return render(request,'dashboard/file_imports.html',data,status=400)
         except Unavailable:return render(request,'dashboard/unavailable.html',status=503)
+
+
+@page_view
+def xp_statement_review(request, connection, identifier):
+    if not settings.WRITE_ENABLED:
+        return HttpResponse('Escrita desabilitada', status=403)
+    if not re.fullmatch(r'[a-f0-9]{32}', identifier):
+        raise Http404
+    from fin2.imports.xp_reconciliation import detail
+    if not query(connection, 'select 1 from ledger.xp_statement where import_id=?', [identifier]):
+        raise Http404
+    selected = detail(connection, identifier)
+    if selected['status'] != 'preview' or not selected.get('documented_at') or selected['financial_status'] == 'confirmed':
+        return redirect('/fin2/importar/?' + urlencode({'preview': identifier}))
+    data = context(request, connection)
+    data['supporting_documents'] = query(connection, 'select document_id,original_filename from source_document where batch_id=? order by original_filename', [selected['batch_id']])
+    if request.GET.get('review_line'):
+        try:
+            line = int(request.GET['review_line'])
+        except ValueError:
+            raise Http404
+        selected['rows'] = [row for row in selected['rows'] if row['row_number'] == line]
+        if not selected['rows']:
+            raise Http404
+    elif request.GET.get('pending') == '1':
+        selected['rows'] = [row for row in selected['rows'] if row['situation'] in ('pending', 'divergent')]
+    selected['page'] = Paginator(selected['rows'], 20).get_page(request.GET.get('page'))
+    selected['rows'] = selected['page'].object_list
+    data.update(selected_import=selected, wizard_step=3, import_error=request.GET.get('error'))
+    return render(request, 'dashboard/xp_statement_review.html', data, status=400 if request.GET.get('error') else 200)
 
 
 @require_POST

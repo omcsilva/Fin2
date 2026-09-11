@@ -537,12 +537,18 @@ def _document(db, item):
         db.execute('update ledger.xp_statement set documented_at=now() where import_id=?', [item['import_id']])
 
 
-def document(database, identifier):
+def document(database, identifier, observation=''):
+    observation = str(observation or '').strip()
+    if len(observation) > 500:
+        raise ValueError('A observação deve ter no máximo 500 caracteres')
     with connect(Path(database).resolve(strict=True)) as db:
         migrate(db)
         db.execute('BEGIN')
         try:
             _document(db, _load(db, identifier, True))
+            db.execute("""insert into ledger.audit_log(audit_id,entity_type,entity_id,action,payload)
+              values (?,'file_import_decision',?,'create',?)""",
+              [uuid4().hex, identifier, json.dumps({'action':'approve','observation':observation})])
             db.execute('COMMIT')
         except Exception:
             db.execute('ROLLBACK')
