@@ -267,6 +267,9 @@ def detail(db, identifier):
         if row['situation'] == 'link': row['situation'] = 'linked'
         counts[row['situation']] += 1
     item['bulk_suggestions'], item['bulk_token'] = _bulk_suggestions(db, item, available, apps)
+    bulk_dict = {s['row_number']: s for s in item['bulk_suggestions']}
+    for row in item['rows']:
+        row['bulk_suggestion'] = bulk_dict.get(row['row_number'])
     item['bulk_new_count'] = sum(s['decision']['action'] == 'new' and not s['needs_input'] for s in item['bulk_suggestions'])
     item['bulk_link_count'] = sum(s['decision']['action'] == 'link' for s in item['bulk_suggestions'])
     item['bulk_input_count'] = sum(s['needs_input'] for s in item['bulk_suggestions'])
