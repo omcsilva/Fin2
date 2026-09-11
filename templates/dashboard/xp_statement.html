@@ -145,9 +145,7 @@
     <p>{% if selected_import.page.has_previous %}<a href="?preview={{ selected_import.import_id }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?preview={{ selected_import.import_id }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
 {% endif %}
 
-{% if selected_import.status == 'preview' and not request.GET.review_line %}
-    <form method="post" action="{% url 'file-import-reject' selected_import.import_id %}">{% csrf_token %}<label>Justificativa da rejeição<input name="reason" maxlength="500" required></label><button type="submit">Rejeitar arquivo</button></form>
-{% endif %}
+
 
 {% if not request.GET.review_line %}
 <details><summary>Histórico de revisões</summary>{% for h in selected_import.decision_history %}<p>{{ h.created_at }} · Linha {{ h.line_number }} · {{ h.payload.action }} · {{ h.payload.reason }}</p>{% empty %}<p>Nenhuma revisão registrada.</p>{% endfor %}</details>
