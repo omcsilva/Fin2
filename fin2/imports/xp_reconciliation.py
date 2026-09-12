@@ -248,7 +248,10 @@ def detail(db, identifier):
     item = _load(db, identifier)
     available = entries(db, item['account_record'])
     apps = applications(db, item['account_record'])
-    counts = {'new': 0, 'linked': 0, 'pending': 0, 'divergent': 0}
+    counts = {'new': 0, 'linked': 0, 'pending': 0, 'divergent': 0, 'excluded': 0}
+    # Review state per row: ready = resolved, pending = still needs information,
+    # excluded = the reviewer dropped the line from the load.
+    states = {'ready': 0, 'pending': 0, 'excluded': 0}
     for row in item['rows']:
         row['candidates'] = [dict(e, label=f"{e['origin']} · {e['description']} · {e['amount']} · Liquidação {e['settlement_date']}") for e in available
                              if _dates_match(e, row)]
@@ -266,6 +269,10 @@ def detail(db, identifier):
                             row['decision']['action'] if row['decision'] else 'pending')
         if row['situation'] == 'link': row['situation'] = 'linked'
         counts[row['situation']] += 1
+        action = (row['decision'] or {}).get('action')
+        row['state'] = ('excluded' if action == 'excluded' else
+                        'ready' if action in ('new', 'link') and not row['errors'] else 'pending')
+        states[row['state']] += 1
     item['bulk_suggestions'], item['bulk_token'] = _bulk_suggestions(db, item, available, apps)
     bulk_dict = {s['row_number']: s for s in item['bulk_suggestions']}
     for row in item['rows']:
@@ -276,6 +283,7 @@ def detail(db, identifier):
     item['bulk_applications'] = apps
     item['created_count'] = db.execute("select count(*) from ledger.audit_log where entity_type='manual_event' and action='create' and json_extract_string(payload,'$.import_id')=?", [identifier]).fetchone()[0]
     item['counts'] = counts
+    item['states'] = states
     item['decision_history'] = records(db, 'select line_number,payload,created_at from ledger.xp_statement_decision where import_id=? order by created_at desc', [identifier])
     for history in item['decision_history']:
         history['payload'] = json.loads(history['payload'])
@@ -285,13 +293,16 @@ def detail(db, identifier):
           where account_source_record_id=? and settlement_date {operator} ?''', [item['account_record'], date]).fetchone()[0]
         metadata[f'ledger_{boundary}'] = str(value)
         metadata[f'{boundary}_difference'] = str(Decimal(metadata[f'{boundary}_balance']) - value) if metadata.get(f'{boundary}_balance') else None
-    item['can_confirm'] = not metadata['errors'] and not counts['pending'] and not counts['divergent'] and item['status'] == 'preview'
+    item['can_confirm'] = not metadata['errors'] and states['pending'] == 0 and item['status'] == 'preview'
     item['redemption_lines'] = [r for r in item['rows'] if r['category'] == 'redemption']
     item['transfer_accounts'] = [a for a in accounts(db) if a['source_record_id'] != item['account_record']]
     return item
 
 
 def _validate(db, item, row, decision, used):
+    if decision['action'] == 'excluded':
+        # The reviewer dropped this line from the load; nothing is written for it.
+        return
     if row['errors']:
         raise ValueError('Linha com erro de extração não pode ser confirmada')
     available = {e['entry_id']: e for e in entries(db, item['account_record'])}
@@ -540,18 +551,13 @@ def _document(db, item):
         db.execute('update ledger.xp_statement set documented_at=now() where import_id=?', [item['import_id']])
 
 
-def document(database, identifier, observation=''):
-    observation = str(observation or '').strip()
-    if len(observation) > 500:
-        raise ValueError('A observação deve ter no máximo 500 caracteres')
+def document(database, identifier):
+    """Approve the load: record the statement evidence, with no decision log."""
     with connect(Path(database).resolve(strict=True)) as db:
         migrate(db)
         db.execute('BEGIN')
         try:
             _document(db, _load(db, identifier, True))
-            db.execute("""insert into ledger.audit_log(audit_id,entity_type,entity_id,action,payload)
-              values (?,'file_import_decision',?,'create',?)""",
-              [uuid4().hex, identifier, json.dumps({'action':'approve','observation':observation})])
             db.execute('COMMIT')
         except Exception:
             db.execute('ROLLBACK')
@@ -613,6 +619,9 @@ def commit(database, identifier):
                 prepared.append((row, decision, claim))
             count = 0
             for row, decision, claim in prepared:
+                if decision['action'] == 'excluded':
+                    # Dropped during review: no event, no link and no claim.
+                    continue
                 if decision['action'] == 'new':
                     ids, created = _create(db, item, row, decision)
                     count += created

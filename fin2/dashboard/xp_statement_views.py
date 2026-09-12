@@ -22,7 +22,7 @@ def approval_table(request, selected, review=False):
                 if a['source_record_id'] == decision.get('application_record')), row.get('suggested_application_name') or '')
             row['table_quantity'] = decision.get('quantity')
             row['table_review'] = ' '.join(filter(None, (suggestion.get('label'), decision.get('reason'))))
-            row['table_situation'] = {'new':'Novo', 'linked':'Já registrado', 'divergent':'Divergente'}.get(row.get('situation'), 'Pendente')
+            row['table_situation'] = {'ready': 'Pronto', 'excluded': 'Excluído'}.get(row.get('state'), 'Pendente')
     term = request.GET.get('q', '')[:200].strip()
     sort = request.GET.get('sort', 'line')
     allowed = ('line', 'trade_date', 'settlement_date', 'description', 'amount', 'balance', 'errors')
@@ -84,7 +84,7 @@ def update(request, identifier):
             count = xp.bulk_review(settings.WAREHOUSE_PATH, identifier, lines, request.POST.get('bulk_token',''), configurations)
             query['bulk_accepted'] = str(count)
         elif request.POST.get('operation') == 'document':
-            xp.document(settings.WAREHOUSE_PATH, identifier, request.POST.get('reason', ''))
+            xp.document(settings.WAREHOUSE_PATH, identifier)
         else:
             xp.review(settings.WAREHOUSE_PATH, identifier, int(request.POST.get('line_number', '0')), {
                 'action': request.POST.get('action', 'pending'),

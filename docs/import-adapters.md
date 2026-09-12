@@ -16,9 +16,10 @@ layout CSV/XLSX documentado na tela de importação. Novos adaptadores devem ser
 registrados explicitamente, manter testes com amostras sanitizadas e nunca
 confirmar eventos antes de toda a prévia passar pela validação.
 
-Uma prévia pode ser confirmada ou rejeitada com justificativa. A rejeição não
-remove o arquivo armazenado e impede sua confirmação posterior, preservando a
-evidência e o estado do processamento.
+Uma prévia pode ser aprovada ou descartada na etapa de aprovação da carga. O
+descarte remove a carga, as linhas, as decisões, o documento e o arquivo
+armazenado, devolvendo o processo à etapa de carregamento; nada sobre a decisão
+de aprovar ou rejeitar é registrado.
 
 `clear-brokerage-note` versão 1 reconhece notas PDF da Clear/XP pelo conteúdo,
 extrai negócios à vista, data do pregão, ativo, lado, quantidade, preço e valor,

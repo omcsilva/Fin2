@@ -1377,10 +1377,10 @@ def commit_file_import(request,identifier):
 def reject_file_import(request,identifier):
     if not settings.WRITE_ENABLED:return HttpResponse('Escrita desabilitada',status=403)
     if not re.fullmatch(r'[a-f0-9]{32}',identifier):raise Http404
-    try:reject_import(settings.WAREHOUSE_PATH,identifier,request.POST.get('reason',''))
+    try:reject_import(settings.WAREHOUSE_PATH,settings.DOCUMENT_ROOT,identifier)
     except ValueError as exc:
         return redirect('/fin2/importar/?'+urlencode({'preview':identifier,'error':str(exc)}))
-    return redirect('/fin2/importar/?preview='+identifier)
+    return redirect('/fin2/importar/')
 
 
 @page_view

@@ -145,28 +145,81 @@ class XPFlowTests(unittest.TestCase):
             self.assertEqual(len(response.redirect_chain), 1)
             from django.urls import reverse
             response = client.post(reverse('xp-statement-update', args=[identifier]),
-                                   {'operation': 'document', 'reason': 'Conferido para revisão'}, follow=True)
+                                   {'operation': 'document'}, follow=True)
             self.assertEqual(response.status_code, 200)
             self.assertIn('<h1>Revisão do extrato</h1>', response.content.decode())
         with connect(self.db) as db:
             self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0], 0)
+            # Approving a load records the statement evidence, not a decision log.
+            self.assertTrue(db.execute('select documented_at from ledger.xp_statement where import_id=?',
+                                       [identifier]).fetchone()[0])
             self.assertEqual(db.execute("""select count(*) from ledger.audit_log
-              where entity_type='file_import_decision' and entity_id=?
-                and json_extract_string(payload,'$.observation')='Conferido para revisão'
-                and json_extract_string(payload,'$.action')='approve'""", [identifier]).fetchone()[0], 1)
+              where entity_type='file_import_decision'""").fetchone()[0], 0)
 
-    def test_optional_load_observation_is_saved_for_both_decisions(self):
-        for observation in ('', 'Conferência do arquivo'):
-            identifier = self.stage(workbook(tag=observation))
-            xp.document(self.db, identifier, observation)
-            reject(self.db, identifier, observation)
+    def test_rejected_import_is_discarded_and_returns_to_step_one(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        identifier = self.stage(workbook())
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            response = client.post(reverse('file-import-reject', args=[identifier]))
+            # Back to the upload step: no preview is selected any more.
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response['Location'], '/fin2/importar/')
             with connect(self.db) as db:
-                decisions = db.execute("""select json_extract_string(payload,'$.action'),
-                  json_extract_string(payload,'$.observation') from ledger.audit_log
-                  where entity_type='file_import_decision' and entity_id=?""", [identifier]).fetchall()
-                self.assertCountEqual(decisions, [('approve', observation), ('reject', observation)])
-                self.assertEqual(db.execute('select rejection_reason from ledger.file_import where import_id=?',
-                                            [identifier]).fetchone()[0], observation)
+                self.assertIsNone(db.execute('select 1 from ledger.file_import where import_id=?',
+                                             [identifier]).fetchone())
+                self.assertIsNone(db.execute('select 1 from ledger.xp_statement where import_id=?',
+                                             [identifier]).fetchone())
+                self.assertEqual(db.execute('select count(*) from ledger.xp_statement_line').fetchone()[0], 0)
+                self.assertEqual(db.execute("""select count(*) from ledger.audit_log
+                  where entity_type='file_import_decision'""").fetchone()[0], 0)
+            self.assertEqual(client.get('/fin2/importar/', {'preview': identifier}).status_code, 404)
+            self.assertEqual(client.get(reverse('xp-statement-review', args=[identifier])).status_code, 404)
+
+    def test_document_records_evidence_without_a_decision_log(self):
+        identifier = self.stage(workbook())
+        xp.document(self.db, identifier)
+        with connect(self.db) as db:
+            self.assertTrue(db.execute('select documented_at from ledger.xp_statement where import_id=?',
+                                       [identifier]).fetchone()[0])
+            self.assertEqual(db.execute('select count(*) from ledger.statement_balance_observation').fetchone()[0], 1)
+            self.assertEqual(db.execute("""select count(*) from ledger.audit_log
+              where entity_type='file_import_decision'""").fetchone()[0], 0)
+        reject(self.db, self.documents, identifier)
+        with connect(self.db) as db:
+            self.assertIsNone(db.execute('select 1 from ledger.file_import where import_id=?', [identifier]).fetchone())
+            self.assertIsNone(db.execute('select 1 from ledger.xp_statement where import_id=?', [identifier]).fetchone())
+            self.assertEqual(db.execute('select count(*) from ledger.xp_statement_line').fetchone()[0], 0)
+            self.assertEqual(db.execute('select count(*) from ledger.statement_balance_observation').fetchone()[0], 0)
+
+    def test_excluded_line_is_ready_to_finish_and_never_reaches_the_ledger(self):
+        identifier = self.stage(workbook([
+            ('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3 S/ 100',10,110),
+            ('2025-01-03','2025-01-03','MOVIMENTO SEM DOCUMENTO DE SUPORTE',5,115)]))
+        xp.review(self.db, identifier, 1, self.decision())
+        xp.review(self.db, identifier, 2, {'action':'excluded','reason':'Linha sem documento de suporte'})
+        with connect(self.db) as db:
+            detail = xp.detail(db, identifier)
+            self.assertEqual({r['row_number']: r['state'] for r in detail['rows']}, {1:'ready', 2:'excluded'})
+            self.assertEqual(detail['states'], {'ready':1, 'pending':0, 'excluded':1})
+            # Nothing is left pending, so the load can be posted.
+            self.assertTrue(detail['can_confirm'])
+            history = db.execute("""select json_extract_string(payload,'$.action') from ledger.xp_statement_decision
+              where import_id=? order by line_number""", [identifier]).fetchall()
+            self.assertEqual([a for (a,) in history], ['new', 'excluded'])
+        self.assertEqual(commit(self.db, identifier), 1)
+        with connect(self.db) as db:
+            self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0], 1)
+            self.assertEqual(db.execute('select count(*) from ledger.xp_statement_link where line_number=2').fetchone()[0], 0)
+            self.assertEqual(db.execute('select count(*) from ledger.xp_statement_claim where line_number=2').fetchone()[0], 0)
+            self.assertEqual(db.execute('select count(*) from ledger.xp_statement_claim').fetchone()[0], 1)
 
     def stage(self,body=None,account=None,**options):
         return stage(self.db,self.documents,'extrato.xlsx',body or workbook(),options=dict(account_record=account or self.account,confirm_identity=True,identity_reason='Número e titular conferidos',**options))[0]
@@ -217,7 +270,7 @@ class XPFlowTests(unittest.TestCase):
         with connect(self.db) as db:
             self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0],0)
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_claim').fetchone()[0],0)
-        reject(self.db,identifier,'arquivo errado')
+        reject(self.db,self.documents,identifier)
         with self.assertRaises(ValueError): commit(self.db,identifier)
 
     def test_brokerage_many_to_one_and_no_invented_trade(self):
@@ -302,7 +355,7 @@ class XPFlowTests(unittest.TestCase):
         self.assertEqual(xp.bulk_review(self.db,identifier,[p['row_number'] for p in item['bulk_suggestions'] if not p['needs_input']],item['bulk_token']),3)
         with connect(self.db) as db:
             item=xp.detail(db,identifier)
-            self.assertEqual(item['counts'],{'new':2,'linked':1,'pending':1,'divergent':0})
+            self.assertEqual(item['counts'],{'new':2,'linked':1,'pending':1,'divergent':0,'excluded':0})
             self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0],1)
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_decision').fetchone()[0],3)
         with self.assertRaisesRegex(ValueError,'todas'): commit(self.db,identifier)
@@ -355,18 +408,18 @@ class XPFlowTests(unittest.TestCase):
         with connect(self.db) as db:
             item_before = xp._load(db, identifier, True)
             row_num = item_before['rows'][0]['row_number']
-        
+
         # Review as transfer but with RESULTADO
         xp.review(self.db, identifier, row_num, self.decision(
             action='new', event_type='transfer', counterparty='RESULTADO', reason='From P&L'
         ))
-        
+
         # Check if it was mutated
         with connect(self.db) as db:
             item = xp._load(db, identifier, True)
             self.assertEqual(item['rows'][0]['decision']['event_type'], 'deposit')
             self.assertIsNone(item['rows'][0]['decision']['counterparty'])
-        
+
         # Commit should create a deposit, not a transfer
         xp.commit(self.db, identifier)
         with connect(self.db) as db:
@@ -384,15 +437,15 @@ class XPFlowTests(unittest.TestCase):
         with connect(self.db) as db:
             item_before = xp._load(db, identifier, True)
             row_num = item_before['rows'][0]['row_number']
-        
+
         xp.review(self.db, identifier, row_num, self.decision(
             action='new', event_type='transfer', counterparty='RESULTADO', reason='To P&L'
         ))
-        
+
         with connect(self.db) as db:
             item = xp._load(db, identifier, True)
             self.assertEqual(item['rows'][0]['decision']['event_type'], 'withdrawal')
-        
+
         xp.commit(self.db, identifier)
         with connect(self.db) as db:
             events = db.execute('select event_type, amount, transfer_id from ledger.manual_event').fetchall()

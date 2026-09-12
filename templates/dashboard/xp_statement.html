@@ -3,8 +3,7 @@
 {% else %}
 <section class="panel">
 <h2>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start|short_date }} a {{ selected_import.document_metadata.period_end|short_date }} <a class="heading-action" href="{% url 'file-import-file' selected_import.import_id %}">Baixar arquivo</a></h2>
-<p>{{ selected_import.row_count }} movimentos · {{ selected_import.counts.new }} novos · {{ selected_import.counts.linked }} já registrados · {{ selected_import.counts.pending }} pendentes · {{ selected_import.counts.divergent }} divergentes · {{ selected_import.created_count }} eventos criados</p>
-<p>Documento: {% if selected_import.documented_at %}registrado{% else %}em prévia{% endif %} · Financeiro: {% if selected_import.financial_status == 'confirmed' %}confirmado{% else %}pendente{% endif %}{% if selected_import.status == 'rejected' %} · Rejeitado: {{ selected_import.rejection_reason }}{% endif %}</p>
+<p>{{ selected_import.row_count }} movimentos · {{ selected_import.states.ready }} prontos · {{ selected_import.states.pending }} pendentes · {{ selected_import.states.excluded }} excluídos · {{ selected_import.created_count }} eventos criados</p>
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
 
 {% if wizard_step == 3 %}
@@ -35,7 +34,7 @@
 
             <div class="review-form-grid">
                 <label>Decisão</label>
-                <div><select name="action"><option value="pending">Manter pendente</option>{% if r.candidates %}<option value="link" {% if r.decision.action == 'link' %}selected{% endif %}>Vincular a movimentos existentes</option>{% endif %}<option value="new" {% if r.decision.action == 'new' %}selected{% endif %}>Criar lançamento novo</option></select></div>
+                <div><select name="action"><option value="pending">Manter pendente</option>{% if r.candidates %}<option value="link" {% if r.decision.action == 'link' %}selected{% endif %}>Vincular a movimentos existentes</option>{% endif %}<option value="new" {% if r.decision.action == 'new' %}selected{% endif %}>Criar lançamento novo</option><option value="excluded" {% if r.decision.action == 'excluded' %}selected{% endif %}>Excluir lançamento do extrato (não vai para o ledger)</option></select></div>
 
                 {% if r.candidates %}
                 <label>Movimentos nas datas (múltipla escolha)</label>
@@ -76,7 +75,6 @@
 
     {% else %}
         <!-- Tabela única de revisão -->
-        {% if selected_import.can_confirm %}<form method="post" action="{% url 'file-import-commit' selected_import.import_id %}" data-confirm-submit="Confirmar os lançamentos novos e os vínculos revisados?">{% csrf_token %}<button type="submit" class="button-commit">Confirmar novos lançamentos e vínculos</button></form>{% endif %}
 
         {% if selected_import.bulk_suggestions %}
         <p><strong>Lote:</strong> {{ selected_import.bulk_new_count }} prontos, {{ selected_import.bulk_link_count }} vínculos e {{ selected_import.bulk_input_count }} para completar no extrato inteiro.</p>
@@ -106,7 +104,7 @@
         <td class="number"><div class="t">{% if r.decision.quantity %}{{ r.decision.quantity|number }}{% endif %}</div></td>
         <td class="number"><div class="t">{{ r.amount|money:'BRL' }}</div></td><td class="number"><div class="t">{{ r.balance|money:'BRL' }}</div></td>
         <td><div class="t">
-        {% if r.situation == 'new' %}Novo{% elif r.situation == 'linked' %}Já registrado{% elif r.situation == 'divergent' %}Divergente{% else %}Pendente{% endif %}
+        {% if r.state == 'ready' %}Pronto{% elif r.state == 'excluded' %}Excluído{% else %}Pendente{% endif %}
         {% for error in r.errors %}<div class="cell-error">{{ error }}</div>{% endfor %}
         {% if r.prior_claim %}<div class="cell-extra"><a href="{% url 'file-imports' %}?preview={{ r.prior_claim }}">Confirmada noutro extrato</a></div>{% endif %}
         </div></td>
@@ -127,6 +125,8 @@
         <button type="submit" class="bulk-accept-button">Aceitar sugestões selecionadas nesta página</button>
         {% endif %}
         </form>
+
+        {% if selected_import.can_confirm %}<form method="post" action="{% url 'file-import-commit' selected_import.import_id %}" data-confirm-submit="Lançar no ledger os lançamentos com status Pronto?">{% csrf_token %}<button type="submit" class="button-commit">Lançar no ledger os lançamentos prontos</button></form>{% endif %}
 
         <p>{% if selected_import.page.has_previous %}<a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
     {% endif %}

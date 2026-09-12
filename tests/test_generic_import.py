@@ -42,18 +42,22 @@ class GenericImportTests(unittest.TestCase):
                 stage(f.database,f.database.parent/'documents','unknown.csv',b'not,a,ledger\n1,2,3\n')
         finally:f.tearDown()
 
-    def test_rejection_preserves_file_and_prevents_commit(self):
+    def test_rejection_discards_import_document_and_file(self):
         f=fixtures.ImportTests();f.setUp()
         try:
             f.run_import()
             with connect(f.database) as db:account=db.execute('select source_record_id from portfolio.account').fetchone()[0]
             body=HEADER+(account+',,deposit,,2026-08-31,BRL,,10,Aporte\n').encode()
             identifier,_=stage(f.database,f.database.parent/'documents','rejected.csv',body)
-            reject(f.database,identifier,'Documento incorreto')
             with connect(f.database) as db:
-                item=db.execute('select status,rejection_reason,storage_key from ledger.file_import where import_id=?',[identifier]).fetchone()
-            self.assertEqual(item[:2],('rejected','Documento incorreto'))
-            self.assertTrue((f.database.parent/'documents'/item[2]).is_file())
+                document_id,storage_key=db.execute('select document_id,storage_key from ledger.file_import where import_id=?',[identifier]).fetchone()
+            stored=f.database.parent/'documents'/storage_key
+            self.assertTrue(stored.is_file())
+            reject(f.database,f.database.parent/'documents',identifier)
+            with connect(f.database) as db:
+                self.assertIsNone(db.execute('select 1 from ledger.file_import where import_id=?',[identifier]).fetchone())
+                self.assertIsNone(db.execute('select 1 from source_document where document_id=?',[document_id]).fetchone())
+            self.assertFalse(stored.exists())
             with self.assertRaisesRegex(ValueError,'indisponível'):commit(f.database,identifier)
         finally:f.tearDown()
 

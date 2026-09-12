@@ -192,23 +192,35 @@ def commit(database,import_id):
     return len(rows)
 
 
-def reject(database,import_id,reason):
-    reason=str(reason or '').strip()
-    if len(reason)>500:raise ValueError('A observação deve ter no máximo 500 caracteres')
+def reject(database,storage_root,import_id):
+    """Discard a staged import for good: rows, document and stored file.
+
+    Rejecting at the approval step is not a decision that gets recorded; the
+    import simply stops existing and the process returns to the upload step.
+    """
+    root=Path(storage_root).resolve();forget_file=False
     with connect(Path(database).resolve(strict=True)) as db:
         migrate(db)
-        item=db.execute('select status,adapter_id from ledger.file_import where import_id=?',[import_id]).fetchone()
+        item=db.execute('select status,document_id,storage_key from ledger.file_import where import_id=?',[import_id]).fetchone()
         if not item or item[0]!='preview':raise ValueError('Pré-visualização indisponível')
-        if not reason and item[1]!='xp-account-statement':raise ValueError('Informe uma justificativa válida')
+        document_id,storage_key=item[1],item[2]
         db.execute('BEGIN')
         try:
-            db.execute("update ledger.file_import set status='rejected',rejection_reason=?,rejected_at=now() where import_id=?",
-                       [reason,import_id])
-            db.execute("""insert into ledger.audit_log(audit_id,entity_type,entity_id,action,payload)
-              values (?,'file_import_decision',?,'create',?)""",
-              [uuid4().hex,import_id,json.dumps({'action':'reject','observation':reason})])
+            db.execute('delete from ledger.xp_statement_decision where import_id=?',[import_id])
+            db.execute('delete from ledger.xp_statement_line where import_id=?',[import_id])
+            db.execute('delete from ledger.xp_statement where import_id=?',[import_id])
+            db.execute('delete from ledger.file_import where import_id=?',[import_id])
+            # The document and the stored file are content-addressed; drop them
+            # only when no other import still points at them.
+            if document_id and not db.execute('select 1 from ledger.file_import where document_id=?',[document_id]).fetchone():
+                db.execute('delete from ledger.statement_balance_observation where document_id=?',[document_id])
+                db.execute('delete from source_document where document_id=?',[document_id])
+            forget_file=bool(storage_key) and not db.execute('select 1 from source_document where storage_key=?',[storage_key]).fetchone()
             db.execute('COMMIT')
         except Exception:
             db.execute('ROLLBACK')
             raise
+    if forget_file:
+        target=(root/storage_key).resolve()
+        if target.is_relative_to(root) and target.is_file():target.unlink()
     return import_id
