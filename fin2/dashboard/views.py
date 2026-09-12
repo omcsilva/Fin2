@@ -1299,16 +1299,21 @@ def file_imports(request):
                 if not rows:raise Http404
                 selected=rows[0];selected['rows']=json.loads(selected['preview'])
                 selected['document_metadata']=json.loads(selected['document_metadata']) if selected.get('document_metadata') else None
-                if selected['adapter_id']=='xp-account-statement':
+                if selected['adapter_id']=='xp-account-statement' and selected['status']=='preview':
                     from fin2.imports.xp_reconciliation import detail
                     selected=detail(connection,identifier)
                     from fin2.dashboard.xp_statement_views import approval_table
                     approval_table(request, selected)
                     data['supporting_documents']=query(connection,'select document_id,original_filename from source_document where batch_id=? order by original_filename',[selected['batch_id']])
+                elif selected['adapter_id']=='xp-account-statement':
+                    # The review staging is gone: the completed step lists the
+                    # entries the confirmed load generated in the ledger.
+                    from fin2.imports.xp_reconciliation import created_entries
+                    selected['created_entries']=created_entries(connection,identifier)
 
             wizard_step = 1
             if identifier and selected:
-                if selected['status'] == 'completed' or selected.get('financial_status') == 'confirmed':
+                if selected['status'] in ('committed','completed'):
                     wizard_step = 4
                 elif selected['status'] == 'preview':
                     # Re-uploaded files retain their documentary history, but

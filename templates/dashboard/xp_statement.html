@@ -133,19 +133,16 @@
 {% endif %}
 
 {% if wizard_step == 4 %}
-    <div class="note note-success">Importação concluída com sucesso! Todos os movimentos foram registrados.</div>
-    <div class="table-wrap"><table id="xp-import-done-table" class="table-fixed"><thead><tr><th class="number"><div class="t">Linha</div></th><th class="number"><div class="t">Mov.</div></th><th class="number"><div class="t">Liq.</div></th><th><div class="t">Lançamento</div></th><th><div class="t">Tipo</div></th><th><div class="t">Aplicação</div></th><th class="number"><div class="t">Qtde</div></th><th class="number"><div class="t">Valor</div></th><th class="number"><div class="t">Saldo</div></th><th><div class="t">Status da Revisão</div></th></tr></thead><tbody>
-    {% for r in selected_import.rows %}<tr>
-    <td class="number"><div class="t">{{ r.source_locator.row }}</div></td><td class="number"><div class="t">{{ r.trade_date|short_date }}</div></td><td class="number"><div class="t">{{ r.settlement_date|short_date }}</div></td>
-    <td class="wrap-text"><div class="t" title="{{ r.description }}">{{ r.description }}</div></td><td><div class="t">{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</div></td>
-    <td><div class="t">{% if r.decision.application_record %}{% for a in r.applications %}{% if a.source_record_id == r.decision.application_record %}{{ a.name }}{% endif %}{% endfor %}{% elif r.suggested_application_name %}<span class="suggested-tag">{{ r.suggested_application_name }} (sugerido)</span>{% endif %}</div></td>
-    <td class="number"><div class="t">{% if r.decision.quantity %}{{ r.decision.quantity|number }}{% endif %}</div></td>
-    <td class="number"><div class="t">{{ r.amount|money:'BRL' }}</div></td><td class="number"><div class="t">{{ r.balance|money:'BRL' }}</div></td>
-    <td><div class="t">{% if r.situation == 'new' %}Novo criado{% elif r.situation == 'linked' %}Vinculado{% else %}{{ r.situation }}{% endif %}<br>
-    {% if r.decision %}{{ r.decision.reason }}{% endif %}</div></td>
-    </tr>{% endfor %}
+    <div class="note note-success">Importação de extrato concluída. Novos lançamentos gerados no ledger: {{ selected_import.created_entries|length }}.</div>
+    <div class="table-wrap"><table id="xp-import-done-table" class="table-fixed"><thead><tr><th class="number"><div class="t">Mov.</div></th><th class="number"><div class="t">Liq.</div></th><th><div class="t">Tipo</div></th><th><div class="t">Aplicação</div></th><th class="number"><div class="t">Qtde</div></th><th class="number"><div class="t">Valor</div></th><th class="wrap-text"><div class="t">Lançamento</div></th></tr></thead><tbody>
+    {% for e in selected_import.created_entries %}<tr>
+    <td class="number"><div class="t">{{ e.trade_date|short_date }}</div></td><td class="number"><div class="t">{{ e.settlement_date|short_date }}</div></td>
+    <td><div class="t">{{ e.event_type }}</div></td><td><div class="t">{{ e.application_name|default:'' }}</div></td>
+    <td class="number"><div class="t">{% if e.quantity %}{{ e.quantity|number }}{% endif %}</div></td>
+    <td class="number"><div class="t">{{ e.amount|money:'BRL' }}</div></td>
+    <td class="wrap-text"><div class="t" title="{{ e.description }}">{{ e.description }}</div></td>
+    </tr>{% empty %}<tr><td colspan="7">Nenhum lançamento novo foi gerado.</td></tr>{% endfor %}
     </tbody></table></div>
-    <p>{% if selected_import.page.has_previous %}<a href="?preview={{ selected_import.import_id }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?preview={{ selected_import.import_id }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
 {% endif %}
 
 {% if wizard_step == 3 or wizard_step == 4 %}
@@ -156,7 +153,7 @@
 <p>Créditos: {{ selected_import.document_metadata.credits|money:'BRL' }} · Débitos: {{ selected_import.document_metadata.debits|money:'BRL' }} · Quebras na sequência: {{ selected_import.document_metadata.balance_breaks|default:0 }}. O saldo projetado da consulta não integra esta conciliação.</p>
 {% endif %}
 
-{% if not request.GET.review_line %}
+{% if not request.GET.review_line and wizard_step != 4 %}
 <details><summary>Histórico de revisões</summary>{% for h in selected_import.decision_history %}<p>{{ h.created_at }} · Linha {{ h.line_number }} · {{ h.payload.action }} · {{ h.payload.reason }}</p>{% empty %}<p>Nenhuma revisão registrada.</p>{% endfor %}</details>
 {% endif %}
 </section>

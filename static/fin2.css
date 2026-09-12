@@ -522,17 +522,14 @@ h2 .heading-action{font-size:14px;font-weight:400}
 .reconciliation-table th:first-child,.reconciliation-table td:first-child{width:34%;white-space:normal}
 .reconciliation-table th,.reconciliation-table td{overflow:hidden;text-overflow:ellipsis}
 
-/* Import-complete table (wizard step 4). Lançamento has no width, so it takes
-   whatever the other columns leave. */
-#xp-import-done-table th:nth-child(1){width:4%}
-#xp-import-done-table th:nth-child(2){width:7%}
-#xp-import-done-table th:nth-child(3){width:7%}
-#xp-import-done-table th:nth-child(5){width:10%}
-#xp-import-done-table th:nth-child(6){width:14%}
-#xp-import-done-table th:nth-child(7){width:5%}
-#xp-import-done-table th:nth-child(8){width:9%}
-#xp-import-done-table th:nth-child(9){width:9%}
-#xp-import-done-table th:nth-child(10){width:10%}
+/* Import-complete table (wizard step 4): the entries the load generated.
+   Lançamento has no width, so it takes whatever the other columns leave. */
+#xp-import-done-table th:nth-child(1){width:9%}
+#xp-import-done-table th:nth-child(2){width:9%}
+#xp-import-done-table th:nth-child(3){width:11%}
+#xp-import-done-table th:nth-child(4){width:16%}
+#xp-import-done-table th:nth-child(5){width:7%}
+#xp-import-done-table th:nth-child(6){width:11%}
 
 /* Approval table (wizard step 2). Lançamento is the elastic column in both the
    six-column layout and the seven-column one used when reading errors exist. */

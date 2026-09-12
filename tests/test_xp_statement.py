@@ -217,9 +217,51 @@ class XPFlowTests(unittest.TestCase):
         self.assertEqual(commit(self.db, identifier), 1)
         with connect(self.db) as db:
             self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0], 1)
+            # Step 4 discards the review staging but keeps link and claim.
+            for table in ('xp_statement', 'xp_statement_line', 'xp_statement_decision'):
+                self.assertEqual(db.execute(f'select count(*) from ledger.{table}').fetchone()[0], 0)
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_link where line_number=2').fetchone()[0], 0)
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_claim where line_number=2').fetchone()[0], 0)
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_claim').fetchone()[0], 1)
+            created = xp.created_entries(db, identifier)
+        self.assertEqual([e['event_type'] for e in created], ['income'])
+        self.assertEqual(created[0]['description'], 'DIVIDENDOS DE CLIENTES TEST3 S/ 100')
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            response = Client().get('/fin2/importar/', {'preview': identifier})
+            self.assertEqual(response.status_code, 200)
+            html = response.content.decode()
+            # Step 4 reports the load and lists the entries it generated.
+            self.assertIn('Importação de extrato concluída. Novos lançamentos gerados no ledger: 1.', html)
+            self.assertIn('DIVIDENDOS DE CLIENTES TEST3 S/ 100', html)
+            self.assertNotIn('Histórico de revisões', html)
+
+    def test_overlap_check_survives_the_concluded_load(self):
+        first = self.stage(workbook([('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
+        xp.review(self.db, first, 1, self.decision())
+        self.assertEqual(commit(self.db, first), 1)
+        # The concluded load kept no lines, only the claim; the overlap check
+        # reads it there and must still flag a reissued statement with a new value.
+        second = self.stage(workbook([('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',7,107)]))
+        with self.assertRaisesRegex(ValueError, 'sobreposto'):
+            xp.review(self.db, second, 1, self.decision())
+
+    def test_entry_linked_twice_is_refused_after_the_load_concludes(self):
+        entry = create(self.db, account_record=self.account, event_type='deposit',
+                       settlement_date='2025-01-02', currency='BRL', amount=10, description='Aporte conferido')
+        first = self.stage(workbook([('2025-01-02','2025-01-02','APORTE RECEBIDO',10,110)]))
+        xp.review(self.db, first, 1, self.decision(action='link', entry_ids=[entry]))
+        self.assertEqual(commit(self.db, first), 0)
+        # The concluded load kept the link, so the same movement cannot be
+        # reconciled again from a divergent line of another statement.
+        second = self.stage(workbook([('2025-01-02','2025-01-02','APORTE RECEBIDO OUTRA CONSULTA',10,110)]))
+        with self.assertRaisesRegex(ValueError, 'outra linha'):
+            xp.review(self.db, second, 1, self.decision(action='link', entry_ids=[entry]))
 
     def stage(self,body=None,account=None,**options):
         return stage(self.db,self.documents,'extrato.xlsx',body or workbook(),options=dict(account_record=account or self.account,confirm_identity=True,identity_reason='Número e titular conferidos',**options))[0]

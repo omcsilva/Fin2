@@ -94,10 +94,14 @@ revisão de status; o filtro não apaga dados nem altera lançamentos.
 O assistente destaca as etapas Carregar, Aprovar carga, Revisão e Concluído.
 A aprovação tem tabela de leitura com pesquisa, ordenação e paginação; os
 formulários de decisões por movimento ficam exclusivamente na revisão.
-O formulário de aprovação usa observação opcional para ambas as ações, rejeição
-vermelha e aprovação verde à direita. As regras de cor são específicas do
-formulário para prevalecer sobre o estilo geral dos botões, inclusive no hover.
-Veja o [fluxo de extratos XP](xp-account-statement-plan.md#fluxo-de-interface-em-11092026).
+O formulário de aprovação tem apenas duas ações — aprovar a carga ou descartar
+o arquivo —, ambas valendo para o arquivo inteiro, com a rejeição vermelha e a
+aprovação verde à direita. As regras de cor são específicas do formulário para
+prevalecer sobre o estilo geral dos botões, inclusive no hover.
+Concluída a revisão, a tela informa quantos lançamentos novos foram gerados e os
+lista, já que continuam vinculados ao extrato de origem; a tabela temporária de
+revisão é apagada nesse momento.
+Veja o [fluxo de extratos XP](xp-account-statement-plan.md#fluxo-de-interface-em-12092026).
 
 O cabeçalho utiliza o recurso `static/carbono.png`; os recursos antigos
 `carbon.png` e `carbon3.png` foram substituídos. A coleta de estáticos deve ser

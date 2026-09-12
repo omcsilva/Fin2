@@ -200,36 +200,74 @@ permanece apenas na cópia isolada de auditoria. Não houve commit, push ou
 implantação em produção nesta execução.
 
 
-## Fluxo de interface em 11/09/2026
+## Fluxo de interface em 12/09/2026
 
 1. **Carregar:** selecionar o XLSX e a conta. A associação inicial de número e
    titular continua exigindo confirmação explícita.
-2. **Aprovar carga:** conferir o arquivo inteiro em uma tabela de leitura,
-   com Linha, Movimentação, Liquidação, Lançamento, Valor e Saldo. Linha contém
-   somente o número original; Lançamento preserva apenas a descrição. Datas
-   aparecem em DD/MM/AA, valores em `R$ 1.234,56`; números, datas e valores
-   ficam alinhados à direita. Problemas de leitura aparecem em coluna adicional
-   somente quando existem erros no arquivo.
+2. **Aprovar carga:** ler o arquivo e gravar os lançamentos em tabela temporária,
+   listando-os integralmente **sem classificá-los**, com Linha, Movimentação,
+   Liquidação, Lançamento, Valor e Saldo. Linha contém somente o número
+   original; Lançamento preserva apenas a descrição. Datas aparecem em DD/MM/AA,
+   valores em `R$ 1.234,56`; números, datas e valores ficam alinhados à direita.
+   Problemas de leitura aparecem em coluna adicional somente quando existem
+   erros no arquivo.
    A pesquisa e a ordenação pelos cabeçalhos abrangem todas as linhas antes da
    paginação de 20 itens; os controles permanecem ao trocar de página.
-   A observação opcional (até 500 caracteres), a rejeição vermelha e a aprovação
-   verde à direita compartilham um formulário. Aprovar ou rejeitar sempre vale
-   para o arquivo inteiro, mesmo com pesquisa ativa.
+   Aprovar vale para o arquivo inteiro, mesmo com pesquisa ativa, e não cria
+   eventos financeiros. **Rejeitar descarta a carga** — linhas, decisões,
+   documento e arquivo — e devolve o processo à etapa 1, sem registro algum da
+   decisão.
 3. **Revisão:** após aprovar a carga, abrir a rota própria
-   `/fin2/importar/<identificador>/revisao/`, com sugestões em lote, revisão
-   individual e conciliação. Aprovar a carga não cria eventos financeiros.
-4. **Concluído:** confirmar novos lançamentos e vínculos somente depois da
-   revisão e das validações financeiras.
+   `/fin2/importar/<identificador>/revisao/`, que tenta conciliar cada lançamento
+   com aplicações ou outros lançamentos existentes da mesma conta.
+   - Cada lançamento tem um botão de revisão manual; dentro dela é possível
+     **excluir o lançamento**, que sai da carga sem ir para o ledger e fica
+     registrado no histórico.
+   - Lançamento com informação insuficiente para incorporação fica **Pendente**;
+     o resolvido fica **Pronto**; o excluído fica **Excluído**. O estado é
+     derivado da decisão registrada, sem coluna própria.
+   - Abaixo da tabela fica o botão que lança no ledger os lançamentos **Pronto**.
+     Ele aparece quando não resta nenhum lançamento **Pendente**; nesse momento o
+     processo segue para a próxima etapa.
+   - Cada registro criado guarda a referência do extrato de origem e o histórico
+     de revisões: o evento em `ledger.manual_event` recebe uma entrada em
+     `ledger.audit_log` (`entity_type='manual_event'`) com `import_id`,
+     `line_number` e a decisão aplicada, e cada decisão também fica em
+     `ledger.xp_statement_decision`. Não foi criada tabela nova para isso.
+4. **Concluído:** depois das validações financeiras, o botão lança no ledger os
+   lançamentos **Pronto** e o processo termina. A tela informa quantos
+   lançamentos novos foram gerados e os lista, já que permanecem vinculados ao
+   extrato de origem. Neste momento a tabela temporária de revisão é apagada:
+   `xp_statement`, `xp_statement_line` e `xp_statement_decision` deixam de
+   existir. Permanecem `xp_statement_link` (vínculo entre extrato e ledger) e
+   `xp_statement_claim` (deduplicação), que as cargas seguintes consultam.
 
 O reenvio de um arquivo ainda em prévia reutiliza o registro documental, mas
 volta a **Aprovar carga**, mesmo quando já existe aprovação documental anterior.
 Não apaga decisões anteriores nem duplica movimentos; arquivos financeiramente
 confirmados continuam no resultado da importação.
 
-As decisões de carga são registradas em `ledger.audit_log`, com
-`entity_type='file_import_decision'`, `entity_id=import_id`, `action='create'`
-e payload contendo `action` (`approve` ou `reject`) e `observation`. A gravação
-é transacional com a decisão. Na rejeição, a observação também fica em
-`ledger.file_import.rejection_reason`. O campo é opcional para extratos XP;
-outros adaptadores mantêm a justificativa obrigatória. Não há migração nova
-para esse histórico.
+A aprovação da carga não grava registro de decisão: ela registra a evidência do
+extrato, marcando `ledger.xp_statement.documented_at` e gravando a observação de
+saldo em `ledger.statement_balance_observation`. A rejeição descarta tudo e não
+grava auditoria. As colunas `ledger.file_import.rejection_reason` e `rejected_at`
+foram removidas pelas migrações `0056_drop_import_document_index.sql` e
+`0057_drop_import_rejection.sql` — a primeira existe porque o DuckDB não remove
+uma coluna enquanto um índice referencia coluna posterior.
+
+### Evidência preservada após o descarte
+
+`xp_statement_line` sustentava duas verificações de integridade em `_validate`.
+Para que o descarte da etapa 4 não as desligue, a evidência passou para
+`ledger.xp_statement_claim` (`0058_claim_keeps_line_evidence.sql`), que já
+guardava o fingerprint e agora guarda também `description` e `settlement_date`,
+com backfill das cargas já confirmadas:
+
+- a verificação de extrato sobreposto lê `description` e `settlement_date` do
+  claim, em vez do `raw` da linha;
+- a verificação de movimento conciliado com duas linhas cruza
+  `xp_statement_link` com o `fingerprint` do claim.
+
+As duas passaram a ter teste próprio, que as exercita depois da carga
+concluída: `test_overlap_check_survives_the_concluded_load` e
+`test_entry_linked_twice_is_refused_after_the_load_concludes`.
