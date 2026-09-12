@@ -10,13 +10,24 @@ from fin2.imports import xp_reconciliation as xp
 from fin2.dashboard.templatetags.fin2_format import money, short_date
 
 
-def approval_table(request, selected):
+def approval_table(request, selected, review=False):
     """Search and order the full statement before paginating its preview."""
     rows = selected['rows']
     selected['has_reading_errors'] = any(row.get('errors') for row in rows)
+    if review:
+        for row in rows:
+            decision = row.get('decision') or {}
+            suggestion = row.get('bulk_suggestion') or {}
+            row['table_application'] = next((a['name'] for a in row.get('applications', [])
+                if a['source_record_id'] == decision.get('application_record')), row.get('suggested_application_name') or '')
+            row['table_quantity'] = decision.get('quantity')
+            row['table_review'] = ' '.join(filter(None, (suggestion.get('label'), decision.get('reason'))))
+            row['table_situation'] = {'new':'Novo', 'linked':'Já registrado', 'divergent':'Divergente'}.get(row.get('situation'), 'Pendente')
     term = request.GET.get('q', '')[:200].strip()
     sort = request.GET.get('sort', 'line')
-    if sort not in ('line', 'trade_date', 'settlement_date', 'description', 'amount', 'balance', 'errors'):
+    allowed = ('line', 'trade_date', 'settlement_date', 'description', 'amount', 'balance', 'errors')
+    if review: allowed += ('category', 'table_application', 'table_quantity', 'table_situation', 'table_review')
+    if sort not in allowed:
         sort = 'line'
     direction = 'desc' if request.GET.get('dir') == 'desc' else 'asc'
     if term:
@@ -28,11 +39,12 @@ def approval_table(request, selected):
                 row.get('amount'), money(row.get('amount'), 'BRL'),
                 row.get('balance'), money(row.get('balance'), 'BRL'),
                 ' '.join(row.get('errors', [])),
+                *([row.get(field) for field in ('category', 'table_application', 'table_quantity', 'table_situation', 'table_review')] if review else []),
             )).casefold()
         rows = [row for row in rows if term.casefold() in searchable(row)]
     def key(row):
         value = row['source_locator']['row'] if sort == 'line' else row.get(sort)
-        if sort in ('line', 'amount', 'balance'):
+        if sort in ('line', 'amount', 'balance', 'table_quantity'):
             try:
                 value = Decimal(str(value))
                 if not value.is_finite(): value = None
@@ -46,7 +58,11 @@ def approval_table(request, selected):
     rows = sorted(present, key=key, reverse=direction == 'desc') + missing
     selected['page'] = Paginator(rows, 20).get_page(request.GET.get('page'))
     selected['rows'] = selected['page'].object_list
-    selected['table_query'] = urlencode({'preview': selected['import_id'], 'q': term, 'sort': sort, 'dir': direction})
+    params = {'q': term, 'sort': sort, 'dir': direction}
+    if review:
+        if request.GET.get('pending') == '1': params['pending'] = '1'
+    else: params['preview'] = selected['import_id']
+    selected['table_query'] = urlencode(params)
     selected.update(table_term=term, table_sort=sort, table_direction=direction)
 
 
@@ -56,6 +72,8 @@ def update(request, identifier):
         return HttpResponse('Escrita desabilitada', status=403)
     query = {}
     target = reverse('xp-statement-review', args=[identifier])
+    for field in ('q', 'sort', 'dir'):
+        if request.POST.get(field): query[field] = request.POST[field][:200]
     if request.POST.get('return_page','').isdigit(): query['page'] = request.POST['return_page']
     if request.POST.get('pending') == '1': query['pending'] = '1'
     try:

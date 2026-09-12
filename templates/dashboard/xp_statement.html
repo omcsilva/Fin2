@@ -1,38 +1,3 @@
-<style>
-.table-wrap table {
-    table-layout: fixed !important;
-    width: 100% !important;
-    border-collapse: collapse !important;
-    border-spacing: 0 !important;
-}
-.table-wrap th, .table-wrap td {
-    padding: 8px 4px !important;
-    white-space: nowrap !important;
-    word-break: break-all !important;
-    max-width: 0 !important;
-}
-.t {
-    display: block !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-}
-.table-wrap .button {
-    padding: 4px 8px !important;
-    font-size: 11px !important;
-}
-.panel, .panel * {
-    overflow-wrap: anywhere !important;
-}
-.table-wrap {
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow-x: auto !important;
-}
-</style>
 {% if wizard_step == 2 %}
 {% include 'dashboard/xp_statement_approval.html' %}
 {% else %}
@@ -44,7 +9,7 @@
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
 
 {% if wizard_step == 3 or wizard_step == 4 %}
-<div class="table-wrap"><table style="table-layout: fixed; width: 100%;"><thead><tr><th>Conciliação</th><th class="number">Extrato</th><th class="number">Fin2</th><th class="number">Diferença</th></tr></thead><tbody>
+<div class="table-wrap"><table class="table-fixed reconciliation-table"><thead><tr><th>Conciliação</th><th class="number">Extrato</th><th class="number">Fin2</th><th class="number">Diferença</th></tr></thead><tbody>
 <tr><td>Saldo inicial (inferido)</td><td class="number">{{ selected_import.document_metadata.opening_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_opening|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.opening_difference|money:'BRL' }}</td></tr>
 <tr><td>Saldo final</td><td class="number">{{ selected_import.document_metadata.closing_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_closing|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.closing_difference|money:'BRL' }}</td></tr>
 </tbody></table></div>
@@ -58,14 +23,15 @@
         <!-- Modo de Revisão Individual Focada -->
         <div class="section-title">
             <h3>Revisão da Linha {{ request.GET.review_line }}</h3>
-            <a href="{% url 'xp-statement-review' selected_import.import_id %}" class="button">Voltar para a lista</a>
+            <a href="{% url 'xp-statement-review' selected_import.import_id %}?q={{ request.GET.q|urlencode }}&amp;sort={{ request.GET.sort|urlencode }}&amp;dir={{ request.GET.dir|urlencode }}&amp;pending={{ request.GET.pending|urlencode }}&amp;page={{ request.GET.page|urlencode }}" class="button">Voltar para a lista</a>
         </div>
 
         {% for r in selected_import.rows %}
             <form method="post" action="{% url 'xp-statement-update' selected_import.import_id %}" class="panel">{% csrf_token %}
             <input type="hidden" name="line_number" value="{{ r.row_number }}">
             <!-- return_page was useful for pagination, we can keep it empty or drop it, since we'll redirect back to the main list -->
-            <input type="hidden" name="return_page" value="">
+            <input type="hidden" name="return_page" value="{{ request.GET.page }}">
+            <input type="hidden" name="q" value="{{ request.GET.q }}"><input type="hidden" name="sort" value="{{ request.GET.sort }}"><input type="hidden" name="dir" value="{{ request.GET.dir }}">
             <input type="hidden" name="pending" value="{{ request.GET.pending|default:'' }}">
 
             <p><strong>Descrição:</strong> {{ r.description }}<br>
@@ -76,41 +42,41 @@
             {% for error in r.errors %}<p class="note">{{ error }}</p>{% endfor %}
             {% if r.decision %}<p>Decisão atual: {{ r.decision.reason }}</p>{% endif %}
 
-            <div style="display: grid; grid-template-columns: minmax(200px, 1fr) 2fr; gap: 10px 20px; align-items: center; margin-bottom: 15px;">
+            <div class="review-form-grid">
                 <label>Decisão</label>
-                <div><select name="action" style="width: 100%;"><option value="pending">Manter pendente</option>{% if r.candidates %}<option value="link" {% if r.decision.action == 'link' %}selected{% endif %}>Vincular a movimentos existentes</option>{% endif %}<option value="new" {% if r.decision.action == 'new' %}selected{% endif %}>Criar lançamento novo</option></select></div>
+                <div><select name="action"><option value="pending">Manter pendente</option>{% if r.candidates %}<option value="link" {% if r.decision.action == 'link' %}selected{% endif %}>Vincular a movimentos existentes</option>{% endif %}<option value="new" {% if r.decision.action == 'new' %}selected{% endif %}>Criar lançamento novo</option></select></div>
 
                 {% if r.candidates %}
                 <label>Movimentos nas datas (múltipla escolha)</label>
-                <div><select name="entry_ids" multiple size="4" style="width: 100%;">{% for e in r.candidates %}<option value="{{ e.entry_id }}" {% if e.entry_id in r.decision.entry_ids %}selected{% endif %}>{% if e.entry_id in r.suggested_ids %}Mesmo valor · {% endif %}{{ e.label }}</option>{% endfor %}</select></div>
+                <div><select name="entry_ids" multiple size="4">{% for e in r.candidates %}<option value="{{ e.entry_id }}" {% if e.entry_id in r.decision.entry_ids %}selected{% endif %}>{% if e.entry_id in r.suggested_ids %}Mesmo valor · {% endif %}{{ e.label }}</option>{% endfor %}</select></div>
                 {% endif %}
 
                 <label>Tipo do lançamento novo</label>
-                <div><select name="event_type" style="width: 100%;"><option value="">Selecione</option><option value="income" {% if r.decision.event_type == "income" %}selected{% endif %}>Provento / rendimento</option><option value="transfer" {% if r.decision.event_type == "transfer" %}selected{% endif %}>Transferência entre contas próprias</option><option value="deposit" {% if r.decision.event_type == "deposit" %}selected{% endif %}>Aporte externo</option><option value="withdrawal" {% if r.decision.event_type == "withdrawal" %}selected{% endif %}>Retirada externa</option><option value="tax" {% if r.decision.event_type == "tax" %}selected{% endif %}>Imposto do resgate</option><option value="redemption" {% if r.decision.event_type == "redemption" %}selected{% endif %}>Resgate documentado</option><option value="buy" {% if r.decision.event_type == "buy" %}selected{% endif %}>Aplicação em previdência documentada</option></select></div>
+                <div><select name="event_type"><option value="">Selecione</option><option value="income" {% if r.decision.event_type == "income" %}selected{% endif %}>Provento / rendimento</option><option value="transfer" {% if r.decision.event_type == "transfer" %}selected{% endif %}>Transferência entre contas próprias</option><option value="deposit" {% if r.decision.event_type == "deposit" %}selected{% endif %}>Aporte externo</option><option value="withdrawal" {% if r.decision.event_type == "withdrawal" %}selected{% endif %}>Retirada externa</option><option value="tax" {% if r.decision.event_type == "tax" %}selected{% endif %}>Imposto do resgate</option><option value="redemption" {% if r.decision.event_type == "redemption" %}selected{% endif %}>Resgate documentado</option><option value="buy" {% if r.decision.event_type == "buy" %}selected{% endif %}>Aplicação em previdência documentada</option></select></div>
 
                 <label>Aplicação</label>
                 <div>
-                {% if r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override" style="width: 100%;"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record" style="width: 100%;"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}
+                {% if r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}
                 </div>
 
                 <label>Outra conta da transferência</label>
-                <div><select name="counterparty" style="width: 100%;"><option value="">Selecione</option><option value="RESULTADO">Conta de Resultado (Gera aporte/retirada)</option>{% for a in selected_import.transfer_accounts %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.decision.counterparty %}selected{% endif %}>{{ a.name }} · {{ a.holder }}</option>{% endfor %}</select></div>
+                <div><select name="counterparty"><option value="">Selecione</option><option value="RESULTADO">Conta de Resultado (Gera aporte/retirada)</option>{% for a in selected_import.transfer_accounts %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.decision.counterparty %}selected{% endif %}>{{ a.name }} · {{ a.holder }}</option>{% endfor %}</select></div>
 
                 <label>Resgate relacionado ao imposto</label>
-                <div><select name="related_line" style="width: 100%;"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date|short_date }}</option>{% endfor %}</select></div>
+                <div><select name="related_line"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date|short_date }}</option>{% endfor %}</select></div>
 
                 <label>Quantidade comprovada</label>
-                <div><input name="quantity" value="{{ r.decision.quantity|default:'' }}" style="width: 100%;"></div>
+                <div><input name="quantity" value="{{ r.decision.quantity|default:'' }}"></div>
 
                 <label>Documento complementar</label>
-                <div><select name="document_id" style="width: 100%;"><option value="">Selecione</option>{% for d in supporting_documents %}<option value="{{ d.document_id }}" {% if d.document_id == r.decision.document_id %}selected{% endif %}>{{ d.original_filename }}</option>{% endfor %}</select></div>
+                <div><select name="document_id"><option value="">Selecione</option>{% for d in supporting_documents %}<option value="{{ d.document_id }}" {% if d.document_id == r.decision.document_id %}selected{% endif %}>{{ d.original_filename }}</option>{% endfor %}</select></div>
 
-                <div style="grid-column: 1 / -1;">
-                    <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" name="distinct_confirmed" {% if r.decision.distinct_confirmed %}checked{% endif %}> Conferi os movimentos semelhantes; esta é uma ocorrência distinta</label>
+                <div class="full-row">
+                    <label class="inline-check"><input type="checkbox" name="distinct_confirmed" {% if r.decision.distinct_confirmed %}checked{% endif %}> Conferi os movimentos semelhantes; esta é uma ocorrência distinta</label>
                 </div>
 
                 <label>Justificativa / contraparte</label>
-                <div><input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}" required style="width: 100%;"></div>
+                <div><input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}" required></div>
             </div>
 
             <button type="submit">Salvar revisão</button>
@@ -119,61 +85,69 @@
 
     {% else %}
         <!-- Tabela única de revisão -->
-        {% if selected_import.can_confirm %}<form method="post" action="{% url 'file-import-commit' selected_import.import_id %}" data-confirm-submit="Confirmar os lançamentos novos e os vínculos revisados?">{% csrf_token %}<button type="submit" style="font-size: 1.1em; padding: 10px 20px;">Confirmar novos lançamentos e vínculos</button></form>{% endif %}
+        {% if selected_import.can_confirm %}<form method="post" action="{% url 'file-import-commit' selected_import.import_id %}" data-confirm-submit="Confirmar os lançamentos novos e os vínculos revisados?">{% csrf_token %}<button type="submit" class="button-commit">Confirmar novos lançamentos e vínculos</button></form>{% endif %}
 
         {% if selected_import.bulk_suggestions %}
         <p><strong>Lote:</strong> {{ selected_import.bulk_new_count }} prontos, {{ selected_import.bulk_link_count }} vínculos e {{ selected_import.bulk_input_count }} para completar no extrato inteiro.</p>
         {% endif %}
 
-        <p><a href="{% url 'xp-statement-review' selected_import.import_id %}">Todos os movimentos</a> · <a href="?pending=1">Somente pendências</a></p>
-        
+        <form method="get" class="filters" data-table-controls="xp-review">
+        <input type="hidden" name="sort" value="{{ selected_import.table_sort }}">
+        <input type="hidden" name="dir" value="{{ selected_import.table_direction }}">
+        <label>Pesquisar<input name="q" value="{{ selected_import.table_term }}" maxlength="200" placeholder="Lançamento, aplicação, revisão, data ou valor"></label>
+        <label>Situação<select name="pending"><option value="">Todos os movimentos</option><option value="1" {% if request.GET.pending == '1' %}selected{% endif %}>Somente pendências</option></select></label>
+        <button type="submit">Pesquisar</button><a href="{% url 'xp-statement-review' selected_import.import_id %}">Limpar</a>
+        </form>
+        <p>{{ selected_import.page.paginator.count }} movimentos encontrados</p>
+
         <form method="post" action="{% url 'xp-statement-update' selected_import.import_id %}">{% csrf_token %}
+        <input type="hidden" name="q" value="{{ selected_import.table_term }}"><input type="hidden" name="sort" value="{{ selected_import.table_sort }}"><input type="hidden" name="dir" value="{{ selected_import.table_direction }}"><input type="hidden" name="pending" value="{{ request.GET.pending }}"><input type="hidden" name="return_page" value="{{ selected_import.page.number }}">
         <input type="hidden" name="operation" value="bulk_review"><input type="hidden" name="bulk_token" value="{{ selected_import.bulk_token }}">
-        
-        <div class="table-wrap"><table style="table-layout: fixed; width: 100%;"><colgroup><col style="width:3%;"><col style="width:4%;"><col style="width:6%;"><col style="width:6%;"><col style="width:14%;"><col style="width:10%;"><col style="width:14%;"><col style="width:5%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:6%;"></colgroup><thead><tr><th><div class="t">SEL.</div></th><th class="number"><div class="t">Linha</div></th><th class="number"><div class="t">Mov.</div></th><th class="number"><div class="t">Liq.</div></th><th><div class="t">Lançamento</div></th><th><div class="t">Tipo</div></th><th><div class="t">Aplicação</div></th><th class="number"><div class="t">Qtde</div></th><th class="number"><div class="t">Valor</div></th><th class="number"><div class="t">Saldo</div></th><th><div class="t">Situação</div></th><th><div class="t">Revisão</div></th><th><div class="t">Ação</div></th></tr></thead><tbody>
+
+        <div class="table-wrap" data-table="xp-review"><table id="xp-review-table"><thead><tr><th><div class="t">SEL.</div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="line">Linha</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="trade_date">Mov.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="settlement_date">Liq.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="description">Lançamento</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="category">Tipo</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_application">Aplicação</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="table_quantity">Qtde</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="amount">Valor</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="balance">Saldo</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_situation">Situação</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_review">Revisão</button></div></th><th><div class="t">Ação</div></th></tr></thead><tbody>
         {% for r in selected_import.rows %}<tr>
         <td><div class="t">{% if r.bulk_suggestion %}
             {% if not r.bulk_suggestion.needs_input %}<input type="checkbox" name="bulk_line" value="{{ r.row_number }}" checked aria-label="Aceitar sugestão da linha {{ r.source_locator.row }}">{% endif %}
             {% endif %}</div></td>
         <td class="number"><div class="t">{{ r.source_locator.row }}</div></td><td class="number"><div class="t">{{ r.trade_date|short_date }}</div></td><td class="number"><div class="t">{{ r.settlement_date|short_date }}</div></td>
-        <td><div class="t" title="{{ r.description }}">{{ r.description }}</div></td><td><div class="t">{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</div></td>
-        <td><div class="t">{% if r.decision.application_record %}{% for a in r.applications %}{% if a.source_record_id == r.decision.application_record %}{{ a.name }}{% endif %}{% endfor %}{% elif r.suggested_application_name %}<span style="color: #666;">{{ r.suggested_application_name }} (sugerido)</span>{% endif %}</div></td>
+        <td class="wrap-text"><div class="t" title="{{ r.description }}">{{ r.description }}</div></td><td><div class="t">{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</div></td>
+        <td><div class="t">{% if r.decision.application_record %}{% for a in r.applications %}{% if a.source_record_id == r.decision.application_record %}{{ a.name }}{% endif %}{% endfor %}{% elif r.suggested_application_name %}<span class="suggested-tag">{{ r.suggested_application_name }} (sugerido)</span>{% endif %}</div></td>
         <td class="number"><div class="t">{% if r.decision.quantity %}{{ r.decision.quantity|number }}{% endif %}</div></td>
         <td class="number"><div class="t">{{ r.amount|money:'BRL' }}</div></td><td class="number"><div class="t">{{ r.balance|money:'BRL' }}</div></td>
         <td><div class="t">
         {% if r.situation == 'new' %}Novo{% elif r.situation == 'linked' %}Já registrado{% elif r.situation == 'divergent' %}Divergente{% else %}Pendente{% endif %}
-        {% for error in r.errors %}<div style="color: #d3aa58; font-size: 0.9em; margin-top: 4px;">{{ error }}</div>{% endfor %}
-        {% if r.prior_claim %}<div style="margin-top: 4px;"><a href="{% url 'file-imports' %}?preview={{ r.prior_claim }}">Confirmada noutro extrato</a></div>{% endif %}
+        {% for error in r.errors %}<div class="cell-error">{{ error }}</div>{% endfor %}
+        {% if r.prior_claim %}<div class="cell-extra"><a href="{% url 'file-imports' %}?preview={{ r.prior_claim }}">Confirmada noutro extrato</a></div>{% endif %}
         </div></td>
-        <td><div class="t">
+        <td class="wrap-text"><div class="t">
         {% if r.bulk_suggestion %}
-            <div style="color: #666; font-size: 0.9em; margin-bottom: 4px;">Sugerido: {{ r.bulk_suggestion.label }}</div>
+            <div class="cell-suggestion">Sugerido: {{ r.bulk_suggestion.label }}</div>
         {% endif %}
         {% if r.decision %}<div>Decisão: {{ r.decision.reason }}</div>{% endif %}
         </div></td>
         <td><div class="t">
         {% if selected_import.status == 'preview' and not r.prior_claim %}
-            <a href="?review_line={{ r.row_number }}&amp;page={{ selected_import.page.number }}&amp;pending={{ request.GET.pending|default:'' }}" class="button" style="white-space: nowrap;">Revisar</a>
+            <a href="?review_line={{ r.row_number }}&amp;page={{ selected_import.page.number }}&amp;{{ selected_import.table_query }}" class="button">Revisar</a>
         {% endif %}
-        </div></td></tr>{% endfor %}
+        </div></td></tr>{% empty %}<tr><td colspan="13">Nenhum movimento encontrado.</td></tr>{% endfor %}
         </tbody></table></div>
-        
+
         {% if selected_import.bulk_suggestions %}
-        <button type="submit" style="margin-top: 15px;">Aceitar sugestões selecionadas nesta página</button>
+        <button type="submit" class="bulk-accept-button">Aceitar sugestões selecionadas nesta página</button>
         {% endif %}
         </form>
 
-        <p>{% if selected_import.page.has_previous %}<a href="?page={{ selected_import.page.previous_page_number }}&amp;pending={{ request.GET.pending }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?page={{ selected_import.page.next_page_number }}&amp;pending={{ request.GET.pending }}">Próxima</a>{% endif %}</p>
+        <p>{% if selected_import.page.has_previous %}<a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
     {% endif %}
 {% endif %}
 
 {% if wizard_step == 4 %}
-    <div class="note" style="background-color: #d4edda; color: #155724;">Importação concluída com sucesso! Todos os movimentos foram registrados.</div>
-    <div class="table-wrap"><table style="table-layout: fixed; width: 100%;"><colgroup><col style="width:4%;"><col style="width:7%;"><col style="width:7%;"><col style="width:18%;"><col style="width:12%;"><col style="width:18%;"><col style="width:6%;"><col style="width:9%;"><col style="width:9%;"><col style="width:10%;"></colgroup><thead><tr><th class="number"><div class="t">Linha</div></th><th class="number"><div class="t">Mov.</div></th><th class="number"><div class="t">Liq.</div></th><th><div class="t">Lançamento</div></th><th><div class="t">Tipo</div></th><th><div class="t">Aplicação</div></th><th class="number"><div class="t">Qtde</div></th><th class="number"><div class="t">Valor</div></th><th class="number"><div class="t">Saldo</div></th><th><div class="t">Status da Revisão</div></th></tr></thead><tbody>
+    <div class="note note-success">Importação concluída com sucesso! Todos os movimentos foram registrados.</div>
+    <div class="table-wrap"><table id="xp-import-done-table" class="table-fixed"><thead><tr><th class="number"><div class="t">Linha</div></th><th class="number"><div class="t">Mov.</div></th><th class="number"><div class="t">Liq.</div></th><th><div class="t">Lançamento</div></th><th><div class="t">Tipo</div></th><th><div class="t">Aplicação</div></th><th class="number"><div class="t">Qtde</div></th><th class="number"><div class="t">Valor</div></th><th class="number"><div class="t">Saldo</div></th><th><div class="t">Status da Revisão</div></th></tr></thead><tbody>
     {% for r in selected_import.rows %}<tr>
     <td class="number"><div class="t">{{ r.source_locator.row }}</div></td><td class="number"><div class="t">{{ r.trade_date|short_date }}</div></td><td class="number"><div class="t">{{ r.settlement_date|short_date }}</div></td>
-    <td><div class="t" title="{{ r.description }}">{{ r.description }}</div></td><td><div class="t">{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</div></td>
-    <td><div class="t">{% if r.decision.application_record %}{% for a in r.applications %}{% if a.source_record_id == r.decision.application_record %}{{ a.name }}{% endif %}{% endfor %}{% elif r.suggested_application_name %}<span style="color: #666;">{{ r.suggested_application_name }} (sugerido)</span>{% endif %}</div></td>
+    <td class="wrap-text"><div class="t" title="{{ r.description }}">{{ r.description }}</div></td><td><div class="t">{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</div></td>
+    <td><div class="t">{% if r.decision.application_record %}{% for a in r.applications %}{% if a.source_record_id == r.decision.application_record %}{{ a.name }}{% endif %}{% endfor %}{% elif r.suggested_application_name %}<span class="suggested-tag">{{ r.suggested_application_name }} (sugerido)</span>{% endif %}</div></td>
     <td class="number"><div class="t">{% if r.decision.quantity %}{{ r.decision.quantity|number }}{% endif %}</div></td>
     <td class="number"><div class="t">{{ r.amount|money:'BRL' }}</div></td><td class="number"><div class="t">{{ r.balance|money:'BRL' }}</div></td>
     <td><div class="t">{% if r.situation == 'new' %}Novo criado{% elif r.situation == 'linked' %}Vinculado{% else %}{{ r.situation }}{% endif %}<br>
@@ -191,7 +165,3 @@
 </section>
 
 {% endif %}
-
-
-
-

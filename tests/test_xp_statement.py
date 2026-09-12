@@ -35,6 +35,23 @@ def workbook(movements=None, holder='ANA TESTE', number='123456', shift=0, futur
 
 
 class XPParserTests(unittest.TestCase):
+    def test_review_table_search_sort_and_pagination(self):
+        from types import SimpleNamespace
+        from fin2.dashboard.xp_statement_views import approval_table
+        rows = [dict(source_locator={'row':i}, description='Movimento', amount=str(i),
+                     situation='pending', decision={'quantity':str(i), 'reason':'Conferir documento'},
+                     suggested_application_name='Fundo de teste') for i in range(1,26)]
+        selected = {'import_id':'a'*32, 'rows':rows}
+        approval_table(SimpleNamespace(GET={'q':'Conferir documento','sort':'table_quantity',
+                                           'dir':'desc','page':'2','pending':'1'}), selected, review=True)
+        self.assertEqual(selected['page'].paginator.count, 25)
+        self.assertEqual([r['table_quantity'] for r in selected['rows']], ['5','4','3','2','1'])
+        self.assertIn('pending=1', selected['table_query'])
+        self.assertNotIn('preview=', selected['table_query'])
+        selected['rows'] = rows
+        approval_table(SimpleNamespace(GET={'q':'Fundo de teste'}), selected, review=True)
+        self.assertEqual(selected['page'].paginator.count, 25)
+
     def test_approval_search_and_numeric_sort_before_pagination(self):
         from types import SimpleNamespace
         from fin2.dashboard.xp_statement_views import approval_table

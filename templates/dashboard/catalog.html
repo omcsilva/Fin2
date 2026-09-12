@@ -7,13 +7,13 @@
 {% if catalog_error %}<div class="note" role="alert">{{ catalog_error }}</div>{% endif %}
 {% if catalog_saved %}<div class="note" role="status">Cadastro salvo.</div>{% endif %}
 {% if catalog_writable %}<section class="panel"><h2>{% if catalog_selected %}Editar cadastro{% else %}Novo cadastro{% endif %}</h2>
-{% if catalog_selected.image %}<img src="{% url 'catalog-image' catalog_selected.image.hash %}" alt="Imagem de {{ catalog_selected.payload.nome }}" style="display:block;width:auto;height:auto;max-width:min(160px,100%);max-height:120px;object-fit:contain">{% endif %}
+{% if catalog_selected.image %}<img src="{% url 'catalog-image' catalog_selected.image.hash %}" alt="Imagem de {{ catalog_selected.payload.nome }}" class="catalog-preview-image">{% endif %}
 <form method="post" enctype="multipart/form-data" data-confirm-submit="Confirmar este cadastro?">{% csrf_token %}
 <input type="hidden" name="request_key" value="{{ catalog_request_key }}"><input type="hidden" name="revision" value="{{ catalog_revision }}">
 <div class="form-grid">{{ catalog_form.as_p }}</div><button type="submit">Salvar</button>
 {% if catalog_selected %}<a href="{% url 'catalog-kind' catalog_kind %}?{{ global_query }}">Novo cadastro</a>{% endif %}</form>
 {% if catalog_history %}<details><summary>Histórico de alterações</summary><ul>{% for item in catalog_history %}<li>Revisão {{ item.revision }} · {{ item.created_at|date:'d/m/Y H:i:s' }}</li>{% endfor %}</ul></details>{% endif %}</section>{% endif %}
 <section class="panel table-wrap"><table><thead><tr><th>Ação</th>{% if catalog_has_images %}<th>Imagem</th>{% endif %}{% for label in catalog_columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>
-{% for item in catalog_items %}<tr><td><a class="button catalog-edit-button{% if catalog_selected.record_id == item.record_id %} active{% endif %}" href="{% url 'catalog-kind' catalog_kind %}?{{ global_query }}&amp;edit={{ item.record_id }}" title="Editar" aria-label="Editar"><span aria-hidden="true">▶</span></a></td>{% if catalog_has_images %}<td>{% if item.image %}<img src="{% url 'catalog-image' item.image.hash %}" alt="Imagem de {{ item.payload.nome }}" width="48" height="48" loading="lazy" style="object-fit:contain">{% else %}—{% endif %}</td>{% endif %}{% for cell in item.cells %}<td>{{ cell }}</td>{% endfor %}</tr>{% empty %}<tr><td>Nenhum cadastro.</td></tr>{% endfor %}
+{% for item in catalog_items %}<tr><td><a class="button catalog-edit-button{% if catalog_selected.record_id == item.record_id %} active{% endif %}" href="{% url 'catalog-kind' catalog_kind %}?{{ global_query }}&amp;edit={{ item.record_id }}" title="Editar" aria-label="Editar"><span aria-hidden="true">▶</span></a></td>{% if catalog_has_images %}<td>{% if item.image %}<img src="{% url 'catalog-image' item.image.hash %}" alt="Imagem de {{ item.payload.nome }}" width="48" height="48" loading="lazy" class="catalog-thumb">{% else %}—{% endif %}</td>{% endif %}{% for cell in item.cells %}<td>{{ cell }}</td>{% endfor %}</tr>{% empty %}<tr><td>Nenhum cadastro.</td></tr>{% endfor %}
 </tbody></table></section>
 </div>{% endblock %}

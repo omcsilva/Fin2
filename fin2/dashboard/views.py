@@ -530,14 +530,16 @@ def history(request,connection):
     if not requested:
         requested=[r['series_id'] for r in catalogs if r['provider']=='bcb_sgs'][:6]
     requested=[item for item in requested if item in available]
-    colors=['#62dce8','#d7b45a','#8b9cff','#ee7a8c','#7fd18b','#dc86e8','#ef9858','#b7c4d2']
     chart=[]
-    for identifier,color in zip(requested,colors):
+    # Series colours come from the CSS palette (.series-c0…c7), assigned by
+    # position in the template; keeping at most eight series is what lets the
+    # first eight classes cover every chart line.
+    for identifier in requested:
         rows=query(connection,"""SELECT observation_date,value,unit FROM market.comparison_series
           WHERE series_id=? AND observation_date BETWEEN ? AND ? ORDER BY observation_date""",[identifier,start,end])
         points=_normalized_series(rows)
         if points:
-            item=dict(available[identifier]);item.update(color=color,points=points,first=rows[0]['observation_date'],last=rows[-1]['observation_date'],last_value=points[-1][1]);chart.append(item)
+            item=dict(available[identifier]);item.update(points=points,first=rows[0]['observation_date'],last=rows[-1]['observation_date'],last_value=points[-1][1]);chart.append(item)
     all_points=[p for series in chart for p in series['points']]
     if all_points:
         minimum=min(p[1] for p in all_points);maximum=max(p[1] for p in all_points);span=max(maximum-minimum,1)
@@ -1353,8 +1355,11 @@ def xp_statement_review(request, connection, identifier):
             raise Http404
     elif request.GET.get('pending') == '1':
         selected['rows'] = [row for row in selected['rows'] if row['situation'] in ('pending', 'divergent')]
-    selected['page'] = Paginator(selected['rows'], 20).get_page(request.GET.get('page'))
-    selected['rows'] = selected['page'].object_list
+    if request.GET.get('review_line'):
+        selected['page'] = Paginator(selected['rows'], 20).get_page(1)
+    else:
+        from fin2.dashboard.xp_statement_views import approval_table
+        approval_table(request, selected, review=True)
     data.update(selected_import=selected, wizard_step=3, import_error=request.GET.get('error'))
     return render(request, 'dashboard/xp_statement_review.html', data, status=400 if request.GET.get('error') else 200)
 

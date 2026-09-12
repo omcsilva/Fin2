@@ -487,3 +487,96 @@ main:has(.account-detail-header){padding-block:12px 16px}
 
 #import-approval-actions .reject-import:hover{background:#63232d;color:#fff4f4;border-color:#ef9292}
 #import-approval-actions .approve-import:hover{background:#b8efcf;color:#092719;border-color:#b8efcf}
+
+
+/* XP statement views. These rules used to be inline style="" attributes, which
+   the Content-Security-Policy blocks (default-src 'self', no 'unsafe-inline'),
+   so they never reached the browser. They live here to be actually applied. */
+
+/* Single-line revision form (wizard step 3). */
+.review-form-grid{display:grid;grid-template-columns:minmax(200px,1fr) 2fr;gap:10px 20px;align-items:center;margin-bottom:15px}
+.review-form-grid select,.review-form-grid input{width:100%}
+.review-form-grid .full-row{grid-column:1/-1}
+.review-form-grid label.inline-check{display:flex;gap:8px;align-items:center}
+.button-commit{font-size:1.1em;padding:10px 20px}
+.bulk-accept-button{margin-top:15px}
+.note-success{background-color:#d4edda;color:#155724}
+
+/* Cell-level helpers shared by the XP statement tables. */
+.suggested-tag{color:var(--muted)}
+.cell-error{color:#d3aa58;font-size:.9em;margin-top:4px}
+.cell-extra{margin-top:4px}
+.cell-suggestion{color:var(--muted);font-size:.9em;margin-bottom:4px}
+
+/* Fixed-layout tables: columns obey the declared widths and cells truncate. */
+.table-fixed{table-layout:fixed;width:100%}
+.table-fixed .t{display:block;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* .wrap-text opts a column out of truncation and lets it wrap instead. */
+.table-fixed .wrap-text,.table-fixed .wrap-text .t,.table-fixed .wrap-text .t *{white-space:normal;overflow-wrap:anywhere}
+
+/* Reconciliation summary (wizard steps 3 and 4). */
+.reconciliation-table th:first-child,.reconciliation-table td:first-child{width:34%;white-space:normal}
+.reconciliation-table th,.reconciliation-table td{overflow:hidden;text-overflow:ellipsis}
+
+/* Import-complete table (wizard step 4). Lançamento has no width, so it takes
+   whatever the other columns leave. */
+#xp-import-done-table th:nth-child(1){width:4%}
+#xp-import-done-table th:nth-child(2){width:7%}
+#xp-import-done-table th:nth-child(3){width:7%}
+#xp-import-done-table th:nth-child(5){width:10%}
+#xp-import-done-table th:nth-child(6){width:14%}
+#xp-import-done-table th:nth-child(7){width:5%}
+#xp-import-done-table th:nth-child(8){width:9%}
+#xp-import-done-table th:nth-child(9){width:9%}
+#xp-import-done-table th:nth-child(10){width:10%}
+
+/* Approval table (wizard step 2). Lançamento is the elastic column in both the
+   six-column layout and the seven-column one used when reading errors exist. */
+#xp-approval-table th:nth-child(1){width:5%}
+#xp-approval-table th:nth-child(2){width:11%}
+#xp-approval-table th:nth-child(3){width:10%}
+#xp-approval-table th:nth-child(5){width:13%}
+#xp-approval-table th:nth-child(6){width:13%}
+#xp-approval-table.with-reading-errors th:nth-child(1){width:4%}
+#xp-approval-table.with-reading-errors th:nth-child(2){width:9%}
+#xp-approval-table.with-reading-errors th:nth-child(3){width:8%}
+#xp-approval-table.with-reading-errors th:nth-child(5){width:10%}
+#xp-approval-table.with-reading-errors th:nth-child(6){width:10%}
+#xp-approval-table.with-reading-errors th:nth-child(7){width:18%}
+
+/* Review table (wizard step 3). Only the Lançamento column has no declared
+   width, so in a fixed layout it absorbs every point the other columns leave,
+   and the table still never grows past the wrap that contains it. */
+#xp-review-table{table-layout:fixed;width:100%;border-collapse:collapse;border-spacing:0}
+#xp-review-table th,#xp-review-table td{padding:3px 2px}
+#xp-review-table .t{display:block;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#xp-review-table .wrap-text,#xp-review-table .wrap-text .t,#xp-review-table .wrap-text .t *{white-space:normal;overflow-wrap:anywhere}
+#xp-review-table th:nth-child(1){width:3%}
+#xp-review-table th:nth-child(2){width:4%}
+#xp-review-table th:nth-child(3){width:6%}
+#xp-review-table th:nth-child(4){width:6%}
+#xp-review-table th:nth-child(6){width:7%}
+#xp-review-table th:nth-child(7){width:10%}
+#xp-review-table th:nth-child(8){width:5%}
+#xp-review-table th:nth-child(9){width:8%}
+#xp-review-table th:nth-child(10){width:8%}
+#xp-review-table th:nth-child(11){width:7%}
+#xp-review-table th:nth-child(12){width:8%}
+#xp-review-table th:nth-child(13){width:5%}
+#xp-review-table .button{padding:4px 8px;font-size:11px}
+
+/* Series colours for the history chart; the palette index comes from the view. */
+.series-c0{--series:#62dce8}
+.series-c1{--series:#d7b45a}
+.series-c2{--series:#8b9cff}
+.series-c3{--series:#ee7a8c}
+.series-c4{--series:#7fd18b}
+.series-c5{--series:#dc86e8}
+.series-c6{--series:#ef9858}
+.series-c7{--series:#b7c4d2}
+.chart-legend i,.series-dot{background:var(--series,#62dce8)}
+.history-chart polyline{stroke:var(--series,#62dce8)}
+
+/* Catalog imagery. */
+.catalog-preview-image{display:block;width:auto;height:auto;max-width:min(160px,100%);max-height:120px;object-fit:contain}
+.catalog-thumb{object-fit:contain}

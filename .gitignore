@@ -36,9 +36,21 @@ tmp/
 staticfiles/
 *.log
 
-# Editor and OS files
+# Editor, local tooling and OS files
 .idea/
 .vscode/
+.continue/
 .DS_Store
 Thumbs.db
 *.xlsx
+
+# Session scratch and diagnostic artifacts
+/.diag.txt
+/.tr*.txt
+/.wc.txt
+/.fin2_test_output.txt
+/pending.diff
+/pending_info.txt
+/pending_stat.txt
+/terminal_check.txt
+/test_run_result.txt
