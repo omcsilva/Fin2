@@ -502,6 +502,10 @@ main:has(.account-detail-header){padding-block:12px 16px}
 .bulk-accept-button{margin-top:15px}
 .note-success{background-color:#d4edda;color:#155724}
 
+/* Secondary action inside a page heading ("Baixar arquivo") uses the body
+   type scale (14px, same as body{font-size}) instead of the heading size. */
+h2 .heading-action{font-size:14px;font-weight:400}
+
 /* Cell-level helpers shared by the XP statement tables. */
 .suggested-tag{color:var(--muted)}
 .cell-error{color:#d3aa58;font-size:.9em;margin-top:4px}

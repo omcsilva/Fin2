@@ -1,7 +1,6 @@
 {% load fin2_format %}
 <section class="panel">
-<h2><a href="{% url 'file-import-file' selected_import.import_id %}">{{ selected_import.original_filename }}</a></h2>
-<p>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start }} a {{ selected_import.document_metadata.period_end }}</p>
+<h2>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start }} a {{ selected_import.document_metadata.period_end }} <a class="heading-action" href="{% url 'file-import-file' selected_import.import_id %}">Baixar arquivo</a></h2>
 <p>{{ selected_import.row_count }} lançamentos identificados</p>
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
 <form method="get" class="filters" data-table-controls="xp-approval">

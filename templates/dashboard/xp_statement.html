@@ -2,19 +2,10 @@
 {% include 'dashboard/xp_statement_approval.html' %}
 {% else %}
 <section class="panel">
-<h2><a href="{% url 'file-import-file' selected_import.import_id %}">{{ selected_import.original_filename }}</a></h2>
-<p>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start|short_date }} a {{ selected_import.document_metadata.period_end|short_date }}</p>
+<h2>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start|short_date }} a {{ selected_import.document_metadata.period_end|short_date }} <a class="heading-action" href="{% url 'file-import-file' selected_import.import_id %}">Baixar arquivo</a></h2>
 <p>{{ selected_import.row_count }} movimentos · {{ selected_import.counts.new }} novos · {{ selected_import.counts.linked }} já registrados · {{ selected_import.counts.pending }} pendentes · {{ selected_import.counts.divergent }} divergentes · {{ selected_import.created_count }} eventos criados</p>
 <p>Documento: {% if selected_import.documented_at %}registrado{% else %}em prévia{% endif %} · Financeiro: {% if selected_import.financial_status == 'confirmed' %}confirmado{% else %}pendente{% endif %}{% if selected_import.status == 'rejected' %} · Rejeitado: {{ selected_import.rejection_reason }}{% endif %}</p>
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
-
-{% if wizard_step == 3 or wizard_step == 4 %}
-<div class="table-wrap"><table class="table-fixed reconciliation-table"><thead><tr><th>Conciliação</th><th class="number">Extrato</th><th class="number">Fin2</th><th class="number">Diferença</th></tr></thead><tbody>
-<tr><td>Saldo inicial (inferido)</td><td class="number">{{ selected_import.document_metadata.opening_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_opening|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.opening_difference|money:'BRL' }}</td></tr>
-<tr><td>Saldo final</td><td class="number">{{ selected_import.document_metadata.closing_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_closing|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.closing_difference|money:'BRL' }}</td></tr>
-</tbody></table></div>
-<p>Créditos: {{ selected_import.document_metadata.credits|money:'BRL' }} · Débitos: {{ selected_import.document_metadata.debits|money:'BRL' }} · Quebras na sequência: {{ selected_import.document_metadata.balance_breaks|default:0 }}. O saldo projetado da consulta não integra esta conciliação.</p>
-{% endif %}
 
 {% if wizard_step == 3 %}
     {% if request.GET.bulk_accepted %}<div class="note">{{ request.GET.bulk_accepted }} sugestões aceitas. As decisões foram salvas; nenhum lançamento financeiro foi criado nesta etapa.</div>{% endif %}
@@ -157,7 +148,13 @@
     <p>{% if selected_import.page.has_previous %}<a href="?preview={{ selected_import.import_id }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?preview={{ selected_import.import_id }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
 {% endif %}
 
-
+{% if wizard_step == 3 or wizard_step == 4 %}
+<div class="table-wrap"><table class="table-fixed reconciliation-table"><thead><tr><th>Conciliação</th><th class="number">Extrato</th><th class="number">Fin2</th><th class="number">Diferença</th></tr></thead><tbody>
+<tr><td>Saldo inicial (inferido)</td><td class="number">{{ selected_import.document_metadata.opening_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_opening|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.opening_difference|money:'BRL' }}</td></tr>
+<tr><td>Saldo final</td><td class="number">{{ selected_import.document_metadata.closing_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_closing|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.closing_difference|money:'BRL' }}</td></tr>
+</tbody></table></div>
+<p>Créditos: {{ selected_import.document_metadata.credits|money:'BRL' }} · Débitos: {{ selected_import.document_metadata.debits|money:'BRL' }} · Quebras na sequência: {{ selected_import.document_metadata.balance_breaks|default:0 }}. O saldo projetado da consulta não integra esta conciliação.</p>
+{% endif %}
 
 {% if not request.GET.review_line %}
 <details><summary>Histórico de revisões</summary>{% for h in selected_import.decision_history %}<p>{{ h.created_at }} · Linha {{ h.line_number }} · {{ h.payload.action }} · {{ h.payload.reason }}</p>{% empty %}<p>Nenhuma revisão registrada.</p>{% endfor %}</details>
