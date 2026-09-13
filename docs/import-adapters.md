@@ -76,12 +76,15 @@ Veja [plano e validação XP](xp-account-statement-plan.md) para as regras e a
 auditoria isolada da amostra. O teste `tests/test_xp_statement.py` produz XLSX
 sintéticos; extratos pessoais não integram as fixtures versionadas.
 
-A prévia XP oferece **Aceitar sugestões em lote**: apresenta todas as sugestões
-do arquivo, inclusive de outras páginas, e permite desmarcar linhas. Sugere
-vínculo somente quando existe um único candidato de mesma conta, liquidação,
-valor e descrição normalizada; sugere novo provento somente com uma aplicação
-única pelo ativo e sem candidato de mesma data/valor. Casos ambíguos, revisões
-individuais já salvas e operações sem dados suficientes permanecem fora do lote.
-A aceitação revalida a prévia, salva decisões e auditoria em uma transação e não
-cria eventos financeiros. A confirmação financeira segue separada e exige que
-as demais pendências estejam resolvidas.
+Ao abrir a revisão, o Fin2 **identifica cada linha sozinho** a partir do extrato e do
+banco: categoria/tipo, aplicação e vínculo com movimentos já existentes da conta.
+A identificação só vincula quando existe um único candidato de mesma conta,
+liquidação, valor e descrição normalizada, e só cria lançamento novo quando o tipo
+decorrente da categoria passa nas validações. A linha fica **Pronto** quando a
+identificação basta para registrar e **Pendente** quando falta dado; a coluna
+**Detalhe** traz a categoria identificada em português e, para as linhas
+pendentes, o que falta para ficar Pronto. A identificação é só prévia:
+nada é gravado antes do botão de gravação, que fica desabilitado enquanto nenhuma
+linha estiver Pronto. A decisão manual do revisor sempre prevalece. A confirmação
+financeira só conclui a importação quando nenhuma linha permanece Pendente;
+nesse caso a etapa seguinte lista os registros criados.

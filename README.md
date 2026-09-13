@@ -26,7 +26,8 @@ Dados financeiros, documentos, banco DuckDB e segredos ficam fora do Git.
 - CSRF ativo em todas as operações de escrita.
 - Um processo Gunicorn com quatro threads.
 - Nginx serve /fin2/; o proxy da rede fornece HTTPS.
-- Interface em Geist, com tabelas claras e rolagem horizontal.
+- Interface em Geist, com tabelas claras que se ajustam à largura disponível; a
+  rolagem horizontal é um defeito a eliminar, já resolvida no extrato XP.
 
 ## Estrutura
 
@@ -48,11 +49,17 @@ docs/                   Projeto, operação e decisões
 - [Roteiro e pendências](docs/roadmap.md)
 - [Interface](docs/dashboard.md)
 - [Modo de escrita](docs/write-mode.md)
+- [Adaptadores de importação](docs/import-adapters.md)
+- [Extrato de conta XP (plano)](docs/xp-account-statement-plan.md)
+- [Ledger canônico](docs/canonical-ledger.md)
+- [Custo médio e ganhos realizados](docs/cost-basis.md)
 - [Atualização de preços](docs/price-updates.md)
+- [Cotações e séries de mercado](docs/market-data.md)
 - [Produção](docs/production.md)
 - [Atualizações por Git](docs/git-deployment.md)
 - [Backup e manutenção](docs/maintenance-plan.md)
 - [Migração do Fin1](docs/fin1-migration.md)
+- [Reconciliação final](docs/final-reconciliation.md)
 - [Desenvolvimento](docs/development.md)
 
 Produção: <https://django.lmnet.dpdns.org/fin2/>

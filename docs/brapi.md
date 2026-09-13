@@ -23,9 +23,9 @@ Pare o servidor Fin2 antes de executar com `--fetch` e faça backup do DuckDB.
 Sem a opção `--fetch`, o comando apenas verifica o mapeamento em modo leitura.
 Use o identificador do registro obtido no link do ativo no dashboard:
 
-```powershell
-.\.venv\Scripts\python.exe -m fin2.portfolio.brapi --database C:\Users\mcsil\Fin2-private\development\fin2.duckdb --record ID_DO_REGISTRO --symbol PETR4
-.\.venv\Scripts\python.exe -m fin2.portfolio.brapi --database C:\Users\mcsil\Fin2-private\development\fin2.duckdb --record ID_DO_REGISTRO --symbol PETR4 --fetch
+```bash
+.venv/bin/python -m fin2.portfolio.brapi --database "$HOME/Fin2-private/development/fin2.duckdb" --record ID_DO_REGISTRO --symbol PETR4
+.venv/bin/python -m fin2.portfolio.brapi --database "$HOME/Fin2-private/development/fin2.duckdb" --record ID_DO_REGISTRO --symbol PETR4 --fetch
 ```
 
 Quando necessário, forneça `BRAPI_TOKEN` pelo ambiente privado. Ele é enviado

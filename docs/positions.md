@@ -26,7 +26,7 @@ Quantidades usam `DECIMAL(28,10)`; valores monetários legados usam `DECIMAL(28,
 Das 260 aplicações, 255 coincidiram exatamente na comparação de quantidade reconstruída versus salva. Cinco diferiram. Nenhuma foi corrigida. O relatório privado detalhado está em:
 
 ```text
-C:\Users\mcsil\Fin2-private\development\quantity-report.json
+$HOME/Fin2-private/development/quantity-report.json
 ```
 
 Isso **não valida saldos, custo médio, renda, impostos, preços ou rentabilidade**. Campos monetários e preços disponíveis nas projeções são referências legadas; não há total consolidado entre moedas nem conversão cambial nesta etapa.
@@ -39,8 +39,8 @@ Acesse [Posições](http://127.0.0.1:8020/fin2/posicoes/). A tela tem filtros po
 
 Pare o servidor antes de executar:
 
-```powershell
-.\.venv\Scripts\python.exe -m fin2.portfolio.prepare --database C:\Users\mcsil\Fin2-private\development\fin2.duckdb --report C:\Users\mcsil\Fin2-private\development\NOVO-RELATORIO.json
+```bash
+.venv/bin/python -m fin2.portfolio.prepare --database "$HOME/Fin2-private/development/fin2.duckdb" --report "$HOME/Fin2-private/development/NOVO-RELATORIO.json"
 ```
 
 O relatório deve ser um arquivo novo. A preparação valida todas as colunas tipadas e aplica migrações versionadas. Existe uma cópia anterior à migração em `fin2-before-portfolio.duckdb`, no mesmo diretório privado; ela contém apenas a primeira versão do schema. Nenhuma alteração foi feita no Fin1.

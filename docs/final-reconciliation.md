@@ -52,10 +52,11 @@ posições BRL e 13 USD avaliadas e nenhum bloqueio. A diferença de R$ 36.569,2
 entre Fin2 e Fin1 em BRL decorre dos preços históricos aceitos no Fin2; não é
 uma ausência de cobertura. Saldos e quantidades continuam sem pendências.
 
-Nenhum dos 286 documentos preservados contém cota ou saldo atualizado da
-Brasilprev. Completar essa avaliação exige um extrato individual com data e
-valor da cota; o custo médio não será usado como substituto de valor de mercado.
-Essa pendência continua aberta para os escopos em que a aplicação é incluída.
+Nenhum dos 286 documentos preservados até a revisão de 07/09/2026 contém cota ou
+saldo atualizado da Brasilprev. Completar essa avaliação exige um extrato
+individual com data e valor da cota; o custo médio não será usado como substituto
+de valor de mercado. Essa pendência continua aberta para os escopos em que a
+aplicação é incluída.
 
 A aceitação final da reconciliação ainda não foi registrada.
 

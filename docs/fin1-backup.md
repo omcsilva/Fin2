@@ -3,7 +3,7 @@
 ## Captura final congelada — 02/09/2026
 
 O usuário confirmou que o Fin1 não recebe mais escritas. Uma nova captura foi
-gerada em `C:\Users\mcsil\Fin2-private\snapshots\2026-09-02-final`, fora do
+gerada em `$HOME/Fin2-private/snapshots/2026-09-02-final`, fora do
 repositório. Os três bancos passaram novamente por `integrity_check`, verificação
 de chaves estrangeiras e contagens; 301 arquivos foram verificados. SHA-256 do
 TAR final:
@@ -29,15 +29,15 @@ as contagens e divergências remanescentes.
 Cópia recebida e restaurada com sucesso em:
 
 ```text
-C:\Users\mcsil\Fin2-private\snapshots\2026-08-31-initial\
+$HOME/Fin2-private/snapshots/2026-08-31-initial/
   snapshot.tar
   verification.json
-  restored\
+  restored/
     manifest.json
     db.sqlite3
     dados.sqlite3
     docs.sqlite3
-    ANEXOS\...
+    ANEXOS/...
 ```
 
 Os dados privados permanecem fora do repositório Fin2. O TAR tem 262.471.680 bytes e contém os três bancos, 298 anexos e o manifesto. Há 301 arquivos de dados verificados, além do manifesto.

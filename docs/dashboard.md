@@ -10,9 +10,13 @@ O cabeçalho possui seletores de Carteira e Ano. O lote final do Fin1 permanece
 interno, pois não haverá outros lotes. O menu agrupa Carteira, Movimentações e
 Dados e auditoria.
 
-As tabelas têm tema claro, alto contraste, pesquisa e ordenação. Mantêm linhas
-sem quebra, largura natural e rolagem horizontal. O conteúdo ocupa toda a
-largura entre as margens responsivas.
+As tabelas têm tema claro, alto contraste, pesquisa e ordenação. Elas preenchem
+a largura disponível: o texto descritivo quebra linha e as células numéricas
+(`class="number"`) permanecem sem quebra, para não ocultar dígitos. A rolagem
+horizontal é tratada como defeito; em telas muito estreitas o painel ainda rola
+se o conteúdo numérico não puder caber. As tabelas do extrato XP usam layout fixo
+(`table-fixed`) com truncamento. O conteúdo ocupa toda a largura entre as margens
+responsivas.
 
 ## Recursos
 
@@ -50,9 +54,12 @@ estáticos preservam o prefixo /fin2/.
 
 As páginas principais representam o ledger Fin2: operações importadas aceitas
 continuam compondo posições e caixa, somadas aos lançamentos manuais, estornos,
-transferências e aportes vinculados. O menu Histórico reúne as conferências de
-origem em `/fin2/historico/fin1/` (visão geral, posições, caixa, alocação,
-cotações e relatórios), além da conciliação, registros e revisão da importação.
+transferências e aportes vinculados. O menu Histórico do cabeçalho aponta para
+as páginas nativas do Fin1 (`FIN1_BASE_URL`, padrão `/fin1/`). O Fin2 também
+expõe as mesmas conferências como projeções somente leitura em
+`/fin2/historico/fin1/` (visão geral, posições, caixa, alocação, cotações e
+relatórios), alcançadas pela trilha de conferência; conciliação, registros e
+revisão da importação ficam em Dados e auditoria.
 Essas conferências excluem eventos manuais e cotações externas posteriores;
 não constituem uma cópia imutável do cadastro, pois decisões de conciliação e
 correções de cadastro continuam preservadas nas projeções da origem.

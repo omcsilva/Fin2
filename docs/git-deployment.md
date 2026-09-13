@@ -8,7 +8,7 @@ No desenvolvimento, revise `git status` e `git diff`, execute os testes e faça
 commit dos arquivos desejados. `.env`, bancos, documentos e `tmp/` não devem ser
 versionados. Depois:
 
-```powershell
+```bash
 git push origin main
 git rev-parse HEAD
 ssh mcsil@t1django.lan "sudo /usr/local/sbin/update-fin2 COMMIT_COMPLETO"

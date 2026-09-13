@@ -43,10 +43,15 @@ gráficos do preço efetivamente fechado usa-se `close`.
 
 ## Carga
 
-```powershell
-$env:BRAPI_TOKEN = "TOKEN_PRIVADO"
-.\.venv\Scripts\python.exe -m scripts.update_price_history `
-  --database C:\Users\mcsil\Fin2-private\development\fin2.duckdb `
+> **Comando desativado.** `scripts.update_price_history` não deve mais ser
+> executado: a integração brapi passou a obter apenas o fechamento mais recente
+> pelo botão do rodapé (ver [atualização de preços](price-updates.md)). O bloco
+> abaixo é histórico.
+
+```bash
+export BRAPI_TOKEN="TOKEN_PRIVADO"
+.venv/bin/python -m scripts.update_price_history \
+  --database "$HOME/Fin2-private/development/fin2.duckdb" \
   --batch ID_DO_LOTE
 ```
 

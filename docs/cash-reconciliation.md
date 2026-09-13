@@ -32,7 +32,7 @@ O cálculo usa `DECIMAL(28,4)`, a escala monetária do legado, e igualdade exata
 
 Diferenças intermediárias não equivalem a 368 erros independentes: uma divergência inicial pode se propagar pelas linhas seguintes. Saldos coincidentes tampouco provam reconciliação com extratos externos.
 
-Relatório privado: `C:\Users\mcsil\Fin2-private\development\cash-report.json`. Ele inclui IDs de origem, saldos, diferenças e estatísticas; não deve entrar no Git. A cópia anterior à migração está em `fin2-before-cash.duckdb`, no mesmo diretório privado.
+Relatório privado: `$HOME/Fin2-private/development/cash-report.json`. Ele inclui IDs de origem, saldos, diferenças e estatísticas; não deve entrar no Git. A cópia anterior à migração está em `fin2-before-cash.duckdb`, no mesmo diretório privado.
 
 ## Cinco diferenças de quantidade
 

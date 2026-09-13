@@ -1,6 +1,30 @@
-# Problema Pendente: Layout da Tabela de Extrato XP (Scroll Horizontal)
+# (OBSOLETO) Layout da Tabela de Extrato XP (Scroll Horizontal)
 
-## Status Atual
+> **Status: resolvido / superado.** Mantido apenas como registro histórico das
+> tentativas. A abordagem descrita abaixo — injetar blocos `<style>` e atributos
+> `style="..."` nos templates — foi **abandonada**: ela viola o CSP
+> (`default-src 'self'`) e já não existe em `templates/`. A solução atual está em
+> [static/fin2.css](static/fin2.css), commit `dec4924`, que migrou os estilos
+> inline para CSS versionado.
+>
+> As tabelas do extrato XP (`xp_statement.html`, `xp_statement_approval.html` e a
+> revisão) usam a classe `.table-fixed` (`table-layout: fixed; width: 100%`) com
+> truncamento por célula (`.t` → `overflow: hidden; text-overflow: ellipsis;
+> white-space: nowrap`). Elas se ajustam à largura disponível e **não** produzem
+> rolagem horizontal.
+>
+> **Pendência remanescente (resolvida em 13/09/2026):** as tabelas genéricas
+> herdavam a regra global `table { width: max-content }` com `th, td {
+> white-space: nowrap }` dentro de `.table-wrap { overflow-x: auto }`. Elas
+> passaram a preencher a largura do painel, com o texto descritivo quebrando
+> linha e as células numéricas (`class="number"`) sem quebra, para não ocultar
+> dígitos. Verificado em 12 páginas: sem rolagem de documento nem de painel em
+> 1432/1024px e nenhuma célula truncada. Em telas muito estreitas (~900px ou
+> menos) o painel ainda rola quando o conteúdo numérico não cabe, e o menu de
+> navegação estoura a largura em viewports pequenos — ambos fora do escopo das
+> tabelas.
+
+## Status Atual (histórico)
 O usuário relatou que a tabela de revisão de extrato da XP (`xp_statement.html` e `xp_statement_approval.html`) está "extrapolando a largura da tela, com textos não sendo truncados e apresentando uma barra de rolagem horizontal".
 
 ## O que foi alterado nas tentativas de correção

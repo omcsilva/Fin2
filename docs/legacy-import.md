@@ -16,7 +16,7 @@ Esta etapa cria uma camada de ingestão e auditoria. **Ainda não é o ledger fi
 
 ## Modelo implementado
 
-Execução verificada em 31/08/2026 na cópia privada: **5.654 registros, 298 documentos e 729 vínculos**, num único lote. Uma segunda execução retornou `reused: true` com as mesmas contagens. O relatório privado foi gravado em `C:\Users\mcsil\Fin2-private\development\import-report.json`.
+Execução verificada em 31/08/2026 na cópia privada: **5.654 registros, 298 documentos e 729 vínculos**, num único lote. Uma segunda execução retornou `reused: true` com as mesmas contagens. O relatório privado foi gravado em `$HOME/Fin2-private/development/import-report.json`.
 
 Foram registradas 546 sinalizações: 470 movimentações sem caixa vinculado, 63 documentos não classificados, seis movimentações sem liquidação, quatro lançamentos sem conta, duas divergências de conta e uma movimentação futura. Um mesmo registro pode ter mais de uma sinalização. Os 63 documentos permanecem armazenados, não são descartados.
 
@@ -36,14 +36,20 @@ Somente tabelas `fin1_*` são importadas. Usuários, senhas, sessões e tabelas 
 
 ## Execução local
 
-Dependência testada: DuckDB 1.5.5; ambiente local usado: Python 3.14.7. O código requer Python 3.11+ para a importação. Django ainda não está instalado.
+> **Documento histórico.** Descreve a etapa de ingestão inicial do Fin1. A
+> captura original foi feita em Windows/PowerShell; os comandos abaixo foram
+> convertidos para o ambiente Linux/WSL atual. Django já está instalado e o
+> projeto está em produção — ver [desenvolvimento](development.md) e
+> [produção](production.md).
 
-```powershell
+Dependência testada: DuckDB 1.5.5; ambiente local usado: Python 3.14.7. O código requer Python 3.11+ para a importação.
+
+```bash
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m unittest tests.test_fin1_import -v
-.\.venv\Scripts\python.exe -m fin2.imports.fin1 --snapshot C:\Users\mcsil\Fin2-private\snapshots\2026-08-31-initial\restored --database C:\Users\mcsil\Fin2-private\development\fin2.duckdb --as-of 2026-08-31
-.\.venv\Scripts\python.exe -m fin2.imports.report --database C:\Users\mcsil\Fin2-private\development\fin2.duckdb --output C:\Users\mcsil\Fin2-private\development\import-report.json
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m unittest tests.test_fin1_import -v
+.venv/bin/python -m fin2.imports.fin1 --snapshot "$HOME/Fin2-private/snapshots/2026-08-31-initial/restored" --database "$HOME/Fin2-private/development/fin2.duckdb" --as-of 2026-08-31
+.venv/bin/python -m fin2.imports.report --database "$HOME/Fin2-private/development/fin2.duckdb" --output "$HOME/Fin2-private/development/import-report.json"
 ```
 
 O relatório exige um arquivo de saída novo. O importador exige um destino fora do repositório e fora do snapshot. O DuckDB é acompanhado por `documents/`, com caminhos baseados em SHA-256; manter ambos juntos. Arquivos de conteúdo igual compartilham bytes, mas cada caminho de origem preserva sua identidade documental.

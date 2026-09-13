@@ -1,6 +1,6 @@
 # Roteiro de implementação
 
-Atualizado em 07/09/2026 após a revisão da produção. O corte do Fin1 já foi concluído; ele está congelado
+Atualizado em 13/09/2026 após a revisão da produção. O corte do Fin1 já foi concluído; ele está congelado
 e não serão importados mais dados de lá. O Fin2 está em produção e é a base de escrita.
 
 ## Concluído
@@ -12,6 +12,9 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
 - [x] Compra, venda, aporte, retirada, resgate, rendimento, imposto e taxa.
 - [x] Validação, confirmação, erros e idempotência contra duplicidade.
 - [x] Importador genérico CSV/XLSX e adaptadores Clear/XP e APEX.
+- [x] Extrato de conta XP (`xp-account-statement`): upload XLSX, aprovação da
+  carga, identificação automática das linhas e revisão — implementado, com
+  migração `0054_xp_statement.sql` e testes próprios.
 - [x] Cadastros auditáveis e seletores globais de carteira e ano.
 - [x] Posições, caixa, alocação, histórico, desempenho, rendimentos e fluxos.
 - [x] Correções auditadas das cinco divergências originais de quantidade.
@@ -23,7 +26,8 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
   cancelamento, mecanismo BRAPI/NENHUM e progresso assíncrono.
 - [x] Produção Proxmox, Git privado, releases, Nginx, systemd e HTTPS.
 - [x] Backup diário, restauração isolada e exportação cifrada ao rpi5.
-- [x] Interface compacta em Geist, tabelas funcionais e largura total.
+- [x] Interface compacta em Geist e tabelas funcionais; o extrato XP usa layout
+  fixo com truncamento e não gera rolagem horizontal.
 
 ## Pendências financeiras e de dados
 
@@ -60,16 +64,27 @@ e não serão importados mais dados de lá. O Fin2 está em produção e é a ba
   `fin2-health.timer`, com falhas registradas no journal.
 - [ ] Medir picos de CPU, memória e duração durante importações; serviço, backup,
   implantação e uma atualização completa de 66 preços já foram medidos.
+- [x] Eliminar a rolagem horizontal das tabelas genéricas: elas passaram a
+  preencher a largura do painel, com o texto descritivo quebrando linha e as
+  células numéricas (`class="number"`) mantidas sem quebra, para não ocultar
+  dígitos. As tabelas do extrato XP mantêm layout fixo (`table-fixed`) com
+  truncamento. Em telas muito estreitas, `.table-wrap` ainda rola se o conteúdo
+  numérico não puder caber; resta o menu de navegação, que estoura a largura em
+  viewports pequenos.
 - [x] [Documentar um ciclo produtivo completo, incluindo restauração](production-cycle.md).
 - [ ] Obter aceitação final da reconciliação dos dados já importados.
 
 ## Estado verificado em produção
 
-Na revisão `cb19e52`, a página de conciliação responde HTTP 200 e apresenta 45
-posições BRL e 13 USD avaliadas no escopo padrão, sem bloqueios de avaliação,
-saldo ou quantidade. A suíte automatizada possui 89 testes aprovados. Permanecem
-abertos o relatório fiscal final, a avaliação documental da Brasilprev, a
-medição de importações e a aceitação final.
+A verificação de produção registrada na revisão `cb19e52` mostra a página de
+conciliação respondendo HTTP 200, com 45 posições BRL e 13 USD avaliadas no
+escopo padrão, sem bloqueios de avaliação, saldo ou quantidade. O `main` local
+avançou para `b2baad6` (dois commits à frente de `origin/main`) com o fluxo do
+extrato XP. `tests/` reúne 147 métodos de teste; a contagem anterior de 89
+aprovados estava desatualizada e a suíte não foi reexecutada nesta revisão.
+Permanecem abertos o relatório fiscal final, a avaliação documental da
+Brasilprev, a medição de importações, a eliminação da rolagem horizontal nas
+tabelas genéricas e a aceitação final.
 
 A pasta no rpi5 já participa do backup do usuário no Backblaze. O Fin2 comprova
 somente a exportação cifrada até o rpi5.

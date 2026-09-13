@@ -1,6 +1,6 @@
 # Plano: upload e processamento de extratos XP
 
-Plano original: 10/09/2026. Fluxo de interface atualizado em 11/09/2026.
+Plano original: 10/09/2026. Fluxo de interface atualizado em 12/09/2026.
 A confirmação financeira de cada extrato depende da revisão explícita do usuário.
 
 ## Amostra examinada
@@ -58,7 +58,8 @@ como instrução de execução.
    limitação explícita, sem inventar saldo zero.
 4. **Prévia:** mostrar datas, descrição original, valor, saldo, categoria sugerida,
    aplicação, vínculo existente e situação: “Novo”, “Já registrado”, “Pendente”
-   ou “Divergente”. Exibir totais, saldos, diferença e filtro por pendências.
+   ou “Divergente”. Exibir totais, saldos, diferença e filtro por situação:
+   todos, prontos ou pendentes.
    Permitir resolver aplicação, contraparte e vínculos sem alterar a fonte.
    Cada decisão deve registrar justificativa e histórico de revisão.
 5. **Confirmação:** separar “Registrar documento e conciliação” de “Confirmar
@@ -199,6 +200,12 @@ financeiros permaneceu igual, e não há uploads XP no banco em uso. A prévia r
 permanece apenas na cópia isolada de auditoria. Não houve commit, push ou
 implantação em produção nesta execução.
 
+As migrações seguintes complementam o fluxo: `0055_statement_matching.sql`
+(CREATE OR REPLACE VIEWs de `portfolio` com campos de pareamento e
+`statement_aliases`), `0056_drop_import_document_index.sql` e
+`0057_drop_import_rejection.sql` (remoção de colunas obsoletas de rejeição) e
+`0058_claim_keeps_line_evidence.sql` (evidência das linhas preservada no claim).
+
 
 ## Fluxo de interface em 12/09/2026
 
@@ -212,23 +219,46 @@ implantação em produção nesta execução.
    Problemas de leitura aparecem em coluna adicional somente quando existem
    erros no arquivo.
    A pesquisa e a ordenação pelos cabeçalhos abrangem todas as linhas antes da
-   paginação de 20 itens; os controles permanecem ao trocar de página.
+   paginação; os controles permanecem ao trocar de página.
    Aprovar vale para o arquivo inteiro, mesmo com pesquisa ativa, e não cria
    eventos financeiros. **Rejeitar descarta a carga** — linhas, decisões,
    documento e arquivo — e devolve o processo à etapa 1, sem registro algum da
    decisão.
 3. **Revisão:** após aprovar a carga, abrir a rota própria
-   `/fin2/importar/<identificador>/revisao/`, que tenta conciliar cada lançamento
-   com aplicações ou outros lançamentos existentes da mesma conta.
-   - Cada lançamento tem um botão de revisão manual; dentro dela é possível
-     **excluir o lançamento**, que sai da carga sem ir para o ledger e fica
-     registrado no histórico.
-   - Lançamento com informação insuficiente para incorporação fica **Pendente**;
-     o resolvido fica **Pronto**; o excluído fica **Excluído**. O estado é
-     derivado da decisão registrada, sem coluna própria.
-   - Abaixo da tabela fica o botão que lança no ledger os lançamentos **Pronto**.
-     Ele aparece quando não resta nenhum lançamento **Pendente**; nesse momento o
-     processo segue para a próxima etapa.
+   `/fin2/importar/<identificador>/revisao/`. Ao abrir, o Fin2 identifica cada
+   lançamento sozinho — categoria/tipo, aplicação e vínculo com movimentos já
+   existentes da mesma conta — a partir do extrato e do banco. Não existe mais
+   aceitação em lote: a linha já apresenta o que será registrado no ledger.
+   - A tabela abre com a coluna **Ação** — sem título, com um botão de símbolo por
+     linha que abre a revisão manual — e segue com Linha, Mov., Liq.,
+     Lançamento, Aplicação, Qtde, Valor, Saldo, Situação e **Detalhe**. A
+     situação usa ícones no lugar das palavras (● Pronto, ○ Pendente, ⊘
+     Excluído), com o texto no `title`/`aria-label`, e o fundo da linha acompanha
+     o estado. A coluna **Detalhe** traz a categoria identificada em português
+     (por exemplo "JCP", "Previdência (aplicação)") e, quando a linha está
+     Pendente, os itens que faltam para ela ficar Pronto (por exemplo "Falta:
+     Aplicação, Quantidade, Documento complementar"). O número da nota, quando
+     existe, acompanha a descrição.
+   - A pesquisa livre cobre lançamento, aplicação, datas, valores, situação e
+     detalhe; o seletor **Situação** filtra por **Todos**, **Prontos**,
+     **Pendentes** ou **Excluídos**. A pesquisa, a ordenação e o filtro valem para
+     o extrato inteiro antes da paginação, e o filtro é preservado ao abrir a
+     revisão manual de uma linha. Abaixo da tabela, alinhados à direita e acima
+     do botão de gravação, ficam o seletor **Mostrar** (10, 50, 100 ou todos, com
+     50 como padrão) e o paginador.
+   - A decisão manual do revisor sempre prevalece sobre a identificação. Dentro
+     da revisão manual é possível trocar a categoria sugerida — o tipo do
+     lançamento decorre dela — e **excluir o lançamento**, que sai da carga sem
+     ir para o ledger e fica registrado no histórico.
+   - Lançamento que a identificação não consegue fechar fica **Pendente**; o
+     resolvido fica **Pronto**; o excluído fica **Excluído**. O estado é derivado
+     da decisão efetiva (manual ou identificada), sem coluna própria.
+   - Abaixo da tabela fica o botão que lança no ledger os lançamentos **Pronto**,
+     a única gravação da etapa: a identificação é apenas prévia. Ele fica
+     **desabilitado** enquanto nenhuma linha estiver **Pronto**. Quando é
+     acionado e não resta nenhuma linha **Pendente**, o processo segue para a
+     próxima etapa, que lista os registros criados. Se ainda houver pendência, a
+     revisão permanece na etapa 3 com o motivo da recusa.
    - Cada registro criado guarda a referência do extrato de origem e o histórico
      de revisões: o evento em `ledger.manual_event` recebe uma entrada em
      `ledger.audit_log` (`entity_type='manual_event'`) com `import_id`,
