@@ -167,10 +167,10 @@ button, .button { font-weight: 650; }
 .review-list{display:grid;gap:12px}.flow-review{padding:14px;border:1px solid var(--line);border-radius:7px;background:#0c1523}.flow-review>div{display:flex;justify-content:space-between;gap:16px;margin-bottom:10px}.flow-review small{color:var(--muted);white-space:nowrap}.flow-review form{display:grid;grid-template-columns:minmax(170px,.8fr) minmax(260px,2fr) auto;gap:9px}.flow-review input,.flow-review select{min-width:0;width:100%;padding:8px}.flow-review button{padding:8px 13px}@media(max-width:800px){.flow-review>div{display:block}.flow-review small{display:block;white-space:normal}.flow-review form{grid-template-columns:1fr}}
 .calculation-exclusions{margin-top:18px;color:var(--muted);font-size:12px}.calculation-exclusions summary{cursor:pointer;color:var(--green)}.calculation-exclusions li{margin:5px 0}
 
-/* Keep tabular values intact; scroll their panel instead of wrapping cells. */
+/* Tables fit their panel width; text wraps so no data is hidden sideways. */
 .table-wrap{max-width:100%;overflow-x:auto}
 table{table-layout:auto}
-th,td,th *,td *{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+th,td,th *,td *{white-space:normal;overflow-wrap:anywhere;word-break:normal}
 .table-wrap:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 nav.panel{overflow-x:auto;flex-wrap:nowrap;white-space:nowrap}
 nav.panel>a{flex-shrink:0}
@@ -285,9 +285,12 @@ button:not(.sort-button):not(.icon-button),.button{padding-block:5px;line-height
 .icon-button{width:28px;height:28px;min-width:28px}
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]){padding-block:4px;line-height:1.3}
 
-/* Content-sized tables stay at the left edge of their scrollable panel. */
-table{width:max-content;min-width:0;max-width:none;margin-inline:0;table-layout:auto}
-th,td{padding:3px 6px;white-space:nowrap;overflow-wrap:normal;word-break:normal}
+/* Tables fill their panel; descriptive text wraps and numeric cells stay intact. */
+table{width:100%;min-width:0;max-width:none;margin-inline:0;table-layout:auto}
+th,td{padding:3px 6px;white-space:normal;overflow-wrap:anywhere;word-break:normal}
+td.number{white-space:nowrap}
+th.number{white-space:normal}
+.sort-button{white-space:normal}
 
 /* Light tables and form controls within the dark dashboard. */
 @font-face{font-family:Geist;src:url('fonts/geist/GeistVariable.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
@@ -498,8 +501,7 @@ main:has(.account-detail-header){padding-block:12px 16px}
 .review-form-grid select,.review-form-grid input{width:100%}
 .review-form-grid .full-row{grid-column:1/-1}
 .review-form-grid label.inline-check{display:flex;gap:8px;align-items:center}
-.button-commit{font-size:1.1em;padding:10px 20px}
-.bulk-accept-button{margin-top:15px}
+.button-commit{font-size:1.1em;padding:10px 20px;margin-top:14px}
 .note-success{background-color:#d4edda;color:#155724}
 
 /* Secondary action inside a page heading ("Baixar arquivo") uses the body
@@ -510,7 +512,6 @@ h2 .heading-action{font-size:14px;font-weight:400}
 .suggested-tag{color:var(--muted)}
 .cell-error{color:#d3aa58;font-size:.9em;margin-top:4px}
 .cell-extra{margin-top:4px}
-.cell-suggestion{color:var(--muted);font-size:.9em;margin-bottom:4px}
 
 /* Fixed-layout tables: columns obey the declared widths and cells truncate. */
 .table-fixed{table-layout:fixed;width:100%}
@@ -552,19 +553,50 @@ h2 .heading-action{font-size:14px;font-weight:400}
 #xp-review-table th,#xp-review-table td{padding:3px 2px}
 #xp-review-table .t{display:block;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #xp-review-table .wrap-text,#xp-review-table .wrap-text .t,#xp-review-table .wrap-text .t *{white-space:normal;overflow-wrap:anywhere}
-#xp-review-table th:nth-child(1){width:3%}
-#xp-review-table th:nth-child(2){width:4%}
+#xp-review-table th:nth-child(1){width:32px}
+#xp-review-table th:nth-child(2){width:30px}
 #xp-review-table th:nth-child(3){width:6%}
 #xp-review-table th:nth-child(4){width:6%}
-#xp-review-table th:nth-child(6){width:7%}
-#xp-review-table th:nth-child(7){width:10%}
-#xp-review-table th:nth-child(8){width:5%}
+#xp-review-table th:nth-child(6){width:16%}
+#xp-review-table th:nth-child(7){width:5%}
+#xp-review-table th:nth-child(8){width:8%}
 #xp-review-table th:nth-child(9){width:8%}
-#xp-review-table th:nth-child(10){width:8%}
-#xp-review-table th:nth-child(11){width:7%}
-#xp-review-table th:nth-child(12){width:8%}
-#xp-review-table th:nth-child(13){width:5%}
-#xp-review-table .button{padding:4px 8px;font-size:11px}
+#xp-review-table th:nth-child(10){width:50px}
+#xp-review-table th:nth-child(11){width:14%}
+/* Action, line and situação stay narrow, so the button sits next to the line. */
+#xp-review-table th:nth-child(1),#xp-review-table td:nth-child(1),
+#xp-review-table th:nth-child(2),#xp-review-table td:nth-child(2),
+#xp-review-table th:nth-child(10),#xp-review-table td:nth-child(10){text-align:center}
+#xp-review-table .review-open{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:24px;
+  height:24px;
+  padding:0 6px;
+  color:#fff;
+  font-family:'Segoe UI Symbol','Arial Unicode MS',sans-serif;
+  font-size:14px;
+  line-height:1;
+}
+#xp-review-table .review-open:hover{color:#fff;background:#006f8c;border-color:#006f8c}
+/* Review list: page size and pagination sit between the table and the save button. */
+.table-pager{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:16px;margin-top:10px}
+.table-pager p,.table-pager .pager-links{margin:0}
+.pager-size{display:flex;align-items:center;gap:6px;margin:0}
+.pager-size label{display:flex;align-items:center;gap:6px;margin:0;color:var(--muted);font-size:12px}
+.pager-size select{min-height:30px;padding:0 24px 0 8px;font-size:12px}
+
+/* State colours: the row background and the situação icon carry ready/pending. */
+#xp-review-table tbody tr.row-ready{--row-bg:#e8f5ec;--row-hover:#d7ebdd}
+#xp-review-table tbody tr.row-pending{--row-bg:#fdf4dc;--row-hover:#f6e8c4}
+#xp-review-table tbody tr.row-excluded{--row-bg:#eef1f5;--row-hover:#e1e7ee}
+#xp-review-table tbody tr{background:var(--row-bg,#fff)}
+#xp-review-table tbody tr:hover{background:var(--row-hover,var(--row-bg,#fff))}
+#xp-review-table .state-icon{font-family:'Segoe UI Symbol','Arial Unicode MS',sans-serif;font-size:15px;line-height:1;font-weight:700}
+#xp-review-table .state-ready{color:#1f7a45}
+#xp-review-table .state-pending{color:#a5761b}
+#xp-review-table .state-excluded{color:#5c6b7a}
 
 /* Series colours for the history chart; the palette index comes from the view. */
 .series-c0{--series:#62dce8}
@@ -577,6 +609,56 @@ h2 .heading-action{font-size:14px;font-weight:400}
 .series-c7{--series:#b7c4d2}
 .chart-legend i,.series-dot{background:var(--series,#62dce8)}
 .history-chart polyline{stroke:var(--series,#62dce8)}
+
+/* Individual statement review opens as a modal over the movements table. The
+   same partial still renders as a full page when JavaScript is unavailable or
+   when the URL carries ?review_line=. */
+.review-modal{
+  width:min(920px,94vw);
+  max-width:920px;
+  max-height:90vh;
+  margin:auto;
+  padding:0;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--white);
+  color:var(--ink);
+  box-shadow:0 24px 60px #000c;
+}
+.review-modal[open]{display:grid;grid-template-rows:minmax(0,1fr)}
+.review-modal::backdrop{background:#02060bcc}
+.review-modal-body{min-height:0;overflow:auto;padding:24px 24px 20px}
+.review-modal-body .panel{margin:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.review-modal .section-title{margin-bottom:12px}
+.review-modal .section-title h3{margin-top:0}
+.review-modal .review-form-grid{grid-template-columns:minmax(180px,220px) minmax(0,1fr)}
+.review-form-actions{
+  display:flex;
+  align-items:center;
+  column-gap:80px;
+  margin-top:20px;
+  padding-top:16px;
+  border-top:1px solid var(--line);
+}
+/* Flex items blockify: the Cancelar link needs explicit content centring, or
+   its text sticks to the top of the 37px control box. */
+#review-form-actions>*{display:flex;align-items:center;justify-content:center}
+/* The id mirrors #import-approval-actions: it lets the secondary Cancelar and
+   the destructive exclude override the form button theme, whose selectors are
+   more specific than a plain class. */
+#review-form-actions .review-cancel{color:var(--muted);background:transparent;border-color:var(--line);box-shadow:none}
+#review-form-actions .review-cancel:hover{color:var(--ink);background:#1a2739;border-color:var(--muted)}
+#review-form-actions .review-exclude{color:#fff4f4;background:#a8323e;border-color:#d05a65;box-shadow:inset 0 1px 0 #ffadb54d}
+#review-form-actions .review-exclude:hover{color:#fff;background:#c3424f;border-color:#e3757f}
+#review-form-actions .review-save{margin-left:auto}
+@media(max-width:640px){
+  .review-modal{width:96vw}
+  .review-modal-body{padding:18px 16px 16px}
+  .review-modal .review-form-grid{grid-template-columns:1fr}
+  #review-form-actions{flex-direction:column;row-gap:8px}
+  #review-form-actions>*{width:100%}
+  #review-form-actions .review-save{margin-left:0}
+}
 
 /* Catalog imagery. */
 .catalog-preview-image{display:block;width:auto;height:auto;max-width:min(160px,100%);max-height:120px;object-fit:contain}

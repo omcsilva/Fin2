@@ -1342,7 +1342,7 @@ def xp_statement_review(request, connection, identifier):
         return HttpResponse('Escrita desabilitada', status=403)
     if not re.fullmatch(r'[a-f0-9]{32}', identifier):
         raise Http404
-    from fin2.imports.xp_reconciliation import detail
+    from fin2.imports.xp_reconciliation import REVIEW_STATES, detail
     if not query(connection, 'select 1 from ledger.xp_statement where import_id=?', [identifier]):
         raise Http404
     selected = detail(connection, identifier)
@@ -1358,8 +1358,8 @@ def xp_statement_review(request, connection, identifier):
         selected['rows'] = [row for row in selected['rows'] if row['row_number'] == line]
         if not selected['rows']:
             raise Http404
-    elif request.GET.get('pending') == '1':
-        selected['rows'] = [row for row in selected['rows'] if row['situation'] in ('pending', 'divergent')]
+    elif request.GET.get('situacao') in REVIEW_STATES:
+        selected['rows'] = [row for row in selected['rows'] if row['state'] == request.GET['situacao']]
     if request.GET.get('review_line'):
         selected['page'] = Paginator(selected['rows'], 20).get_page(1)
     else:
@@ -1374,7 +1374,12 @@ def commit_file_import(request,identifier):
     if not settings.WRITE_ENABLED:return HttpResponse('Escrita desabilitada',status=403)
     if not re.fullmatch(r'[a-f0-9]{32}',identifier):raise Http404
     try:commit_import(settings.WAREHOUSE_PATH,identifier)
-    except ValueError as exc:return HttpResponse(str(exc),status=400)
+    except ValueError as exc:
+        # The XP review stays in step 3 and shows why the load was refused.
+        with reader(settings.WAREHOUSE_PATH) as connection:
+            if query(connection,'select 1 from ledger.xp_statement where import_id=?',[identifier]):
+                return redirect('/fin2/importar/'+identifier+'/revisao/?'+urlencode({'error':str(exc)}))
+        return HttpResponse(str(exc),status=400)
     return redirect('/fin2/importar/?preview='+identifier)
 
 

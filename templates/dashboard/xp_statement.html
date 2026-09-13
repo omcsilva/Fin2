@@ -7,128 +7,57 @@
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
 
 {% if wizard_step == 3 %}
-    {% if request.GET.bulk_accepted %}<div class="note">{{ request.GET.bulk_accepted }} sugestões aceitas. As decisões foram salvas; nenhum lançamento financeiro foi criado nesta etapa.</div>{% endif %}
-
     {% if request.GET.review_line %}
-        <!-- Modo de Revisão Individual Focada -->
-        <div class="section-title">
-            <h3>Revisão da Linha {{ request.GET.review_line }}</h3>
-            <a href="{% url 'xp-statement-review' selected_import.import_id %}?q={{ request.GET.q|urlencode }}&amp;sort={{ request.GET.sort|urlencode }}&amp;dir={{ request.GET.dir|urlencode }}&amp;pending={{ request.GET.pending|urlencode }}&amp;page={{ request.GET.page|urlencode }}" class="button">Voltar para a lista</a>
-        </div>
-
-        {% for r in selected_import.rows %}
-            <form method="post" action="{% url 'xp-statement-update' selected_import.import_id %}" class="panel">{% csrf_token %}
-            <input type="hidden" name="line_number" value="{{ r.row_number }}">
-            <!-- return_page was useful for pagination, we can keep it empty or drop it, since we'll redirect back to the main list -->
-            <input type="hidden" name="return_page" value="{{ request.GET.page }}">
-            <input type="hidden" name="q" value="{{ request.GET.q }}"><input type="hidden" name="sort" value="{{ request.GET.sort }}"><input type="hidden" name="dir" value="{{ request.GET.dir }}">
-            <input type="hidden" name="pending" value="{{ request.GET.pending|default:'' }}">
-
-            <p><strong>Descrição:</strong> {{ r.description }}<br>
-               <strong>Categoria:</strong> {{ r.category }}<br>
-               <strong>Data Mov.:</strong> {{ r.trade_date|short_date }} · <strong>Liq.:</strong> {{ r.settlement_date|short_date }}<br>
-               <strong>Valor:</strong> {{ r.amount|money:'BRL' }}
-            </p>
-            {% for error in r.errors %}<p class="note">{{ error }}</p>{% endfor %}
-            {% if r.decision %}<p>Decisão atual: {{ r.decision.reason }}</p>{% endif %}
-
-            <div class="review-form-grid">
-                <label>Decisão</label>
-                <div><select name="action"><option value="pending">Manter pendente</option>{% if r.candidates %}<option value="link" {% if r.decision.action == 'link' %}selected{% endif %}>Vincular a movimentos existentes</option>{% endif %}<option value="new" {% if r.decision.action == 'new' %}selected{% endif %}>Criar lançamento novo</option><option value="excluded" {% if r.decision.action == 'excluded' %}selected{% endif %}>Excluir lançamento do extrato (não vai para o ledger)</option></select></div>
-
-                {% if r.candidates %}
-                <label>Movimentos nas datas (múltipla escolha)</label>
-                <div><select name="entry_ids" multiple size="4">{% for e in r.candidates %}<option value="{{ e.entry_id }}" {% if e.entry_id in r.decision.entry_ids %}selected{% endif %}>{% if e.entry_id in r.suggested_ids %}Mesmo valor · {% endif %}{{ e.label }}</option>{% endfor %}</select></div>
-                {% endif %}
-
-                <label>Tipo do lançamento novo</label>
-                <div><select name="event_type"><option value="">Selecione</option><option value="income" {% if r.decision.event_type == "income" %}selected{% endif %}>Provento / rendimento</option><option value="transfer" {% if r.decision.event_type == "transfer" %}selected{% endif %}>Transferência entre contas próprias</option><option value="deposit" {% if r.decision.event_type == "deposit" %}selected{% endif %}>Aporte externo</option><option value="withdrawal" {% if r.decision.event_type == "withdrawal" %}selected{% endif %}>Retirada externa</option><option value="tax" {% if r.decision.event_type == "tax" %}selected{% endif %}>Imposto do resgate</option><option value="redemption" {% if r.decision.event_type == "redemption" %}selected{% endif %}>Resgate documentado</option><option value="buy" {% if r.decision.event_type == "buy" %}selected{% endif %}>Aplicação em previdência documentada</option></select></div>
-
-                <label>Aplicação</label>
-                <div>
-                {% if r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}
-                </div>
-
-                <label>Outra conta da transferência</label>
-                <div><select name="counterparty"><option value="">Selecione</option><option value="RESULTADO">Conta de Resultado (Gera aporte/retirada)</option>{% for a in selected_import.transfer_accounts %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.decision.counterparty %}selected{% endif %}>{{ a.name }} · {{ a.holder }}</option>{% endfor %}</select></div>
-
-                <label>Resgate relacionado ao imposto</label>
-                <div><select name="related_line"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date|short_date }}</option>{% endfor %}</select></div>
-
-                <label>Quantidade comprovada</label>
-                <div><input name="quantity" value="{{ r.decision.quantity|default:'' }}"></div>
-
-                <label>Documento complementar</label>
-                <div><select name="document_id"><option value="">Selecione</option>{% for d in supporting_documents %}<option value="{{ d.document_id }}" {% if d.document_id == r.decision.document_id %}selected{% endif %}>{{ d.original_filename }}</option>{% endfor %}</select></div>
-
-                <div class="full-row">
-                    <label class="inline-check"><input type="checkbox" name="distinct_confirmed" {% if r.decision.distinct_confirmed %}checked{% endif %}> Conferi os movimentos semelhantes; esta é uma ocorrência distinta</label>
-                </div>
-
-                <label>Justificativa / contraparte</label>
-                <div><input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}" required></div>
-            </div>
-
-            <button type="submit">Salvar revisão</button>
-            </form>
-        {% endfor %}
+        {% include 'dashboard/xp_statement_review_form.html' %}
 
     {% else %}
         <!-- Tabela única de revisão -->
 
-        {% if selected_import.bulk_suggestions %}
-        <p><strong>Lote:</strong> {{ selected_import.bulk_new_count }} prontos, {{ selected_import.bulk_link_count }} vínculos e {{ selected_import.bulk_input_count }} para completar no extrato inteiro.</p>
-        {% endif %}
-
         <form method="get" class="filters" data-table-controls="xp-review">
         <input type="hidden" name="sort" value="{{ selected_import.table_sort }}">
         <input type="hidden" name="dir" value="{{ selected_import.table_direction }}">
+        <input type="hidden" name="por_pagina" value="{{ selected_import.page_size }}">
         <label>Pesquisar<input name="q" value="{{ selected_import.table_term }}" maxlength="200" placeholder="Lançamento, aplicação, revisão, data ou valor"></label>
-        <label>Situação<select name="pending"><option value="">Todos os movimentos</option><option value="1" {% if request.GET.pending == '1' %}selected{% endif %}>Somente pendências</option></select></label>
+        <label>Situação<select name="situacao"><option value="">Todos</option><option value="ready" {% if request.GET.situacao == 'ready' %}selected{% endif %}>Prontos</option><option value="pending" {% if request.GET.situacao == 'pending' %}selected{% endif %}>Pendentes</option><option value="excluded" {% if request.GET.situacao == 'excluded' %}selected{% endif %}>Excluídos</option></select></label>
         <button type="submit">Pesquisar</button><a href="{% url 'xp-statement-review' selected_import.import_id %}">Limpar</a>
         </form>
         <p>{{ selected_import.page.paginator.count }} movimentos encontrados</p>
 
-        <form method="post" action="{% url 'xp-statement-update' selected_import.import_id %}">{% csrf_token %}
-        <input type="hidden" name="q" value="{{ selected_import.table_term }}"><input type="hidden" name="sort" value="{{ selected_import.table_sort }}"><input type="hidden" name="dir" value="{{ selected_import.table_direction }}"><input type="hidden" name="pending" value="{{ request.GET.pending }}"><input type="hidden" name="return_page" value="{{ selected_import.page.number }}">
-        <input type="hidden" name="operation" value="bulk_review"><input type="hidden" name="bulk_token" value="{{ selected_import.bulk_token }}">
-
-        <div class="table-wrap" data-table="xp-review"><table id="xp-review-table"><thead><tr><th><div class="t">SEL.</div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="line">Linha</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="trade_date">Mov.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="settlement_date">Liq.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="description">Lançamento</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="category">Tipo</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_application">Aplicação</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="table_quantity">Qtde</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="amount">Valor</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="balance">Saldo</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_situation">Situação</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_review">Revisão</button></div></th><th><div class="t">Ação</div></th></tr></thead><tbody>
-        {% for r in selected_import.rows %}<tr>
-        <td><div class="t">{% if r.bulk_suggestion %}
-            {% if not r.bulk_suggestion.needs_input %}<input type="checkbox" name="bulk_line" value="{{ r.row_number }}" checked aria-label="Aceitar sugestão da linha {{ r.source_locator.row }}">{% endif %}
-            {% endif %}</div></td>
+        <div class="table-wrap" data-table="xp-review"><table id="xp-review-table"><thead><tr><th><div class="t"></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="line">L.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="trade_date">DT. MOV.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="settlement_date">DT. LIQ.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="description">Lançamento</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_application">Aplicação</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="table_quantity">Qtde</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="amount">Valor</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="balance">Saldo</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_situation">SIT.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_detail">Detalhe</button></div></th></tr></thead><tbody>
+        {% for r in selected_import.rows %}<tr class="row-{{ r.state }}">
+        <td><div class="t">
+        {% if selected_import.status == 'preview' and not r.prior_claim %}
+            <a href="?review_line={{ r.row_number }}&amp;page={{ selected_import.page.number }}&amp;{{ selected_import.table_query }}" class="button review-open" data-review-modal data-review-line="{{ r.source_locator.row }}" title="Revisar linha {{ r.source_locator.row }}" aria-label="Revisar linha {{ r.source_locator.row }}">▸</a>
+        {% endif %}
+        </div></td>
         <td class="number"><div class="t">{{ r.source_locator.row }}</div></td><td class="number"><div class="t">{{ r.trade_date|short_date }}</div></td><td class="number"><div class="t">{{ r.settlement_date|short_date }}</div></td>
-        <td class="wrap-text"><div class="t" title="{{ r.description }}">{{ r.description }}</div></td><td><div class="t">{{ r.category }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</div></td>
-        <td><div class="t">{% if r.decision.application_record %}{% for a in r.applications %}{% if a.source_record_id == r.decision.application_record %}{{ a.name }}{% endif %}{% endfor %}{% elif r.suggested_application_name %}<span class="suggested-tag">{{ r.suggested_application_name }} (sugerido)</span>{% endif %}</div></td>
-        <td class="number"><div class="t">{% if r.decision.quantity %}{{ r.decision.quantity|number }}{% endif %}</div></td>
+        <td class="wrap-text"><div class="t" title="{{ r.description }}">{{ r.description }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</div></td>
+        <td class="wrap-text"><div class="t">{% if r.effective_application_name %}{{ r.effective_application_name }}{% elif r.suggested_application_name %}<span class="suggested-tag">{{ r.suggested_application_name }} (sugerido)</span>{% endif %}</div></td>
+        <td class="number"><div class="t">{% if r.effective_quantity %}{{ r.effective_quantity|number }}{% endif %}</div></td>
         <td class="number"><div class="t">{{ r.amount|money:'BRL' }}</div></td><td class="number"><div class="t">{{ r.balance|money:'BRL' }}</div></td>
         <td><div class="t">
-        {% if r.state == 'ready' %}Pronto{% elif r.state == 'excluded' %}Excluído{% else %}Pendente{% endif %}
+        {% if r.state == 'ready' %}<span class="state-icon state-ready" role="img" aria-label="Pronto" title="Pronto">●</span>{% elif r.state == 'excluded' %}<span class="state-icon state-excluded" role="img" aria-label="Excluído" title="Excluído">⊘</span>{% else %}<span class="state-icon state-pending" role="img" aria-label="Pendente" title="Pendente">○</span>{% endif %}
         {% for error in r.errors %}<div class="cell-error">{{ error }}</div>{% endfor %}
         {% if r.prior_claim %}<div class="cell-extra"><a href="{% url 'file-imports' %}?preview={{ r.prior_claim }}">Confirmada noutro extrato</a></div>{% endif %}
         </div></td>
-        <td class="wrap-text"><div class="t">
-        {% if r.bulk_suggestion %}
-            <div class="cell-suggestion">Sugerido: {{ r.bulk_suggestion.label }}</div>
-        {% endif %}
-        {% if r.decision %}<div>Decisão: {{ r.decision.reason }}</div>{% endif %}
-        </div></td>
-        <td><div class="t">
-        {% if selected_import.status == 'preview' and not r.prior_claim %}
-            <a href="?review_line={{ r.row_number }}&amp;page={{ selected_import.page.number }}&amp;{{ selected_import.table_query }}" class="button">Revisar</a>
-        {% endif %}
-        </div></td></tr>{% empty %}<tr><td colspan="13">Nenhum movimento encontrado.</td></tr>{% endfor %}
+        <td class="wrap-text"><div class="t">{% if r.table_detail %}{{ r.table_detail }}{% endif %}</div></td>
+        </tr>{% empty %}<tr><td colspan="11">Nenhum movimento encontrado.</td></tr>{% endfor %}
         </tbody></table></div>
 
-        {% if selected_import.bulk_suggestions %}
-        <button type="submit" class="bulk-accept-button">Aceitar sugestões selecionadas nesta página</button>
-        {% endif %}
-        </form>
+        <div class="table-pager">
+            <form method="get" class="pager-size" data-auto-submit>
+                <input type="hidden" name="q" value="{{ selected_import.table_term }}"><input type="hidden" name="sort" value="{{ selected_import.table_sort }}"><input type="hidden" name="dir" value="{{ selected_import.table_direction }}"><input type="hidden" name="situacao" value="{{ request.GET.situacao|default:'' }}">
+                <label>Mostrar<select name="por_pagina">{% for value, label in selected_import.page_sizes %}<option value="{{ value }}" {% if value == selected_import.page_size %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>por página</label>
+            </form>
+            <p class="pager-links">{% if selected_import.page.has_previous %}<a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
+        </div>
 
-        {% if selected_import.can_confirm %}<form method="post" action="{% url 'file-import-commit' selected_import.import_id %}" data-confirm-submit="Lançar no ledger os lançamentos com status Pronto?">{% csrf_token %}<button type="submit" class="button-commit">Lançar no ledger os lançamentos prontos</button></form>{% endif %}
+        {% if selected_import.status == 'preview' %}<form method="post" action="{% url 'file-import-commit' selected_import.import_id %}" data-confirm-submit="Lançar no ledger os lançamentos prontos?">{% csrf_token %}<button type="submit" class="button-commit"{% if not selected_import.can_commit %} disabled{% endif %}>Lançar no ledger os lançamentos prontos</button></form>
+        {% if not selected_import.can_commit %}<p class="muted">Nenhuma linha está pronta para lançar: resolva as pendências em cada linha.</p>{% endif %}{% endif %}
 
-        <p>{% if selected_import.page.has_previous %}<a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
+        <dialog class="review-modal" data-review-dialog tabindex="-1" aria-label="Revisão individual do movimento">
+            <div class="review-modal-body" data-review-body></div>
+        </dialog>
     {% endif %}
 {% endif %}
 

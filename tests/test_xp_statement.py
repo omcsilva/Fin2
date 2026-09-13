@@ -39,15 +39,34 @@ class XPParserTests(unittest.TestCase):
         from types import SimpleNamespace
         from fin2.dashboard.xp_statement_views import approval_table
         rows = [dict(source_locator={'row':i}, description='Movimento', amount=str(i),
-                     situation='pending', decision={'quantity':str(i), 'reason':'Conferir documento'},
-                     suggested_application_name='Fundo de teste') for i in range(1,26)]
+                     situation='pending', effective_quantity=str(i),
+                     effective_application_name='Fundo de teste',
+                     decision={'quantity':str(i), 'reason':'Conferir documento'}) for i in range(1,26)]
         selected = {'import_id':'a'*32, 'rows':rows}
         approval_table(SimpleNamespace(GET={'q':'Conferir documento','sort':'table_quantity',
-                                           'dir':'desc','page':'2','pending':'1'}), selected, review=True)
+                                           'dir':'desc','page':'3','situacao':'pending',
+                                           'por_pagina':'10'}), selected, review=True)
         self.assertEqual(selected['page'].paginator.count, 25)
         self.assertEqual([r['table_quantity'] for r in selected['rows']], ['5','4','3','2','1'])
-        self.assertIn('pending=1', selected['table_query'])
+        self.assertIn('situacao=pending', selected['table_query'])
+        self.assertIn('por_pagina=10', selected['table_query'])
+        self.assertEqual(selected['page_size'], '10')
         self.assertNotIn('preview=', selected['table_query'])
+        selected['rows'] = rows
+        # An unknown size falls back to the default without breaking the query.
+        approval_table(SimpleNamespace(GET={'por_pagina':'999'}), selected, review=True)
+        self.assertIn('por_pagina=50', selected['table_query'])
+        selected['rows'] = rows
+        # "todos" keeps every row on a single page.
+        approval_table(SimpleNamespace(GET={'por_pagina':'todos','page':'2'}), selected, review=True)
+        self.assertEqual(len(selected['rows']), 25)
+        self.assertEqual(selected['page'].paginator.num_pages, 1)
+        selected['rows'] = rows
+        approval_table(SimpleNamespace(GET={'situacao':'excluded'}), selected, review=True)
+        self.assertIn('situacao=excluded', selected['table_query'])
+        selected['rows'] = rows
+        approval_table(SimpleNamespace(GET={'situacao':'bogus'}), selected, review=True)
+        self.assertNotIn('situacao', selected['table_query'])
         selected['rows'] = rows
         approval_table(SimpleNamespace(GET={'q':'Fundo de teste'}), selected, review=True)
         self.assertEqual(selected['page'].paginator.count, 25)
@@ -156,6 +175,136 @@ class XPFlowTests(unittest.TestCase):
             self.assertEqual(db.execute("""select count(*) from ledger.audit_log
               where entity_type='file_import_decision'""").fetchone()[0], 0)
 
+    def test_individual_review_loads_into_the_list_modal(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        identifier = self.stage(workbook())
+        xp.document(self.db, identifier)
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            listing = client.get(reverse('xp-statement-review', args=[identifier])).content.decode()
+            # The list carries the modal shell and one trigger per movement.
+            self.assertIn('data-review-dialog', listing)
+            self.assertIn('data-review-modal', listing)
+            self.assertNotIn('id="individual-review"', listing)
+            focused = client.get(reverse('xp-statement-review', args=[identifier]),
+                                 {'review_line': '1'}).content.decode()
+            # The focused route stays the fallback and the modal source.
+            self.assertIn('id="individual-review"', focused)
+            self.assertNotIn('data-review-dialog', focused)
+            # The counterparty is always the result account, not a free choice.
+            self.assertIn('<input type="hidden" name="counterparty" value="RESULTADO">', focused)
+            self.assertNotIn('<select name="counterparty"', focused)
+            # The category is editable; the event type is derived from it.
+            self.assertIn('<select name="category">', focused)
+            self.assertNotIn('name="event_type"', focused)
+            # The modal heading shows the same line the list trigger points at.
+            import re
+            self.assertEqual(re.search(r'data-review-line="(\d+)"', listing).group(1),
+                             re.search(r'Revisão da Linha (\d+)', focused).group(1))
+
+    def test_individual_review_infers_the_action_without_a_decision_field(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        identifier = self.stage(workbook())
+        xp.document(self.db, identifier)
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            url = reverse('xp-statement-update', args=[identifier])
+            # No decision field: an entry-less save becomes a new entry, and the
+            # ledger event follows from the confirmed category.
+            client.post(url, {'line_number': '1', 'reason': 'Provento conferido',
+                              'category': 'dividend', 'application_record': self.application})
+            with connect(self.db) as db:
+                payload = json.loads(db.execute('select decision from ledger.xp_statement_line'
+                                                ' where import_id=? and line_number=1', [identifier]).fetchone()[0])
+            self.assertEqual(payload['action'], 'new')
+            self.assertEqual(payload['category'], 'dividend')
+            self.assertEqual(payload['event_type'], 'income')
+            # "Alterar sugestão" replaces the identified application: an unknown
+            # override is refused even though the suggestion itself is valid.
+            client.post(url, {'line_number': '1', 'reason': 'Provento conferido',
+                              'category': 'dividend', 'application_record': self.application,
+                              'application_record_override': 'inexistente'})
+            with connect(self.db) as db:
+                payload = json.loads(db.execute('select decision from ledger.xp_statement_line'
+                                                ' where import_id=? and line_number=1', [identifier]).fetchone()[0])
+            self.assertEqual(payload['application_record'], self.application)
+            # The dedicated button excludes the line without touching other fields.
+            client.post(url, {'line_number': '1', 'action': 'excluded', 'reason': 'Duplicado no extrato'})
+            with connect(self.db) as db:
+                payload = json.loads(db.execute('select decision from ledger.xp_statement_line'
+                                                ' where import_id=? and line_number=1', [identifier]).fetchone()[0])
+            self.assertEqual(payload['action'], 'excluded')
+
+    def test_reviewed_category_selects_the_event_type(self):
+        identifier = self.stage(workbook())
+        # The extracted movement is a dividend; reviewing it as a transfer turns
+        # it into an external contribution because the counterparty is the result
+        # account.
+        xp.review(self.db, identifier, 1, {'action': 'new', 'category': 'transfer',
+                                           'reason': 'Aporte externo conferido',
+                                           'distinct_confirmed': True})
+        with connect(self.db) as db:
+            payload = json.loads(db.execute('select decision from ledger.xp_statement_line'
+                                            ' where import_id=? and line_number=1', [identifier]).fetchone()[0])
+        self.assertEqual(payload['category'], 'transfer')
+        self.assertEqual(payload['event_type'], 'deposit')
+        self.assertIsNone(payload['counterparty'])
+
+    def test_commit_button_only_with_ready_lines_and_error_keeps_step_three(self):
+        from urllib.parse import unquote_plus
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        # Brokerage needs a link to an existing record, so nothing is ready.
+        nothing_ready = self.stage(workbook([
+            ('2025-01-02','2025-01-02','OPERAÇÕES EM BOLSA PR 02/01/2025 NOTA Nº 123',90,190)]))
+        partly_ready = self.stage(workbook([
+            ('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110),
+            ('2025-01-03','2025-01-03','OPERAÇÕES EM BOLSA PR 03/01/2025 NOTA Nº 124',5,115)]))
+        all_ready = self.stage(workbook([('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
+        for identifier in (nothing_ready, partly_ready, all_ready):
+            xp.document(self.db, identifier)
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            empty = reverse('xp-statement-review', args=[nothing_ready])
+            self.assertIn('class="button-commit" disabled>', client.get(empty).content.decode())
+            review = reverse('xp-statement-review', args=[partly_ready])
+            html = client.get(review).content.decode()
+            self.assertIn('class="button-commit">', html)
+            # Pending lines still block step 4, and the reviewer stays in step 3.
+            response = client.post(reverse('file-import-commit', args=[partly_ready]))
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(response['Location'].startswith(review + '?'))
+            self.assertIn('Resolva todas as linhas', unquote_plus(response['Location']))
+            with connect(self.db) as db:
+                self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0], 0)
+            # With every line resolved the load concludes and step 4 lists what was created.
+            response = client.post(reverse('file-import-commit', args=[all_ready]))
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response['Location'], '/fin2/importar/?preview='+all_ready)
+            page = client.get(response['Location']).content.decode()
+            self.assertIn('Importação de extrato concluída', page)
+            self.assertIn('DIVIDENDOS DE CLIENTES TEST3', page)
+
     def test_rejected_import_is_discarded_and_returns_to_step_one(self):
         import os
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -211,6 +360,7 @@ class XPFlowTests(unittest.TestCase):
             self.assertEqual(detail['states'], {'ready':1, 'pending':0, 'excluded':1})
             # Nothing is left pending, so the load can be posted.
             self.assertTrue(detail['can_confirm'])
+            self.assertTrue(detail['can_commit'])
             history = db.execute("""select json_extract_string(payload,'$.action') from ledger.xp_statement_decision
               where import_id=? order by line_number""", [identifier]).fetchall()
             self.assertEqual([a for (a,) in history], ['new', 'excluded'])
@@ -299,15 +449,17 @@ class XPFlowTests(unittest.TestCase):
     def test_pending_rejection_and_atomic_rollback(self):
         identifier=self.stage(workbook([
             ('2025-01-03','2025-01-03','DIVIDENDOS DE CLIENTES TEST3',20,130),
-            ('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
+            ('2025-01-02','2025-01-02','OPERAÇÕES EM BOLSA PR 02/01/2025 NOTA Nº 123',10,110)]))
         xp.review(self.db,identifier,1,self.decision())
+        # Brokerage has no ledger event of its own, so the line stays pending and
+        # blocks the confirmation until it is linked or excluded.
         with self.assertRaisesRegex(ValueError,'todas'): commit(self.db,identifier)
-        xp.review(self.db,identifier,2,self.decision())
+        xp.review(self.db,identifier,2,self.decision(action='excluded',reason='Sem nota correspondente'))
         original=xp._create
-        def fail_second(db,item,row,decision):
-            if row['row_number']==2: raise ValueError('falha simulada')
+        def fail_first(db,item,row,decision):
+            if row['row_number']==1: raise ValueError('falha simulada')
             return original(db,item,row,decision)
-        with patch.object(xp,'_create',side_effect=fail_second):
+        with patch.object(xp,'_create',side_effect=fail_first):
             with self.assertRaisesRegex(ValueError,'simulada'): commit(self.db,identifier)
         with connect(self.db) as db:
             self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0],0)
@@ -385,60 +537,53 @@ class XPFlowTests(unittest.TestCase):
         with connect(self.db) as db:
             self.assertEqual(db.execute('select holder from ledger.xp_account_binding').fetchone()[0],'ANA TESTE')
 
-    def test_bulk_review_saves_new_and_existing_without_financial_writes(self):
+    def test_identification_marks_ready_lines_and_commit_records_them(self):
         identifier=self.stage(workbook([
-            ('2025-01-05','2025-01-05','Transferência enviada para a conta digital',-5,130),
             ('2025-01-04','2025-01-04','DIVIDENDOS DE CLIENTES TEST3',20,135),
             ('2025-01-03','2025-01-03','DIVIDENDOS DE CLIENTES TEST3',5,115),
             ('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
         create(self.db,account_record=self.account,event_type='income',settlement_date='2025-01-03',currency='BRL',amount=5,description='DIVIDENDOS  DE CLIENTES TEST3')
         with connect(self.db) as db: item=xp.detail(db,identifier)
-        self.assertEqual((item['bulk_new_count'],item['bulk_link_count']),(2,1))
-        self.assertEqual(xp.bulk_review(self.db,identifier,[p['row_number'] for p in item['bulk_suggestions'] if not p['needs_input']],item['bulk_token']),3)
-        with connect(self.db) as db:
-            item=xp.detail(db,identifier)
-            self.assertEqual(item['counts'],{'new':2,'linked':1,'pending':1,'divergent':0,'excluded':0})
-            self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0],1)
-            self.assertEqual(db.execute('select count(*) from ledger.xp_statement_decision').fetchone()[0],3)
-        with self.assertRaisesRegex(ValueError,'todas'): commit(self.db,identifier)
-
-    def test_bulk_review_rejects_stale_or_forged_selection(self):
-        identifier=self.stage()
-        with connect(self.db) as db: item=xp.detail(db,identifier)
-        with self.assertRaisesRegex(ValueError,'Selecione'): xp.bulk_review(self.db,identifier,[],item['bulk_token'])
-        with self.assertRaisesRegex(ValueError,'sem sugestão'): xp.bulk_review(self.db,identifier,[1,999],item['bulk_token'])
-        create(self.db,account_record=self.account,event_type='income',settlement_date='2025-01-02',currency='BRL',amount=10,description='Recebido depois de abrir a prévia')
-        with self.assertRaisesRegex(ValueError,'mudaram'): xp.bulk_review(self.db,identifier,[1],item['bulk_token'])
+        self.assertEqual(item['states'],{'ready':3,'pending':0,'excluded':0})
+        self.assertEqual(item['rows'][1]['identified']['action'],'link')
+        # The identification is a preview: nothing is written before confirming.
         with connect(self.db) as db:
             self.assertEqual(db.execute('select count(*) from ledger.xp_statement_decision').fetchone()[0],0)
+            self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0],1)
+        self.assertEqual(commit(self.db,identifier),2)
 
-    def test_bulk_review_preserves_individual_decisions_and_ambiguous_matches(self):
-        identifier=self.stage(workbook([
-            ('2025-01-03','2025-01-03','DIVIDENDOS DE CLIENTES TEST3',20,140),
-            ('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,120),
-            ('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
-        xp.review(self.db,identifier,1,self.decision(action='pending',reason='Revisar depois'))
+    def test_manual_decision_wins_over_the_identification(self):
+        identifier=self.stage(workbook([('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
         create(self.db,account_record=self.account,event_type='income',settlement_date='2025-01-02',currency='BRL',amount=10,description='DIVIDENDOS DE CLIENTES TEST3')
+        with connect(self.db) as db: item=xp.detail(db,identifier)
+        self.assertEqual(item['rows'][0]['identified']['action'],'link')
+        xp.review(self.db,identifier,1,self.decision(action='excluded',reason='Duplicado do extrato'))
         with connect(self.db) as db:
             item=xp.detail(db,identifier)
-            self.assertEqual(item['bulk_suggestions'],[])
-            self.assertEqual(item['rows'][0]['decision']['reason'],'Revisar depois')
+            self.assertIsNone(item['rows'][0]['identified'])
+            self.assertEqual(item['rows'][0]['state'],'excluded')
 
-    def test_bulk_review_rolls_back_all_decisions_on_error(self):
+    def test_ambiguous_candidates_stay_pending_with_a_hint(self):
+        identifier=self.stage(workbook([('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
+        for _ in range(2):
+            create(self.db,account_record=self.account,event_type='income',settlement_date='2025-01-02',currency='BRL',amount=10,description='DIVIDENDOS DE CLIENTES TEST3')
+        with connect(self.db) as db: item=xp.detail(db,identifier)
+        self.assertEqual(item['rows'][0]['state'],'pending')
+        self.assertEqual(item['rows'][0]['identification_missing'],['Escolha entre os movimentos existentes'])
+
+    def test_commit_rolls_back_every_line_on_error(self):
         identifier=self.stage(workbook([
             ('2025-01-03','2025-01-03','DIVIDENDOS DE CLIENTES TEST3',20,130),
             ('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
-        with connect(self.db) as db: item=xp.detail(db,identifier)
-        original=xp._validate
-        def fail_second(db,item,row,decision,used):
-            if decision.get('bulk_review_id') and row['row_number']==2: raise ValueError('falha simulada no lote')
-            return original(db,item,row,decision,used)
-        with patch.object(xp,'_validate',side_effect=fail_second):
-            with self.assertRaisesRegex(ValueError,'simulada'):
-                xp.bulk_review(self.db,identifier,[1,2],item['bulk_token'])
+        original=xp._create
+        def fail_second(db,item,row,decision):
+            if row['row_number']==2: raise ValueError('falha simulada na confirmação')
+            return original(db,item,row,decision)
+        with patch.object(xp,'_create',side_effect=fail_second):
+            with self.assertRaisesRegex(ValueError,'simulada'): commit(self.db,identifier)
         with connect(self.db) as db:
-            self.assertEqual(db.execute('select count(*) from ledger.xp_statement_decision').fetchone()[0],0)
-            self.assertEqual(db.execute('select count(*) from ledger.xp_statement_line where decision is not null').fetchone()[0],0)
+            self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0],0)
+            self.assertEqual(db.execute('select count(*) from ledger.xp_statement_claim').fetchone()[0],0)
 
 
     def test_resultado_counterparty_becomes_deposit(self):

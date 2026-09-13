@@ -137,3 +137,107 @@ document.querySelectorAll('form[data-confirm-submit]').forEach(form => {
     if (event.key==='Escape') groups.forEach(group => group.open=false);
   });
 })();
+
+// Forms that reload the page as soon as one of their selects changes.
+document.querySelectorAll('form[data-auto-submit] select').forEach(select => {
+  select.addEventListener('change', () => select.form.submit());
+});
+
+// Individual XP statement review: load the dedicated review view and present it
+// as a modal over the movements table. The full-page route stays as the
+// no-JavaScript fallback, and a failed load navigates there directly.
+(() => {
+  const dialog = document.querySelector('[data-review-dialog]');
+  if (!dialog || typeof dialog.showModal !== 'function' || typeof DOMParser === 'undefined') return;
+  const body = dialog.querySelector('[data-review-body]');
+  let trigger = null;
+  const render = html => {
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const content = parsed.querySelector('#individual-review');
+    if (!content) return false;
+    body.replaceChildren(document.importNode(content, true));
+    // Replacing the body drops focus to the document; bring it back inside the
+    // dialog so Escape and the keyboard navigation keep working.
+    if (dialog.open) dialog.focus();
+    return true;
+  };
+  // After a rejected submit the server re-renders from the stored decision, so
+  // re-apply what the reviewer had typed before showing the error.
+  const restore = data => {
+    const form = body.querySelector('form');
+    if (!form) return;
+    for (const field of form.elements) {
+      if (!field.name) continue;
+      const values = data.getAll(field.name).map(String);
+      if (field.type === 'checkbox' || field.type === 'radio') field.checked = values.includes(field.value) || values.includes('on');
+      else if (field.tagName === 'SELECT' && field.multiple) for (const option of field.options) option.selected = values.includes(option.value);
+      else if (values.length) field.value = values[0];
+    }
+  };
+  const close = () => { if (dialog.open) dialog.close(); };
+  document.addEventListener('click', async event => {
+    const link = event.target.closest('a[data-review-modal]');
+    if (link) {
+      event.preventDefault();
+      trigger = link;
+      body.innerHTML = '<p class="muted">Carregando revisão…</p>';
+      dialog.showModal();
+      try {
+        const response = await fetch(link.href, {headers:{Accept:'text/html'}});
+        if (!response.ok || !render(await response.text())) throw new Error();
+      } catch {
+        close();
+        window.location.assign(link.href);
+      }
+      return;
+    }
+    if (!dialog.open) return;
+    const dismiss = event.target.closest('[data-review-close]');
+    if (dismiss && dialog.contains(dismiss)) { event.preventDefault(); close(); }
+  });
+  dialog.addEventListener('click', event => { if (event.target === dialog) close(); });
+  // Close on Escape from the document: some embedded browsers do not deliver the
+  // native dialog cancel event, and focus can briefly leave the dialog after a
+  // re-render.
+  document.addEventListener('keydown', event => {
+    if (!dialog.open || event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault();
+    close();
+  });
+  dialog.addEventListener('close', () => {
+    body.replaceChildren();
+    if (trigger) { trigger.focus(); trigger = null; }
+  });
+  body.addEventListener('submit', async event => {
+    const form = event.target.closest('form');
+    if (!form) return;
+    event.preventDefault();
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit) submit.disabled = true;
+    // Read the attribute: the form has a control named "action", which would
+    // otherwise shadow the form.action property with that element.
+    const action = form.getAttribute('action');
+    // Include the clicked button: its name/value carries the "Excluir lançamento"
+    // intent, which a plain FormData(form) would drop.
+    const data = event.submitter ? new FormData(form, event.submitter) : new FormData(form);
+    let response;
+    try {
+      response = await fetch(action, {method:'POST', body:data, headers:{Accept:'text/html'}});
+    } catch {
+      // The request never reached the server: fall back to a normal submit.
+      if (submit) submit.disabled = false;
+      form.submit();
+      return;
+    }
+    const url = new URL(response.url, window.location.href);
+    if (url.searchParams.has('review_line')) {
+      // Validation failed server-side: swap in the re-rendered form with errors.
+      if (render(await response.text())) { restore(data); if (submit) submit.disabled = false; }
+      else window.location.assign(url.href);
+      return;
+    }
+    if (!response.ok) { if (submit) submit.disabled = false; return; }
+    if (response.redirected) window.location.assign(url.href);
+    else window.location.reload();
+  });
+})();

@@ -1,6 +1,5 @@
 """Audited XP evidence, account bindings and atomic financial decisions."""
 from decimal import Decimal
-from collections import Counter
 import hashlib
 import json
 import re
@@ -251,7 +250,8 @@ def detail(db, identifier):
     counts = {'new': 0, 'linked': 0, 'pending': 0, 'divergent': 0, 'excluded': 0}
     # Review state per row: ready = resolved, pending = still needs information,
     # excluded = the reviewer dropped the line from the load.
-    states = {'ready': 0, 'pending': 0, 'excluded': 0}
+    states = {state: 0 for state in REVIEW_STATES}
+    reserved = set()
     for row in item['rows']:
         row['candidates'] = [dict(e, label=f"{e['origin']} · {e['description']} · {e['amount']} · Liquidação {e['settlement_date']}") for e in available
                              if _dates_match(e, row)]
@@ -269,18 +269,26 @@ def detail(db, identifier):
                             row['decision']['action'] if row['decision'] else 'pending')
         if row['situation'] == 'link': row['situation'] = 'linked'
         counts[row['situation']] += 1
-        action = (row['decision'] or {}).get('action')
+        # The reviewer's decision wins. Without one, the system identifies what
+        # the statement and the ledger allow, and leaves a hint when the data is
+        # not enough to record the line.
+        decision = row['decision']
+        if decision:
+            row['identified'], row['identification_missing'], complete = None, [], False
+            reserved.update(decision.get('entry_ids') or [])
+        else:
+            row['identified'], row['identification_missing'], complete = _identify(db, item, row, available, apps, reserved)
+            if complete:
+                reserved.update(row['identified'].get('entry_ids') or [])
+        effective = decision or row['identified']
+        row['effective_application'] = (effective or {}).get('application_record') or ''
+        row['effective_quantity'] = (effective or {}).get('quantity')
+        row['effective_application_name'] = next(
+            (a['name'] for a in apps if a['source_record_id'] == row['effective_application']), '')
+        action = (effective or {}).get('action')
         row['state'] = ('excluded' if action == 'excluded' else
-                        'ready' if action in ('new', 'link') and not row['errors'] else 'pending')
+                        'ready' if action in ('new', 'link') and not row['errors'] and bool(decision or complete) else 'pending')
         states[row['state']] += 1
-    item['bulk_suggestions'], item['bulk_token'] = _bulk_suggestions(db, item, available, apps)
-    bulk_dict = {s['row_number']: s for s in item['bulk_suggestions']}
-    for row in item['rows']:
-        row['bulk_suggestion'] = bulk_dict.get(row['row_number'])
-    item['bulk_new_count'] = sum(s['decision']['action'] == 'new' and not s['needs_input'] for s in item['bulk_suggestions'])
-    item['bulk_link_count'] = sum(s['decision']['action'] == 'link' for s in item['bulk_suggestions'])
-    item['bulk_input_count'] = sum(s['needs_input'] for s in item['bulk_suggestions'])
-    item['bulk_applications'] = apps
     item['created_count'] = db.execute("select count(*) from ledger.audit_log where entity_type='manual_event' and action='create' and json_extract_string(payload,'$.import_id')=?", [identifier]).fetchone()[0]
     item['counts'] = counts
     item['states'] = states
@@ -294,9 +302,42 @@ def detail(db, identifier):
         metadata[f'ledger_{boundary}'] = str(value)
         metadata[f'{boundary}_difference'] = str(Decimal(metadata[f'{boundary}_balance']) - value) if metadata.get(f'{boundary}_balance') else None
     item['can_confirm'] = not metadata['errors'] and states['pending'] == 0 and item['status'] == 'preview'
+    # The save button is only usable while there is something ready to record.
+    item['can_commit'] = not metadata['errors'] and states['ready'] > 0 and item['status'] == 'preview'
     item['redemption_lines'] = [r for r in item['rows'] if r['category'] == 'redemption']
     item['transfer_accounts'] = [a for a in accounts(db) if a['source_record_id'] != item['account_record']]
+    item['category_options'] = CATEGORY_OPTIONS
     return item
+
+
+# Statement categories and the ledger event each one produces. The reviewer can
+# replace the extracted category, and the event type follows from it.
+CATEGORY_EVENT = {
+    'jcp': 'income', 'dividend': 'income', 'income': 'income',
+    'transfer': 'transfer', 'redemption_tax': 'tax',
+    'redemption': 'redemption', 'pension': 'buy',
+}
+# Review states of a statement line, in the order the reviewer sees them.
+REVIEW_STATES = ('ready', 'pending', 'excluded')
+CATEGORY_OPTIONS = (
+    ('jcp', 'JCP'),
+    ('dividend', 'Dividendo'),
+    ('income', 'Rendimento'),
+    ('transfer', 'Transferência / movimentação'),
+    ('redemption_tax', 'IRRF sobre resgate'),
+    ('redemption', 'Resgate'),
+    ('pension', 'Previdência (aplicação)'),
+)
+# Wording of the ledger entry each event type produces, shown before confirming.
+EVENT_LABELS = {
+    'income': 'Provento / rendimento',
+    'transfer': 'Transferência entre contas próprias',
+    'deposit': 'Aporte externo',
+    'withdrawal': 'Retirada externa',
+    'tax': 'Imposto do resgate',
+    'redemption': 'Resgate documentado',
+    'buy': 'Aplicação em previdência documentada',
+}
 
 
 def _validate(db, item, row, decision, used):
@@ -329,7 +370,7 @@ def _validate(db, item, row, decision, used):
         return
     if decision['action'] != 'new':
         raise ValueError('Decisão pendente')
-    kind = row['category']
+    kind = decision.get('category') or row['category']
     allowed = {'jcp': {'income'}, 'dividend': {'income'}, 'income': {'income'},
                'transfer': {'deposit','withdrawal','transfer'}, 'redemption_tax': {'tax'},
                'redemption': {'redemption'}, 'pension': {'buy'}}
@@ -395,128 +436,98 @@ def _validate(db, item, row, decision, used):
                 raise ValueError('Extrato sobreposto contém lançamento semelhante ou alterado; revise e justifique ocorrência distinta')
 
 
-def _bulk_suggestions(db, item, available=None, apps=None):
-    """Only unreviewed, unambiguous decisions; never infer transfer destinations."""
-    if item['status'] != 'preview' or item['document_metadata']['errors']:
-        return [], ''
-    available = entries(db, item['account_record']) if available is None else available
-    apps = applications(db, item['account_record']) if apps is None else apps
-    reserved = {entry for row in item['rows'] for entry in (row.get('decision') or {}).get('entry_ids', [])}
-    proposals = []
-    for row in item['rows']:
-        if row['errors'] or row.get('decision'):
-            continue
-        if db.execute('select 1 from ledger.xp_statement_claim where account_record=? and fingerprint=?',
-                      [item['account_record'], row['fingerprint']]).fetchone():
-            continue
-        dated = [e for e in available if _dates_match(e, row)]
-        candidates = [e for e in dated if e['amount'] == Decimal(row['amount'])]
-        exact = [e for e in candidates if plain(e['description']) == plain(row['description'])]
-        decision = None
-        label = ''
-        needs_input = False
-        if len(candidates) == 1 and len(exact) == 1 and exact[0]['entry_id'] not in reserved and str(exact[0]['settlement_date']) == row['settlement_date']:
-            decision = {'action': 'link', 'entry_ids': [exact[0]['entry_id']],
-                        'reason': 'Revisão em lote: mesma conta, liquidação, valor e descrição'}
-            label = 'Vincular ao registro existente'
-        else:
-            app_id, match_method = identify_application(row, apps)
-            app_name = next((a['name'] for a in apps if a['source_record_id'] == app_id), '') if app_id else ''
-            category_event = {
-                'jcp': 'income', 'dividend': 'income', 'income': 'income',
-                'redemption_tax': 'tax',
-            }
-            if not candidates and app_id and row['category'] in category_event:
-                event_type = category_event[row['category']]
-                decision = {
-                    'action': 'new', 'event_type': event_type,
-                    'application_record': app_id, 'reviewed_entries': [],
-                    'match_method': match_method,
-                    'reason': f'Revisão em lote: {match_method}, sem candidato de mesma data e valor',
-                }
-                if row['category'] == 'redemption_tax':
-                    same_date = [r for r in item['rows']
-                                 if r['category'] == 'redemption'
-                                 and r.get('settlement_date') == row.get('settlement_date')]
-                    if len(same_date) == 1:
-                        decision['related_line'] = same_date[0]['row_number']
-                label = f"Novo provento · {app_name}" if event_type == 'income' else f"Novo imposto · {app_name}"
-            elif not dated and row['category'] in {'transfer', 'redemption', 'redemption_tax', 'pension', 'income', 'jcp', 'dividend'}:
-                base_decision = {
-                    'action': 'new', 'reviewed_entries': [],
-                    'reason': 'Revisão em lote: novo lançamento sem movimento nas datas de movimentação ou liquidação',
-                }
-                if app_id:
-                    base_decision['application_record'] = app_id
-                    base_decision['match_method'] = match_method
-                decision = base_decision
-                needs_input = True
-                label = (f'Novo lançamento · {app_name} — completar dados' if app_name
-                         else 'Novo lançamento — completar dados')
-        if decision is None:
-            continue
-        if not needs_input:
-            try:
-                _validate(db, item, row, decision, set(reserved))
-            except ValueError:
-                continue
-        proposals.append({'row_number': row['row_number'], 'source_locator': row['source_locator'],
-                          'description': row['description'], 'settlement_date': row['settlement_date'],
-                          'amount': row['amount'], 'label': label, 'decision': decision,
-                          'category': row['category'], 'needs_input': needs_input,
-                          'application_name': next((a['name'] for a in apps
-                                                    if a['source_record_id'] == decision.get('application_record')), '')})
-    usage = Counter(entry for proposal in proposals for entry in proposal['decision'].get('entry_ids', []))
-    proposals = [p for p in proposals if all(usage[e] == 1 for e in p['decision'].get('entry_ids', []))]
-    token = hashlib.sha256(json.dumps(proposals, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-    return proposals, token
+def _apply_category(decision):
+    """Fill the event type (and the fixed counterparty) from the chosen category.
+
+    Returns False when the category has no ledger event of its own.
+    """
+    event_type = CATEGORY_EVENT.get(decision.get('category'))
+    if not event_type:
+        return False
+    decision['event_type'] = event_type
+    # The counterparty of every movement is the result account; portability is
+    # handled outside this review.
+    if event_type == 'transfer' and not decision.get('counterparty'):
+        decision['counterparty'] = 'RESULTADO'
+    return True
 
 
-def bulk_review(database, identifier, line_numbers, token, configurations=None):
-    """Atomically accept the displayed suggestions, without creating ledger events."""
-    try:
-        selected = {int(value) for value in line_numbers}
-    except (ValueError, TypeError):
-        raise ValueError('Seleção de linhas inválida') from None
-    if not selected:
-        raise ValueError('Selecione ao menos uma sugestão')
-    with connect(Path(database).resolve(strict=True)) as db:
-        migrate(db)
-        db.execute('BEGIN')
+# Short wording for the validations that are not a simple missing field.
+MISSING_LABELS = {
+    'Sinal incompatível com o tipo escolhido': 'Tipo do lançamento',
+    'Ativo selecionado diverge do provento': 'Aplicação',
+    'Documento complementar não pertence ao lote': 'Documento complementar',
+    'Quantidade só se aplica a resgate/previdência': 'Quantidade',
+    'Vincule o imposto à linha de resgate na mesma data': 'Resgate relacionado',
+    'Há movimentos de mesma data e valor. Vincule-os ou confirme que esta é uma ocorrência distinta': 'Confirmação de ocorrência distinta',
+    'Extrato sobreposto contém lançamento semelhante ou alterado; revise e justifique ocorrência distinta': 'Confirmação de ocorrência distinta',
+    'Selecione movimentos existentes válidos desta conta': 'Vínculo com movimento existente',
+    'Movimentos selecionados não correspondem à movimentação ou liquidação': 'Vínculo com movimento existente',
+    'A soma dos movimentos selecionados difere do valor do extrato': 'Vínculo com movimento existente',
+}
+
+
+def _missing_items(decision):
+    """Which items still have to be informed before the line can be recorded."""
+    event_type = CATEGORY_EVENT.get(decision.get('category'))
+    if not event_type:
+        return ['Categoria']
+    missing = []
+    if event_type in ('income', 'tax', 'redemption', 'buy') and not decision.get('application_record'):
+        missing.append('Aplicação')
+    if event_type in ('buy', 'redemption') and not decision.get('quantity'):
+        missing.append('Quantidade')
+    if event_type in ('buy', 'redemption') and not decision.get('document_id'):
+        missing.append('Documento complementar')
+    if event_type == 'tax' and not decision.get('related_line'):
+        missing.append('Resgate relacionado')
+    return missing
+
+
+def _identify(db, item, row, available, apps, reserved):
+    """Ledger decision offered for one line, from the statement and the database.
+
+    Returns (decision, missing, complete). A complete decision can be recorded
+    as it is, so the line is ready; otherwise the decision is None and `missing`
+    lists, in the reviewer's words, what still has to be provided.
+    """
+    if row['errors']:
+        return None, ['Erro de leitura da linha'], False
+    dated = [e for e in available if _dates_match(e, row)]
+    candidates = [e for e in dated if e['amount'] == Decimal(row['amount'])]
+    exact = [e for e in candidates if plain(e['description']) == plain(row['description'])]
+    if (len(candidates) == 1 and len(exact) == 1 and exact[0]['entry_id'] not in reserved
+            and str(exact[0]['settlement_date']) == row['settlement_date']):
+        decision = {'action': 'link', 'category': row['category'], 'entry_ids': [exact[0]['entry_id']],
+                    'reviewed_entries': [],
+                    'reason': 'Identificação automática: mesma conta, liquidação, valor e descrição'}
         try:
-            item = _load(db, identifier, True)
-            proposals, current_token = _bulk_suggestions(db, item)
-            if not token or token != current_token:
-                raise ValueError('As sugestões mudaram. Recarregue a prévia e confira o lote novamente')
-            by_line = {p['row_number']: p for p in proposals}
-            if not selected.issubset(by_line):
-                raise ValueError('Há linhas sem sugestão válida na seleção')
-            used = {entry for row in item['rows'] for entry in (row.get('decision') or {}).get('entry_ids', [])}
-            batch_key = uuid4().hex
-            for row in item['rows']:
-                if row['row_number'] not in selected:
-                    continue
-                proposal = by_line[row['row_number']]
-                decision = dict(proposal['decision'], bulk_review_id=batch_key)
-                if proposal['needs_input']:
-                    values = (configurations or {}).get(str(row['row_number']), {})
-                    for field in ('event_type','application_record','counterparty','quantity','document_id','related_line'):
-                        decision[field] = values.get(field) or None
-                    reason = str(values.get('reason') or '').strip()
-                    if not reason or len(reason) > 500:
-                        raise ValueError(f"Linha {row['source_locator']['row']}: informe a classificação/contraparte na justificativa")
-                    decision['reason'] += ': ' + reason
-                _validate(db, item, row, decision, used)
-                payload = json.dumps(decision)
-                db.execute('update ledger.xp_statement_line set decision=? where import_id=? and line_number=?',
-                           [payload, identifier, row['row_number']])
-                db.execute('insert into ledger.xp_statement_decision(decision_id,import_id,line_number,payload) values (?,?,?,?)',
-                           [uuid4().hex, identifier, row['row_number'], payload])
-            db.execute('COMMIT')
-            return len(selected)
-        except Exception:
-            db.execute('ROLLBACK')
-            raise
+            _validate(db, item, row, decision, set(reserved))
+        except ValueError as exc:
+            return None, [MISSING_LABELS.get(str(exc), str(exc))], False
+        return decision, [], True
+    if candidates:
+        return None, ['Escolha entre os movimentos existentes'], False
+    app_id, match_method = identify_application(row, apps)
+    decision = {'action': 'new', 'category': row['category'], 'reviewed_entries': [],
+                'reason': f'Identificação automática: {match_method}' if match_method else 'Identificação automática'}
+    if app_id:
+        decision['application_record'] = app_id
+        decision['match_method'] = match_method
+    _apply_category(decision)
+    if row['category'] == 'redemption_tax':
+        same_date = [r for r in item['rows'] if r['category'] == 'redemption'
+                     and r.get('settlement_date') == row.get('settlement_date')]
+        if len(same_date) == 1:
+            decision['related_line'] = same_date[0]['row_number']
+    missing = _missing_items(decision)
+    if missing:
+        return None, missing, False
+    try:
+        _validate(db, item, row, decision, set(reserved))
+    except ValueError as exc:
+        return None, [MISSING_LABELS.get(str(exc), str(exc))], False
+    return decision, [], True
 
 
 def review(database, identifier, line_number, decision):
@@ -530,6 +541,8 @@ def review(database, identifier, line_number, decision):
             item = _load(db, identifier, True)
             row = next((r for r in item['rows'] if r['row_number'] == line_number), None)
             if not row: raise ValueError('Linha desconhecida')
+            if decision.get('category') and not _apply_category(decision):
+                raise ValueError('Categoria inválida para lançamento novo')
             decision['reviewed_entries'] = sorted(e['entry_id'] for e in entries(db,item['account_record']) if _dates_match(e, row) and e['amount'] == Decimal(row.get('amount','0')))
             if decision['action'] != 'pending': _validate(db, item, row, decision, set())
             payload = json.dumps(decision)
@@ -610,6 +623,8 @@ def commit(database, identifier):
             if not binding or binding[0] != item['account_record'] or plain(binding[1]) != plain(item['document_metadata']['holder']) or not set(plain(selected['holder']).split()).issubset(set(plain(binding[1]).split())):
                 raise ValueError('Associação de conta/titular mudou; revise o cadastro')
             used = set()
+            available = entries(db, item['account_record'])
+            apps = applications(db, item['account_record'])
             prepared = []
             for row in item['rows']:
                 claim = db.execute('select import_id,line_number from ledger.xp_statement_claim where account_record=? and fingerprint=?',
@@ -618,6 +633,12 @@ def commit(database, identifier):
                 if claim:
                     ids = [r[0] for r in db.execute('select entry_id from ledger.xp_statement_link where import_id=? and line_number=?', claim).fetchall()]
                     decision = {'action': 'link', 'entry_ids': ids, 'reason': 'Mesma linha em extrato já confirmado'}
+                elif not decision:
+                    # Nothing was decided by hand: record the same identification
+                    # the review screen presented, when it is complete.
+                    decision, _hint, complete = _identify(db, item, row, available, apps, used)
+                    if not complete:
+                        decision = None
                 if not decision: raise ValueError('Resolva todas as linhas antes de confirmar lançamentos')
                 _validate(db, item, row, decision, used)
                 prepared.append((row, decision, claim))

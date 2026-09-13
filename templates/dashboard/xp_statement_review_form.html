@@ -1,0 +1,64 @@
+{% load fin2_format %}
+<div id="individual-review">
+    {% if import_error %}<div class="note">{{ import_error }}</div>{% endif %}
+    {% for r in selected_import.rows %}
+        <div class="section-title">
+            <h3>Revisão da Linha {{ r.source_locator.row }}</h3>
+        </div>
+
+        <form method="post" action="{% url 'xp-statement-update' selected_import.import_id %}" class="panel">{% csrf_token %}
+        <input type="hidden" name="line_number" value="{{ r.row_number }}">
+        <input type="hidden" name="return_page" value="{{ request.GET.page }}">
+        <input type="hidden" name="q" value="{{ request.GET.q }}"><input type="hidden" name="sort" value="{{ request.GET.sort }}"><input type="hidden" name="dir" value="{{ request.GET.dir }}">
+        <input type="hidden" name="situacao" value="{{ request.GET.situacao|default:'' }}">
+        <input type="hidden" name="por_pagina" value="{{ request.GET.por_pagina|default:'' }}">
+        <!-- A contraparte é sempre a conta de resultado; portabilidade é tratada em separado. -->
+        <input type="hidden" name="counterparty" value="RESULTADO">
+
+        <p><strong>Descrição:</strong> {{ r.description }}<br>
+           <strong>Categoria sugerida:</strong> {{ r.category }}<br>
+           <strong>Data Mov.:</strong> {{ r.trade_date|short_date }} · <strong>Liq.:</strong> {{ r.settlement_date|short_date }}<br>
+           <strong>Valor:</strong> {{ r.amount|money:'BRL' }}
+        </p>
+        {% for error in r.errors %}<p class="note">{{ error }}</p>{% endfor %}
+        {% if r.decision %}<p>Decisão atual: {{ r.decision.reason }}</p>{% endif %}
+
+        <div class="review-form-grid">
+            {% if r.candidates %}
+            <label>Movimentos nas datas (múltipla escolha)</label>
+            <div><select name="entry_ids" multiple size="4">{% for e in r.candidates %}<option value="{{ e.entry_id }}" {% if e.entry_id in r.decision.entry_ids %}selected{% endif %}>{% if e.entry_id in r.suggested_ids %}Mesmo valor · {% endif %}{{ e.label }}</option>{% endfor %}</select></div>
+            {% endif %}
+
+            <label>Categoria</label>
+            <div><select name="category">{% for value, label in selected_import.category_options %}<option value="{{ value }}" {% if value == r.decision.category|default:r.category %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+
+            <label>Aplicação</label>
+            <div>
+            {% if r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}
+            </div>
+
+            <label>Resgate relacionado ao imposto</label>
+            <div><select name="related_line"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date|short_date }}</option>{% endfor %}</select></div>
+
+            <label>Quantidade comprovada</label>
+            <div><input name="quantity" value="{{ r.decision.quantity|default:'' }}"></div>
+
+            <label>Documento complementar</label>
+            <div><select name="document_id"><option value="">Selecione</option>{% for d in supporting_documents %}<option value="{{ d.document_id }}" {% if d.document_id == r.decision.document_id %}selected{% endif %}>{{ d.original_filename }}</option>{% endfor %}</select></div>
+
+            <div class="full-row">
+                <label class="inline-check"><input type="checkbox" name="distinct_confirmed" {% if r.decision.distinct_confirmed %}checked{% endif %}> Conferi os movimentos semelhantes; esta é uma ocorrência distinta</label>
+            </div>
+
+            <label>Observação</label>
+            <div><input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}" required></div>
+        </div>
+
+        <div class="review-form-actions" id="review-form-actions">
+            <a class="button review-cancel" data-review-close href="{% url 'xp-statement-review' selected_import.import_id %}?q={{ request.GET.q|urlencode }}&amp;sort={{ request.GET.sort|urlencode }}&amp;dir={{ request.GET.dir|urlencode }}&amp;situacao={{ request.GET.situacao|urlencode }}&amp;por_pagina={{ request.GET.por_pagina|urlencode }}&amp;page={{ request.GET.page|urlencode }}">Cancelar</a>
+            <button type="submit" class="review-exclude" name="action" value="excluded">Excluir lançamento</button>
+            <button type="submit" class="review-save">Salvar revisão</button>
+        </div>
+        </form>
+    {% endfor %}
+</div>
