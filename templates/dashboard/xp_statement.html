@@ -81,10 +81,6 @@
 </tbody></table></div>
 <p>Créditos: {{ selected_import.document_metadata.credits|money:'BRL' }} · Débitos: {{ selected_import.document_metadata.debits|money:'BRL' }} · Quebras na sequência: {{ selected_import.document_metadata.balance_breaks|default:0 }}. O saldo projetado da consulta não integra esta conciliação.</p>
 {% endif %}
-
-{% if not request.GET.review_line and wizard_step != 4 %}
-<details><summary>Histórico de revisões</summary>{% for h in selected_import.decision_history %}<p>{{ h.created_at }} · Linha {{ h.line_number }} · {{ h.payload.action }} · {{ h.payload.reason }}</p>{% empty %}<p>Nenhuma revisão registrada.</p>{% endfor %}</details>
-{% endif %}
 </section>
 
 {% endif %}

@@ -499,6 +499,9 @@ main:has(.account-detail-header){padding-block:12px 16px}
 /* Single-line revision form (wizard step 3). */
 .review-form-grid{display:grid;grid-template-columns:minmax(200px,1fr) 2fr;gap:10px 20px;align-items:center;margin-bottom:15px}
 .review-form-grid select,.review-form-grid input{width:100%}
+.review-history{margin-top:14px}
+.review-history h4{margin:0 0 8px}
+.review-history p{margin:4px 0;font-size:12px}
 .review-form-grid .full-row{grid-column:1/-1}
 .review-form-grid label.inline-check{display:flex;gap:8px;align-items:center}
 .button-commit{font-size:1.1em;padding:10px 20px;margin-top:14px}

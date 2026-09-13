@@ -293,8 +293,14 @@ def detail(db, identifier):
     item['counts'] = counts
     item['states'] = states
     item['decision_history'] = records(db, 'select line_number,payload,created_at from ledger.xp_statement_decision where import_id=? order by created_at desc', [identifier])
+    history_by_line = {}
     for history in item['decision_history']:
         history['payload'] = json.loads(history['payload'])
+        history['action_label'] = ACTION_LABELS.get(history['payload'].get('action'), history['payload'].get('action') or '')
+        history_by_line.setdefault(history['line_number'], []).append(history)
+    # Each row carries only its own revisions; the modal shows them expanded.
+    for row in item['rows']:
+        row['history'] = history_by_line.get(row['row_number'], [])
     metadata = item['document_metadata']
     for boundary, operator, date in (('opening', '<', metadata['period_start']), ('closing', '<=', metadata['period_end'])):
         value = db.execute(f'''select coalesce(sum(amount),0) from ledger.investment_cash_entry
@@ -319,6 +325,13 @@ CATEGORY_EVENT = {
 }
 # Review states of a statement line, in the order the reviewer sees them.
 REVIEW_STATES = ('ready', 'pending', 'excluded')
+# Reviewer actions, as shown in the revision history of a line.
+ACTION_LABELS = {
+    'new': 'Lançamento novo',
+    'link': 'Vínculo a movimento existente',
+    'excluded': 'Excluído do ledger',
+    'pending': 'Pendente',
+}
 CATEGORY_OPTIONS = (
     ('jcp', 'JCP'),
     ('dividend', 'Dividendo'),

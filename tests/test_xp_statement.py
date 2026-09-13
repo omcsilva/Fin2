@@ -391,6 +391,43 @@ class XPFlowTests(unittest.TestCase):
             self.assertIn('DIVIDENDOS DE CLIENTES TEST3 S/ 100', html)
             self.assertNotIn('Histórico de revisões', html)
 
+    def test_review_history_is_shown_expanded_in_the_line_modal(self):
+        identifier = self.stage(workbook([
+            ('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3 S/ 100',10,110),
+            ('2025-01-03','2025-01-03','MOVIMENTO SEM DOCUMENTO DE SUPORTE',5,115)]))
+        xp.document(self.db, identifier)
+        xp.review(self.db, identifier, 1, self.decision())
+        xp.review(self.db, identifier, 2, {'action':'excluded','reason':'Linha sem documento de suporte'})
+        with connect(self.db) as db:
+            detail = xp.detail(db, identifier)
+        by_line = {row['row_number']: row for row in detail['rows']}
+        # Each row keeps only its own revisions, with a readable action label.
+        self.assertEqual([h['payload']['action'] for h in by_line[1]['history']], ['new'])
+        self.assertEqual([h['payload']['action'] for h in by_line[2]['history']], ['excluded'])
+        self.assertEqual(by_line[1]['history'][0]['action_label'], 'Lançamento novo')
+        self.assertEqual(by_line[2]['history'][0]['action_label'], 'Excluído do ledger')
+        # The history of the whole import stays available for other consumers.
+        self.assertEqual(len(detail['decision_history']), 2)
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            # The modal shows the line's own history expanded, below the form.
+            focused = client.get(reverse('xp-statement-review', args=[identifier]),
+                                 {'review_line': '2'}).content.decode()
+            self.assertIn('Histórico de revisões', focused)
+            self.assertIn('Excluído do ledger', focused)
+            self.assertIn('Linha sem documento de suporte', focused)
+            self.assertNotIn('<summary>Histórico de revisões</summary>', focused)
+            # The list page no longer carries the history block.
+            listing = client.get(reverse('xp-statement-review', args=[identifier])).content.decode()
+            self.assertNotIn('Histórico de revisões', listing)
+
     def test_overlap_check_survives_the_concluded_load(self):
         first = self.stage(workbook([('2025-01-02','2025-01-02','DIVIDENDOS DE CLIENTES TEST3',10,110)]))
         xp.review(self.db, first, 1, self.decision())
