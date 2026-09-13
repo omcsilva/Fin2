@@ -123,9 +123,9 @@ def update(request, identifier):
                 'reason': request.POST.get('reason', ''),
                 'entry_ids': entry_ids,
                 'category': request.POST.get('category') or None,
-                # "Alterar sugestão" replaces the identified application.
+                # "Alterar sugestão" replaces the identified application; an
+                # unknown override is refused by the reconciliation validation.
                 'application_record': request.POST.get('application_record_override') or request.POST.get('application_record') or None,
-                'application_record': request.POST.get('application_record') or None,
                 'counterparty': request.POST.get('counterparty') or None,
                 'quantity': request.POST.get('quantity') or None,
                 'related_line': request.POST.get('related_line') or None,

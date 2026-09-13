@@ -233,15 +233,31 @@ class XPFlowTests(unittest.TestCase):
             self.assertEqual(payload['action'], 'new')
             self.assertEqual(payload['category'], 'dividend')
             self.assertEqual(payload['event_type'], 'income')
-            # "Alterar sugestão" replaces the identified application: an unknown
-            # override is refused even though the suggestion itself is valid.
-            client.post(url, {'line_number': '1', 'reason': 'Provento conferido',
+            # "Alterar sugestão" replaces the identified application. An unknown
+            # override is refused, so the stored decision keeps the suggestion.
+            refused = client.post(url, {'line_number': '1', 'reason': 'Provento conferido',
                               'category': 'dividend', 'application_record': self.application,
                               'application_record_override': 'inexistente'})
+            self.assertEqual(refused.status_code, 302)
+            self.assertIn('error=', refused.url)
             with connect(self.db) as db:
                 payload = json.loads(db.execute('select decision from ledger.xp_statement_line'
                                                 ' where import_id=? and line_number=1', [identifier]).fetchone()[0])
             self.assertEqual(payload['application_record'], self.application)
+            # A valid override from the same account does replace the suggestion.
+            with connect(self.db) as db:
+                legacy = db.execute('select legacy_id from portfolio.account where source_record_id=?',
+                                    [self.account]).fetchone()[0]
+                db.execute("insert into source_record values (?,?,'db.sqlite3','fin1_aplicacao',2,?)",
+                           ['application2', self.batch,
+                            json.dumps({'nome': 'Teste 2', 'conta_id': legacy, 'ativo_id': 1})])
+            client.post(url, {'line_number': '1', 'reason': 'Provento conferido',
+                              'category': 'dividend', 'application_record': self.application,
+                              'application_record_override': 'application2'})
+            with connect(self.db) as db:
+                payload = json.loads(db.execute('select decision from ledger.xp_statement_line'
+                                                ' where import_id=? and line_number=1', [identifier]).fetchone()[0])
+            self.assertEqual(payload['application_record'], 'application2')
             # The dedicated button excludes the line without touching other fields.
             client.post(url, {'line_number': '1', 'action': 'excluded', 'reason': 'Duplicado no extrato'})
             with connect(self.db) as db:
