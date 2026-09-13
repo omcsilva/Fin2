@@ -21,7 +21,6 @@
         <label>Situação<select name="situacao"><option value="">Todos</option><option value="ready" {% if request.GET.situacao == 'ready' %}selected{% endif %}>Prontos</option><option value="pending" {% if request.GET.situacao == 'pending' %}selected{% endif %}>Pendentes</option><option value="excluded" {% if request.GET.situacao == 'excluded' %}selected{% endif %}>Excluídos</option></select></label>
         <button type="submit">Pesquisar</button><a href="{% url 'xp-statement-review' selected_import.import_id %}">Limpar</a>
         </form>
-        <p>{{ selected_import.page.paginator.count }} movimentos encontrados</p>
 
         <div class="table-wrap" data-table="xp-review"><table id="xp-review-table"><thead><tr><th><div class="t"></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="line">L.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="trade_date">DT. MOV.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="settlement_date">DT. LIQ.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="description">Lançamento</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_application">Aplicação</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="table_quantity">Qtde</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="amount">Valor</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="balance">Saldo</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_situation">SIT.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_detail">Detalhe</button></div></th></tr></thead><tbody>
         {% for r in selected_import.rows %}<tr class="row-{{ r.state }}">
@@ -45,6 +44,7 @@
         </tbody></table></div>
 
         <div class="table-pager">
+            <p class="pager-count">{{ selected_import.page.paginator.count }} movimentos encontrados</p>
             <form method="get" class="pager-size" data-auto-submit>
                 <input type="hidden" name="q" value="{{ selected_import.table_term }}"><input type="hidden" name="sort" value="{{ selected_import.table_sort }}"><input type="hidden" name="dir" value="{{ selected_import.table_direction }}"><input type="hidden" name="situacao" value="{{ request.GET.situacao|default:'' }}">
                 <label>Mostrar<select name="por_pagina">{% for value, label in selected_import.page_sizes %}<option value="{{ value }}" {% if value == selected_import.page_size %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>por página</label>
@@ -74,7 +74,7 @@
     </tbody></table></div>
 {% endif %}
 
-{% if wizard_step == 3 or wizard_step == 4 %}
+{% if wizard_step == 4 %}
 <div class="table-wrap"><table class="table-fixed reconciliation-table"><thead><tr><th>Conciliação</th><th class="number">Extrato</th><th class="number">Fin2</th><th class="number">Diferença</th></tr></thead><tbody>
 <tr><td>Saldo inicial (inferido)</td><td class="number">{{ selected_import.document_metadata.opening_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_opening|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.opening_difference|money:'BRL' }}</td></tr>
 <tr><td>Saldo final</td><td class="number">{{ selected_import.document_metadata.closing_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_closing|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.closing_difference|money:'BRL' }}</td></tr>
