@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../Fin2-private/development"
 		}
 	],
 	"settings": {}
