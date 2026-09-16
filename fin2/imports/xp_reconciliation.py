@@ -226,6 +226,8 @@ def stage(database, storage_root, filename, body, media_type, options):
             db.execute('''insert into source_document(document_id,batch_id,source_path,original_filename,sha256,byte_size,storage_key)
               values (?,?,?,?,?,?,?)''', [document_id, selected['batch_id'], f'FIN2/imports/{digest}/{Path(filename).name}',
                                         Path(filename).name, digest, len(body), target.relative_to(root).as_posix()])
+            db.execute('insert into document_record_link(document_id,record_id,relation) values (?,?,?)',
+                       [document_id, selected['source_record_id'], 'account_statement'])
             db.execute('''insert into ledger.file_import(import_id,sha256,original_filename,storage_key,media_type,status,
               row_count,error_count,preview,byte_size,adapter_id,adapter_version,document_type,detection_confidence,batch_id,document_id,document_metadata)
               values (?,?,?,?,?,'preview',?,?,?,?,'xp-account-statement','1','account_statement',99,?,?,?)''',
@@ -413,12 +415,13 @@ def _validate(db, item, row, decision, used):
             raise ValueError('Documento complementar não pertence ao lote')
     if event_type in {'deposit','withdrawal','transfer'} and decision.get('application_record'):
         decision['application_record'] = None
-    if event_type in {'buy','redemption'}:
+    if event_type in {'buy', 'redemption'} and decision.get('quantity'):
         try:
             qty = Decimal(str(decision.get('quantity', '')))
             if not qty.is_finite() or qty <= 0: raise ValueError()
         except Exception:
             raise ValueError('Informe quantidade positiva comprovada') from None
+    if event_type in {'buy', 'redemption'} and decision.get('document_id'):
         document = db.execute('select batch_id from source_document where document_id=?', [decision.get('document_id')]).fetchone()
         if not document or document[0] != item['batch_id'] or decision['document_id'] == item['document_id']:
             raise ValueError('Selecione documento complementar deste lote que comprove produto e quantidade')
@@ -488,10 +491,6 @@ def _missing_items(decision):
     missing = []
     if event_type in ('income', 'tax', 'redemption', 'buy') and not decision.get('application_record'):
         missing.append('Aplicação')
-    if event_type in ('buy', 'redemption') and not decision.get('quantity'):
-        missing.append('Quantidade')
-    if event_type in ('buy', 'redemption') and not decision.get('document_id'):
-        missing.append('Documento complementar')
     if event_type == 'tax' and not decision.get('related_line'):
         missing.append('Resgate relacionado')
     return missing
@@ -545,7 +544,7 @@ def _identify(db, item, row, available, apps, reserved):
 
 def review(database, identifier, line_number, decision):
     reason = str(decision.get('reason', '')).strip()
-    if not reason or len(reason) > 500:
+    if len(reason) > 500:
         raise ValueError('Informe justificativa de até 500 caracteres')
     with connect(Path(database).resolve(strict=True)) as db:
         migrate(db)
@@ -615,12 +614,11 @@ def _create(db, item, row, decision):
                                              kind, row['trade_date'], row['settlement_date'], 'BRL', decision.get('quantity') or None,
                                              value, row['description'], transfer_id])
         if kind == 'buy':
-            db.execute("insert into ledger.purchase_funding values (?,'investment_balance')", [event_id])
-        for doc in {item['document_id'], decision.get('document_id')} - {None, ''}:
-            db.execute('insert into ledger.manual_event_document(event_id,document_id) values (?,?)', [event_id, doc])
+            db.execute(
+                "insert into ledger.purchase_funding values (?,'investment_balance')", [event_id])
         db.execute("insert into ledger.audit_log(audit_id,entity_type,entity_id,action,payload) values (?,'manual_event',?,'create',?)",
                    [uuid4().hex, event_id, json.dumps({'import_id': item['import_id'], 'line_number': row['row_number'], 'decision': decision, 'subtype': row['category']})])
-    return [primary], len(events)
+    return [event_id for event_id, _account_id, _kind, _value in events], len(events)
 
 
 def commit(database, identifier):

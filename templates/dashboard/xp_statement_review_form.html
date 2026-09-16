@@ -34,7 +34,7 @@
 
             <label>Aplicação</label>
             <div>
-            {% if r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}
+            {% if r.decision.application_record %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.decision.application_record %}selected{% endif %}>{{ a.name }}</option>{% endfor %}</select>{% elif r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}
             </div>
 
             <label>Resgate relacionado ao imposto</label>
@@ -43,15 +43,12 @@
             <label>Quantidade comprovada</label>
             <div><input name="quantity" value="{{ r.decision.quantity|default:'' }}"></div>
 
-            <label>Documento complementar</label>
-            <div><select name="document_id"><option value="">Selecione</option>{% for d in supporting_documents %}<option value="{{ d.document_id }}" {% if d.document_id == r.decision.document_id %}selected{% endif %}>{{ d.original_filename }}</option>{% endfor %}</select></div>
-
             <div class="full-row">
                 <label class="inline-check"><input type="checkbox" name="distinct_confirmed" {% if r.decision.distinct_confirmed %}checked{% endif %}> Conferi os movimentos semelhantes; esta é uma ocorrência distinta</label>
             </div>
 
             <label>Observação</label>
-            <div><input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}" required></div>
+            <div><input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}"></div>
         </div>
 
         <div class="review-form-actions" id="review-form-actions">

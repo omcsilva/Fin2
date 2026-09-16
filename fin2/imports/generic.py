@@ -214,9 +214,13 @@ def reject(database,storage_root,import_id):
             # only when no other import still points at them.
             if document_id and not db.execute('select 1 from ledger.file_import where document_id=?',[document_id]).fetchone():
                 db.execute('delete from ledger.statement_balance_observation where document_id=?',[document_id])
-                db.execute('delete from source_document where document_id=?',[document_id])
-            forget_file=bool(storage_key) and not db.execute('select 1 from source_document where storage_key=?',[storage_key]).fetchone()
+                db.execute(
+                    'delete from document_record_link where document_id=?', [document_id])
             db.execute('COMMIT')
+            if document_id:
+                db.execute('delete from source_document where document_id=?',[document_id])
+            forget_file = bool(storage_key) and not db.execute(
+                'select 1 from source_document where storage_key=?', [storage_key]).fetchone()
         except Exception:
             db.execute('ROLLBACK')
             raise

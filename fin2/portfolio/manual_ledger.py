@@ -129,6 +129,9 @@ def create(database, *, account_record, event_type, settlement_date, currency,
         db.execute('BEGIN')
         try:
             if prepared: document_id=_put_document(db,prepared)
+            if document_id:
+                db.execute('insert into document_record_link(document_id,record_id,relation) values (?,?,?) on conflict do nothing',
+                           [document_id, account_record, 'account_document'])
             db.execute("""insert into ledger.manual_event
               (event_id,account_source_record_id,application_source_record_id,event_type,trade_date,
                settlement_date,currency,quantity,amount,description,reverses_event_id,created_at,transfer_id,request_key)

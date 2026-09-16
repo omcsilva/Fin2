@@ -1304,7 +1304,6 @@ def file_imports(request):
                     selected=detail(connection,identifier)
                     from fin2.dashboard.xp_statement_views import approval_table
                     approval_table(request, selected)
-                    data['supporting_documents']=query(connection,'select document_id,original_filename from source_document where batch_id=? order by original_filename',[selected['batch_id']])
                 elif selected['adapter_id']=='xp-account-statement':
                     # The review staging is gone: the completed step lists the
                     # entries the confirmed load generated in the ledger.
@@ -1349,7 +1348,6 @@ def xp_statement_review(request, connection, identifier):
     if selected['status'] != 'preview' or not selected.get('documented_at') or selected['financial_status'] == 'confirmed':
         return redirect('/fin2/importar/?' + urlencode({'preview': identifier}))
     data = context(request, connection)
-    data['supporting_documents'] = query(connection, 'select document_id,original_filename from source_document where batch_id=? order by original_filename', [selected['batch_id']])
     if request.GET.get('review_line'):
         try:
             line = int(request.GET['review_line'])

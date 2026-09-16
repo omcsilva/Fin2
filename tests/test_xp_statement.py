@@ -563,16 +563,15 @@ class XPFlowTests(unittest.TestCase):
             ('2025-01-02','2025-01-02','RESGATE Teste',100,200)]))
         with self.assertRaisesRegex(ValueError,'Vincule o imposto'):
             xp.review(self.db,identifier,1,self.decision(event_type='tax'))
-        with self.assertRaisesRegex(ValueError,'quantidade'):
-            xp.review(self.db,identifier,2,self.decision(event_type='redemption'))
-        with connect(self.db) as db:
-            document=db.execute('select document_id from source_document where original_filename=?',['note.pdf']).fetchone()[0]
-        xp.review(self.db,identifier,1,self.decision(event_type='tax',related_line='2'))
-        xp.review(self.db,identifier,2,self.decision(event_type='redemption',quantity='2',document_id=document))
+        xp.review(self.db, identifier, 1, self.decision(
+            event_type='tax', related_line='2', reason=''))
+        xp.review(self.db, identifier, 2, self.decision(
+            event_type='redemption', reason=''))
         self.assertEqual(commit(self.db,identifier),2)
         with connect(self.db) as db:
             self.assertEqual(db.execute('select sum(amount) from ledger.manual_event').fetchone()[0],Decimal('95'))
-            self.assertEqual(db.execute("select quantity from ledger.manual_event where event_type='redemption'").fetchone()[0],Decimal('2'))
+            self.assertIsNone(db.execute(
+                "select quantity from ledger.manual_event where event_type='redemption'").fetchone()[0])
 
     def test_one_existing_event_cannot_cover_two_rows(self):
         identifier=self.stage(workbook([
