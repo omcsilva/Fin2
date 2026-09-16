@@ -14,11 +14,6 @@
     "FIN2_WRITE_ENABLED": "1",
     "FIN2_DATA_DIR": "/workspaces/Fin2/.codespaces-data"
   },
-  "features": {
-    "ghcr.io/devcontainers/features/sshd:1": {
-      "version": "latest"
-    }
-  },
   "customizations": {
     "vscode": {
       "extensions": [

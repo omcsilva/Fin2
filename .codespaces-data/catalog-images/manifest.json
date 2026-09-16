@@ -1,0 +1,258 @@
+{
+  "adam.png": {
+    "hash": "ec7544f47fa79fcfd25aeeb81c4b12a5f32272e3d158b0b8bb8036cf1f6884ad",
+    "mime": "image/png"
+  },
+  "bond.png": {
+    "hash": "fd921f18f024fcf94ee84a8a3fceb81dd5a647e089ff60ab72bb1f4544f21344",
+    "mime": "image/png"
+  },
+  "dinheiro.png": {
+    "hash": "8b10755299aac709813d13f3a9385d43f61e4c55b15933d36f4123082a5f428c",
+    "mime": "image/png"
+  },
+  "dolar.png": {
+    "hash": "fb4985ba6f31f0611d2a5bbe68f99b9f2cc9245294abf05c0b1c4a0c1c79bab0",
+    "mime": "image/png"
+  },
+  "etf.png": {
+    "hash": "45d440ff5e7a89a09a1ce8ec26f20678c809d2f36233eeb80d7b958a62776a6e",
+    "mime": "image/png"
+  },
+  "eu.png": {
+    "hash": "a8aedf8bb7073c2cebba1f561c21961dff16d26ead5599ea79fd784b8316db81",
+    "mime": "image/png"
+  },
+  "euro.png": {
+    "hash": "7bf90fd30a4e67db1607bcc2b7fbe9ca5ebba2e1327e634e2008afdea75e4714",
+    "mime": "image/png"
+  },
+  "filipe.png": {
+    "hash": "0df65dcc2d1c248063a82b65f8e076f17cc1bcf74a7efdf6e577cf349a9c31d3",
+    "mime": "image/png"
+  },
+  "fundo-imobiliario.png": {
+    "hash": "a5a7effd58845ec26fb21e57af63e837e75ca3ab2bdb57b95ab8e7750984e33e",
+    "mime": "image/png"
+  },
+  "fundo-multimercado.png": {
+    "hash": "2127a9e2a449b822f026762834a729954e1cf367e3ebfdf354fa2c2944ec9625",
+    "mime": "image/png"
+  },
+  "fundo-renda-fixa.png": {
+    "hash": "b0ff015b5d0899da734b5656180f1bc4176fcf308ca987f757c7388d99d84d12",
+    "mime": "image/png"
+  },
+  "https://brapi.dev/favicon.svg": {
+    "hash": "cfe15c97cc767d44438e6b57bc833a6823b89ab07ba28dbca6407def868e65fb",
+    "mime": "image/svg+xml"
+  },
+  "https://etoro-cdn.etorostatic.com/market-avatars/6962/6962_F7F7F7_2C2C2C.svg": {
+    "hash": "1a18889d2d5685697c4925febc85add355a099253cd5688d788d644cc5dfc517",
+    "mime": "image/svg+xml"
+  },
+  "https://investidor10.com.br/storage/companies/66d99e1c6bab5.jpg": {
+    "hash": "a61fcd4900bff648d308825a155e50850058d7a9703f947845bc76b952dab2e5",
+    "mime": "image/jpeg"
+  },
+  "https://s21.q4cdn.com/917166017/files/design/logos/SCHW_Logo_transparent.png": {
+    "hash": "9fd5b7093c8c74292ad9a0f9f6af049e4ac82c431cdc9e6fa2c0f9c6f47b2dea",
+    "mime": "image/png"
+  },
+  "https://s3-symbol-logo.tradingview.com/abc-brasil--big.svg": {
+    "hash": "24084f20085110d94ebf13c4f3a59932c555bbf45d2ba19a77e90ca6c3b671af",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/b3-on-nm--big.svg": {
+    "hash": "93115fcffa5ccd5916f10f2f7f4cfc27999ba01d43e9409c3cb97790f6c7743c",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/banco-do-brasil--big.svg": {
+    "hash": "c2646bf77bf700d43697de5d3b2c6fdf489b0ad47c5ee9bb509a1c50ff951b82",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/brasilagro--big.svg": {
+    "hash": "4731ed948436ab666b5a98a38ae6bf13900cce94f6e30368932a770bd13fdc8f",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/brasileiro-petrobras--big.svg": {
+    "hash": "c6238c1eacf36ead8aa93067979867ebcb9c5cf3375f68b0781d0388a35c112b",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/cemig--big.svg": {
+    "hash": "66594fbb7c3f4c1f2eb3ff7d792516e4724b5d0bdf2f04490b803f0cdbde46ac",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/centrais-eletr-bras-sa--big.svg": {
+    "hash": "eb3dfa6d4d5d15ea8a0174bebdd2afb7eb54127b19451bd1a3f5b7073e033495",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/copasa--big.svg": {
+    "hash": "f164104d38b4e68fa0521b1da42325345b1bf98868d115539ebe15fe975ec083",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/cosan--big.svg": {
+    "hash": "0de20070664d8dce0d730608ce99b7edb7ae2ce196bf80e2bde8c30f55b1e72d",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/cpfl-energia--big.svg": {
+    "hash": "97a0f97bbfb36904098386120b2ebbc9f60c487cd8a3a0842aa1808f51776db4",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/fii--big.svg": {
+    "hash": "785114fba11b30fdaace0e651c23567e31917931550e822b5b94b45c4df98cb2",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/fii-valreiiici--big.svg": {
+    "hash": "684ccbe32a895d6773786c03284f4644a390b84db52f693978649b9e4d95ea46",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/gerdau--big.svg": {
+    "hash": "9aa94c0296ded477ccd889e3499c17f225926bfa8228b0bb1f7479d4c9a7082d",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/gol-linhas-aereas-inteligentes--big.svg": {
+    "hash": "31ddab677465ed6c915f7d641793d736c6525abd21fbb71f9905e2d375510271",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/hypera--big.svg": {
+    "hash": "43d879dac0866d0677196d3cb876028e8948fc2171d8f97fefb72fb9752e2be4",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/ishares--big.svg": {
+    "hash": "9cfd6b7fb0b2422f4a05b4ba2f5f3ddd11ebf9afbf03f8e8b5ce3acdd036ee50",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/itau-unibanco--big.svg": {
+    "hash": "f500ed298711bb6d9617b17476342fd18f5dbd35cba9df185206b00c4eb513e1",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/kepler-weberon-eb--big.svg": {
+    "hash": "54376a28325001c6a462c418434397052552548144a581979eaa51dafe08e22d",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/klabin--big.svg": {
+    "hash": "8afaa6d782881742278c7b982f7b9f6a9bc3c0139f07340818b25f597f674915",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/lavvi-on-nm--big.svg": {
+    "hash": "42877a5a22bc3d6c7b93f02faff4d16f4bd660ed9b2656b0ee4e680cd077404e",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/light--big.svg": {
+    "hash": "96dbf261a882419f5790be9bf0d6b5e03d00a3ae894dca8bf1887bbe6066b083",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/localiza--big.svg": {
+    "hash": "adf0159496bbd0ddcf542e1eb7858e9fd5d455e9c97e372ac730396ca913021d",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/lockheed-martin--big.svg": {
+    "hash": "4d0ef6a42ae6937126b63ac3f4e33af30e8a8d9aeeb2234938f2baacc9b53150",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/lojas-marisaon-nm--big.svg": {
+    "hash": "01eca24fb61cb2a8f9dfed9716c08fafa393770aa4c9c6b983bf7fc47e10e35e",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/m-diasbranco--big.svg": {
+    "hash": "d8ba4eed121ab9784644b588cdf74785978969cb99c03109bd47675c038f7f2a",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/porto-seguro--big.svg": {
+    "hash": "95707c6ea04a6186938c81c922c35da54fc8ca84b28545a2ea1b723a8822d646",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/raiadrogasilon--big.svg": {
+    "hash": "35c1d7c6454a79d17e813bc2ac0cf616404a4099fa690050115150b0b446ba4c",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/rumbleon--big.svg": {
+    "hash": "76274156ead96691eedbb10993d448ddc2d873b342a63caf61c950d56f893689",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/rumo-s-a--big.svg": {
+    "hash": "91d4e8c4d353deab683c1709c426c058c359f29d1ff14a346b49ac51ffe8ca93",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/sanepar--big.svg": {
+    "hash": "69c956a902d98fbf5814b83968f04f1d39c62ccdec54f57fd9565da55794913a",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/santander--big.svg": {
+    "hash": "1c4368f221d0f6fa35548f6da14ec256e513519818f84d8da87bb4de95c67504",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/taesa--big.svg": {
+    "hash": "cc5ac07848ddce1ee8960f8a4f5051762220602f7bc25b7fbb01872b1c75cd9d",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/taiwan-semiconductor--big.svg": {
+    "hash": "6f26848310619f11fd14048e6cae87b537c6ab2dd30e3f3bc186968f7623868c",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/telefonica--big.svg": {
+    "hash": "23cd2c1d7ff1d4369c4b2433ebfa0eb57bb614ab058a8da277a9d0f87796163c",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/tesla--big.svg": {
+    "hash": "3215769c3b3b20bb2482f547c752638491b007d6edfa3b610cfeaecf0526b67b",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/usiminas-pna-n1--big.svg": {
+    "hash": "6c6ee8131cf10768ad58274371f30d20a3695819ff79d1688a217a8c2eaa226a",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/vale--big.svg": {
+    "hash": "5f871884a8de1bfa82bd2cf9819f9c823eafc49c9a8605b29ce0bafca283785f",
+    "mime": "image/svg+xml"
+  },
+  "https://s3-symbol-logo.tradingview.com/weg--big.svg": {
+    "hash": "cbff7aa06e4226927075ad1577d3063c9db85fecb069116aadc0db2f5dd5d23d",
+    "mime": "image/svg+xml"
+  },
+  "https://static2.finnhub.io/file/publicdatany/finnhubimage/stock_logo/NDAQ.svg": {
+    "hash": "5ae9d67aea9d20a973adbc2fadee965219bce390ec7b182cdc27f1db8e967997",
+    "mime": "image/svg+xml"
+  },
+  "ishares.png": {
+    "hash": "f4daf0d6035522dcae445a0bc71e73dd5c7222eb373855c9bc6d72f371cd7c1c",
+    "mime": "image/png"
+  },
+  "lu.png": {
+    "hash": "5050bd8d0b86bd413cb28b65c6f0e95d947d3d7ad0f714f417bb41d9523bd9f5",
+    "mime": "image/png"
+  },
+  "piggy-bank.png": {
+    "hash": "468db7c3f9e3e97929f96f6b1b1e20e48f51f10906e31b20490704b7e99c5a50",
+    "mime": "image/png"
+  },
+  "real-estate.png": {
+    "hash": "6519821aba5b49627b4d9d62fc40542341092830a63ed18f82e3e78c943c4505",
+    "mime": "image/png"
+  },
+  "real.png": {
+    "hash": "6aff1c9329928fefddadd23f68d44203f2d21a4f7fcd92d8f07159f2d18722bc",
+    "mime": "image/png"
+  },
+  "retirement.png": {
+    "hash": "1b25264ec1351667b11dfed4790959629ef6efe5e0538db42aa7a618d4abc171",
+    "mime": "image/png"
+  },
+  "stock.png": {
+    "hash": "3c1c5e27302de55b37b8987d770120c14d1ed5cfcfc0e1db2cd948411ba9ee65",
+    "mime": "image/png"
+  },
+  "tesla-logo.png": {
+    "hash": "609b01e350ff0092e6605eef58484bbf13b60e9313abce8e6aa0f49f87dc9ef5",
+    "mime": "image/png"
+  },
+  "tesouro-direto.png": {
+    "hash": "4d960db874902772d57bb870ac269d78f89f534649935399ecaa61d8ec40876c",
+    "mime": "image/png"
+  },
+  "xp-logo.png": {
+    "hash": "bb3b25c7b12712ef2a636aefcad21e6961029c6d47b48f12391672297846ed54",
+    "mime": "image/png"
+  }
+}
