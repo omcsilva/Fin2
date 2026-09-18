@@ -14,7 +14,15 @@ if not SECRET_KEY:
         raise RuntimeError("Set FIN2_SECRET_KEY when FIN2_DEBUG=0")
     SECRET_KEY = secrets.token_urlsafe(48)
 ALLOWED_HOSTS = os.environ.get("FIN2_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
-CSRF_TRUSTED_ORIGINS = [value for value in os.environ.get("FIN2_CSRF_TRUSTED_ORIGINS", "").split(",") if value]
+default_csrf_origins = (
+    "http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000,"
+    "http://localhost:8020,http://127.0.0.1:8020,https://localhost:8020,https://127.0.0.1:8020"
+)
+CSRF_TRUSTED_ORIGINS = [
+    value.strip()
+    for value in os.environ.get("FIN2_CSRF_TRUSTED_ORIGINS", default_csrf_origins).split(",")
+    if value.strip()
+]
 CSRF_COOKIE_SECURE = os.environ.get("FIN2_SECURE_COOKIES", "0") == "1"
 # Production Gunicorn binds to loopback; the trusted proxy replaces this header.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if not DEBUG else None
