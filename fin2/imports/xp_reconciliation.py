@@ -261,13 +261,12 @@ def stage(database, storage_root, filename, body, media_type, options):
         binding = db.execute('select account_record,holder from ledger.xp_account_binding where account_number=?', [metadata['account_number']]).fetchone()
         if binding and (binding[0] != selected['source_record_id'] or plain(binding[1]) != plain(metadata['holder'])):
             raise ValueError('Número XP ou titular diverge da associação já registrada')
+        # Catalogs may use a short display name (Marcos/Luciana); every
+        # display-name token must still match the holder in the statement.
+        if not selected['holder'] or not set(plain(selected['holder']).split()).issubset(set(plain(metadata['holder']).split())):
+            raise ValueError(
+                'Titular do extrato difere do titular cadastrado; corrija o cadastro antes de associar')
         if not binding:
-            if not options.get('confirm_identity') or not str(options.get('identity_reason', '')).strip():
-                raise ValueError(f"Confirme a associação da conta XP {metadata['account_number']} / {metadata['holder']} com a conta selecionada e informe a justificativa")
-            # Catalogs may use a short display name (Marcos/Luciana). Explicit
-            # association is still required; every display-name token must match.
-            if not selected['holder'] or not set(plain(selected['holder']).split()).issubset(set(plain(metadata['holder']).split())):
-                raise ValueError('Titular do extrato difere do titular cadastrado; corrija o cadastro antes de associar')
             if db.execute('select 1 from ledger.xp_account_binding where account_record=?', [selected['source_record_id']]).fetchone():
                 raise ValueError('Conta cadastrada já associada a outro número XP')
         existing = db.execute('select import_id,status from ledger.file_import where sha256=?', [digest]).fetchone()
@@ -285,7 +284,8 @@ def stage(database, storage_root, filename, body, media_type, options):
         try:
             if not binding:
                 db.execute('insert into ledger.xp_account_binding(account_number,account_record,holder,reason) values (?,?,?,?)',
-                           [metadata['account_number'], selected['source_record_id'], metadata['holder'], options['identity_reason']])
+                           [metadata['account_number'], selected['source_record_id'], metadata['holder'],
+                            'Associação automática por número da conta e titular do extrato'])
             db.execute('''insert into source_document(document_id,batch_id,source_path,original_filename,sha256,byte_size,storage_key)
               values (?,?,?,?,?,?,?)''', [document_id, selected['batch_id'], f'FIN2/imports/{digest}/{Path(filename).name}',
                                         Path(filename).name, digest, len(body), target.relative_to(root).as_posix()])

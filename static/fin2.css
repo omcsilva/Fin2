@@ -640,6 +640,8 @@ h2 .heading-action{font-size:14px;font-weight:400}
 .import-review-row{display:flex;align-items:baseline;gap:1em}
 .import-review-row .import-review-back{margin:1em 0 1em}
 @media(max-width:640px){.import-review-row{display:block}.import-review-row .import-review-back{text-align:left}}
+.import-page-title{display:flex;align-items:baseline;gap:1em;flex-wrap:wrap}
+.import-page-title h1,.import-page-title .lead{margin-top:0;margin-bottom:0}
 .review-form-actions{
   display:flex;
   align-items:center;
@@ -647,6 +649,35 @@ h2 .heading-action{font-size:14px;font-weight:400}
   margin-top:20px;
   padding-top:16px;
   border-top:1px solid var(--line);
+}
+.attachment-upload-form{
+  display:grid;
+  grid-template-columns:minmax(190px,220px) minmax(260px,520px) minmax(220px,1fr);
+  align-items:start;
+  gap:10px 16px;
+  margin:12px 0 16px;
+  padding:12px;
+  border:1px solid var(--line);
+  background:var(--white);
+}
+.attachment-upload-form>label{padding-top:7px;color:var(--muted);font-size:12px}
+.attachment-upload-form>input,
+.attachment-upload-form>select,
+.attachment-upload-form>textarea{width:100%;min-width:0}
+.attachment-upload-form>select{height:220px}
+.attachment-upload-help{padding-top:7px;color:var(--muted);font-size:12px}
+form.attachment-upload-form>button.attachment-upload-submit{background:#287a4b!important;border-color:#58b879!important;color:#f2fff5!important}
+form.attachment-upload-form>button.attachment-upload-submit:hover{background:#36945d!important;border-color:#7bd396!important;color:#fff!important}
+@media(max-width:800px){
+  .attachment-upload-form{grid-template-columns:1fr 2fr}
+  .attachment-upload-help{grid-column:2}
+  .attachment-upload-form>button{grid-column:2}
+}
+@media(max-width:520px){
+  .attachment-upload-form{grid-template-columns:1fr}
+  .attachment-upload-form>label,
+  .attachment-upload-help{grid-column:auto}
+  .attachment-upload-form>button{grid-column:auto}
 }
 /* Flex items blockify: the Cancelar link needs explicit content centring, or
    its text sticks to the top of the 37px control box. */

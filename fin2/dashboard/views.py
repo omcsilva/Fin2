@@ -1281,9 +1281,7 @@ def file_imports(request):
             identifier,_=stage_file_import(settings.WAREHOUSE_PATH,settings.DOCUMENT_ROOT,
               upload.name,upload.read(),upload.content_type,
               options={'account_record':request.POST.get('account') or None,
-                       'adapter_id':request.POST.get('adapter') or None,
-                       'confirm_identity':request.POST.get('confirm_identity')=='on',
-                       'identity_reason':request.POST.get('identity_reason','')})
+                       'adapter_id': request.POST.get('adapter') or None})
             return redirect('/fin2/importar/?preview='+identifier)
         with reader(settings.WAREHOUSE_PATH) as connection:
             data=context(request,connection)
@@ -1318,8 +1316,7 @@ def file_imports(request):
               elif selected['status'] == 'preview':
                 # Re-uploaded files retain their documentary history, but
                 # their preview must still let the user approve the load.
-                wizard_step = 3 if selected.get(
-                    'adapter_id') == 'xp-account-statement' and selected.get('documented_at') else 2
+                wizard_step = 2
             data['wizard_step'] = wizard_step
 
             data.update(import_error=request.GET.get(
@@ -1359,33 +1356,57 @@ def xp_statement_notes(request, identifier):
             selected = parent[0]
             if selected['status'] != 'preview' or not selected['documented_at']:
                 return redirect('/fin2/importar/?' + urlencode({'preview': identifier}))
+            from fin2.imports.xp_reconciliation import detail
             if request.method == 'POST':
-                uploads = request.FILES.getlist('documents')
-                if not uploads:
+                upload = request.FILES.get('documents')
+                if not upload:
                     raise ValueError('Selecione pelo menos um documento')
+                description = ' '.join(
+                    request.POST.get('description', '').split())
+                if len(description) > 500:
+                    raise ValueError(
+                        'A descrição deve ter no máximo 500 caracteres')
+                selected_lines = request.POST.getlist('related_lines')
+                available_lines = {
+                    str(row['source_locator']['row'])
+                    for row in detail(connection, identifier)['rows']
+                }
+                if any(line not in available_lines for line in selected_lines):
+                    raise ValueError('Lançamento relacionado inválido')
                 from fin2.imports.generic import stage as stage_file_import
                 from warehouse.database import connect
-                for upload in uploads:
-                    attachment, _status = stage_file_import(
-                        settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
-                        upload.name, upload.read(), upload.content_type,
-                        options={'account_record': selected['account_record']})
-                    with connect(settings.WAREHOUSE_PATH) as writable:
-                        writable.execute(
-                            """insert into ledger.import_attachment
-                               (parent_import_id,attachment_import_id) values (?,?)
-                               on conflict do nothing""",
-                            [identifier, attachment])
+                attachment, _status = stage_file_import(
+                    settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
+                    upload.name, upload.read(), upload.content_type,
+                    options={'account_record': selected['account_record']})
+                with connect(settings.WAREHOUSE_PATH) as writable:
+                  writable.execute(
+                      """insert into ledger.import_attachment
+                     (parent_import_id,attachment_import_id,description,related_lines)
+                     values (?,?,?,?)
+                       on conflict do nothing""",
+                      [identifier, attachment, description, json.dumps(selected_lines)])
                 return redirect(reverse('xp-statement-notes', args=[identifier]))
             attachments = query(connection, """select f.import_id attachment_import_id,
-              f.original_filename,f.document_type,f.row_count,f.error_count,f.status
+                  f.original_filename,f.document_type,f.row_count,f.error_count,f.status,
+                  x.description,x.related_lines
               from ledger.import_attachment x join ledger.file_import f
                 on f.import_id=x.attachment_import_id
               where x.parent_import_id=? order by f.created_at""", [identifier])
             selected['document_metadata'] = json.loads(
                 selected['document_metadata'])
+            from fin2.dashboard.xp_statement_views import approval_table
+            selected = detail(connection, identifier)
+            related_lines = sorted(
+                selected['rows'],
+                key=lambda row: int(row['source_locator']['row']))
+            for row in related_lines:
+              row['attachment_trade_date'] = date.fromisoformat(
+                  str(row['trade_date'])).strftime('%d/%m')
+            approval_table(request, selected)
             data = context(request, connection)
             data.update(selected_import=selected, attachments=attachments,
+                        related_lines=related_lines,
                         wizard_step=3, note_error=None)
             return render(request, 'dashboard/xp_statement_notes.html', data)
     except (ValueError, OSError) as exc:
@@ -1394,13 +1415,24 @@ def xp_statement_notes(request, identifier):
               from ledger.file_import f join ledger.xp_statement s using(import_id)
               where f.import_id=?""", [identifier])[0]
             attachments = query(connection, """select f.import_id attachment_import_id,
-              f.original_filename,f.document_type,f.row_count,f.error_count,f.status
+              f.original_filename,f.document_type,f.row_count,f.error_count,f.status,
+              x.description,x.related_lines
               from ledger.import_attachment x join ledger.file_import f
                 on f.import_id=x.attachment_import_id where x.parent_import_id=?""", [identifier])
             selected['document_metadata'] = json.loads(
                 selected['document_metadata'])
+            from fin2.dashboard.xp_statement_views import approval_table
+            selected = detail(connection, identifier)
+            related_lines = sorted(
+                selected['rows'],
+                key=lambda row: int(row['source_locator']['row']))
+            for row in related_lines:
+              row['attachment_trade_date'] = date.fromisoformat(
+                  str(row['trade_date'])).strftime('%d/%m')
+            approval_table(request, selected)
             data = context(request, connection)
             data.update(selected_import=selected, attachments=attachments,
+                        related_lines=related_lines,
                         wizard_step=3, note_error=str(exc))
             return render(request, 'dashboard/xp_statement_notes.html', data, status=400)
 

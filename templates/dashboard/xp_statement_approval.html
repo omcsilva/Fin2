@@ -3,7 +3,7 @@
 <h2>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start }} a {{ selected_import.document_metadata.period_end }} <a class="heading-action" href="{% url 'file-import-file' selected_import.import_id %}">Baixar arquivo</a></h2>
 <p>{{ selected_import.row_count }} lançamentos identificados</p>
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
-<form method="get" class="filters" data-table-controls="xp-approval">
+{% if wizard_step == 2 %}<form method="get" class="filters" data-table-controls="xp-approval">
 <input type="hidden" name="preview" value="{{ selected_import.import_id }}">
 <input type="hidden" name="sort" value="{{ selected_import.table_sort }}">
 <input type="hidden" name="dir" value="{{ selected_import.table_direction }}">
@@ -23,7 +23,8 @@
     </tr>{% empty %}<tr><td colspan="{% if selected_import.has_reading_errors %}7{% else %}6{% endif %}">Nenhum lançamento encontrado.</td></tr>{% endfor %}
     </tbody></table></div>
     <p>{% if selected_import.page.has_previous %}<a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
-{% if selected_import.status == 'preview' %}
+{% endif %}
+{% if wizard_step == 2 and selected_import.status == 'preview' %}
 <form id="import-approval-actions" class="import-approval-actions" method="post" action="{% url 'xp-statement-update' selected_import.import_id %}">{% csrf_token %}
 <input type="hidden" name="operation" value="document">
 <button class="approve-import" type="submit">Aprovar carga</button>

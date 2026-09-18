@@ -171,16 +171,21 @@ class XPFlowTests(unittest.TestCase):
             }, follow=True)
             self.assertEqual(response.status_code, 200)
             html = response.content.decode()
-            self.assertIn('<h1>Aprovar carga</h1>', html)
+            self.assertIn('<h1>Aprovar/Excluir extrato</h1>', html)
             self.assertIn('DIVIDENDOS DE CLIENTES TEST3', html)
+            self.assertIn('xp-approval-table', html)
+            self.assertIn('Pesquisar', html)
             self.assertIn('Rejeitar arquivo', html)
+            self.assertNotIn(
+                'Associar o número e o titular do extrato XP', html)
+            self.assertNotIn('Justificativa da associação', html)
             self.assertNotIn('Revisão em lote', html)
             self.assertEqual(len(response.redirect_chain), 1)
             from django.urls import reverse
             response = client.post(reverse('xp-statement-update', args=[identifier]),
                                    {'operation': 'document'}, follow=True)
             self.assertEqual(response.status_code, 200)
-            self.assertIn('<h1>Revisão do extrato</h1>', response.content.decode())
+            self.assertIn('Carregar anexos', response.content.decode())
         with connect(self.db) as db:
             self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0], 0)
             # Approving a load records the statement evidence, not a decision log.
@@ -211,12 +216,25 @@ class XPFlowTests(unittest.TestCase):
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
             response = Client().get(
-                reverse('xp-statement-notes', args=[identifier]))
+                reverse('xp-statement-notes', args=[identifier]),
+                {'q': 'DIVIDENDOS', 'por_pagina': '10'})
             self.assertEqual(response.status_code, 200)
             html = response.content.decode()
-            self.assertIn('Documentos associados ao extrato', html)
+            self.assertIn('Carregar anexos', html)
             self.assertIn('nota.pdf', html)
-            self.assertIn('3. Documentos', html)
+            self.assertIn('3. Carregar anexos', html)
+            self.assertIn('Lançamentos relacionados', html)
+            self.assertIn('Descrição:', html)
+            self.assertIn('Identificador opcional do anexo', html)
+            self.assertIn('class="attachment-upload-submit"', html)
+            self.assertIn('L9 - 02/01', html)
+            self.assertIn('R$ 10,00', html)
+            self.assertNotIn(
+                'name="documents" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv" multiple', html)
+            self.assertNotIn('49 lançamentos identificados', html)
+            self.assertNotIn('Baixar arquivo', html)
+            self.assertNotIn('xp-approval-table', html)
+            self.assertNotIn('Página 1 de 1', html)
 
     def test_individual_review_loads_into_the_list_modal(self):
         import os
