@@ -21,8 +21,6 @@
            <strong>Valor:</strong> {{ r.amount|money:'BRL' }}
         </p>
         {% for error in r.errors %}<p class="note">{{ error }}</p>{% endfor %}
-        {% if r.decision %}<p>Decisão atual: {{ r.decision.reason }}</p>{% endif %}
-
         <div class="review-form-grid">
             {% if r.candidates %}
             <label>Movimentos nas datas (múltipla escolha)</label>
@@ -43,10 +41,6 @@
             <label>Quantidade comprovada</label>
             <div><input name="quantity" value="{{ r.decision.quantity|default:'' }}"></div>
 
-            <div class="full-row">
-                <label class="inline-check"><input type="checkbox" name="distinct_confirmed" {% if r.decision.distinct_confirmed %}checked{% endif %}> Conferi os movimentos semelhantes; esta é uma ocorrência distinta</label>
-            </div>
-
             <label>Observação</label>
             <div><input name="reason" maxlength="500" value="{{ r.decision.reason|default:'' }}"></div>
         </div>
@@ -57,6 +51,16 @@
             <button type="submit" class="review-save">Salvar revisão</button>
         </div>
         </form>
+
+        <section class="panel review-ledger">
+            <h4>Lançamentos no ledger no período da linha</h4>
+            <p class="muted">De {{ r.ledger_period_start|short_date }} até {{ r.ledger_period_end|short_date }} · mesma conta</p>
+            {% for e in r.ledger_entries %}
+            <p><strong>{{ e.settlement_date|short_date }}</strong> · {{ e.origin }} · {{ e.description }} · {{ e.amount|money:'BRL' }}</p>
+            {% empty %}
+            <p class="muted">Nenhum lançamento encontrado nesse período.</p>
+            {% endfor %}
+        </section>
 
         <section class="panel review-history">
             <h4>Histórico de revisões</h4>

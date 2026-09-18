@@ -1,9 +1,16 @@
 {% extends 'dashboard/base.html' %}{% load fin2_format %}
 {% block title %}Revisão do extrato XP · Fin2{% endblock %}
 {% block content %}
-<p><a href="{% url 'file-imports' %}">← Importações</a></p>
-<p class="eyebrow">IMPORTAÇÃO DE EXTRATO XP</p><h1>Revisão do extrato</h1>
+<div class="import-review-header">
+<div class="import-review-row">
+<p class="eyebrow">IMPORTAÇÃO DE EXTRATO XP</p>
+<p class="import-review-back"><a href="{% url 'file-imports' %}">← Importações</a></p>
+</div>
+<div class="import-review-row">
+<h1>Revisão do extrato</h1>
 <p class="lead">Revise os movimentos e resolva as pendências antes de confirmar os lançamentos.</p>
+</div>
+</div>
 {% include 'dashboard/import_steps.html' %}
 {% if import_error and not request.GET.review_line %}<div class="note">{{ import_error }}</div>{% endif %}
 {% include 'dashboard/xp_statement.html' %}

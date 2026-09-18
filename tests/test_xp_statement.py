@@ -71,6 +71,20 @@ class XPParserTests(unittest.TestCase):
         approval_table(SimpleNamespace(GET={'q':'Fundo de teste'}), selected, review=True)
         self.assertEqual(selected['page'].paginator.count, 25)
 
+    def test_review_table_filters_by_category(self):
+        from types import SimpleNamespace
+        from fin2.dashboard.xp_statement_views import approval_table
+        rows = [
+            dict(source_locator={'row': 1}, category='dividend', state='pending', errors=[], decision=None),
+            dict(source_locator={'row': 2}, category='transfer', state='pending', errors=[], decision=None),
+            dict(source_locator={'row': 3}, category='dividend', state='ready', errors=[],
+                 decision={'category': 'jcp'}),
+        ]
+        selected = {'import_id': 'a' * 32, 'rows': rows}
+        approval_table(SimpleNamespace(GET={'categoria': 'dividend'}), selected, review=True)
+        self.assertEqual([row['source_locator']['row'] for row in selected['rows']], [1])
+        self.assertIn('categoria=dividend', selected['table_query'])
+
     def test_approval_search_and_numeric_sort_before_pagination(self):
         from types import SimpleNamespace
         from fin2.dashboard.xp_statement_views import approval_table
@@ -185,6 +199,12 @@ class XPFlowTests(unittest.TestCase):
 
         identifier = self.stage(workbook())
         xp.document(self.db, identifier)
+        create(self.db, account_record=self.account, event_type='income',
+               settlement_date='2025-01-10', currency='BRL', amount=12,
+               description='Lançamento dentro da janela')
+        create(self.db, account_record=self.account, event_type='income',
+               settlement_date='2025-02-01', currency='BRL', amount=13,
+               description='Lançamento fora da janela')
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
             client = Client()
@@ -192,12 +212,19 @@ class XPFlowTests(unittest.TestCase):
             # The list carries the modal shell and one trigger per movement.
             self.assertIn('data-review-dialog', listing)
             self.assertIn('data-review-modal', listing)
+            self.assertIn('data-review-row', listing)
             self.assertNotIn('id="individual-review"', listing)
             focused = client.get(reverse('xp-statement-review', args=[identifier]),
                                  {'review_line': '1'}).content.decode()
             # The focused route stays the fallback and the modal source.
             self.assertIn('id="individual-review"', focused)
             self.assertNotIn('data-review-dialog', focused)
+            self.assertIn('Lançamentos no ledger no período da linha', focused)
+            self.assertIn('Lançamento dentro da janela', focused)
+            self.assertNotIn('Lançamento fora da janela', focused)
+            self.assertNotIn('Decisão atual:', focused)
+            self.assertNotIn(
+                'Conferi os movimentos semelhantes; esta é uma ocorrência distinta', focused)
             # The counterparty is always the result account, not a free choice.
             self.assertIn('<input type="hidden" name="counterparty" value="RESULTADO">', focused)
             self.assertNotIn('<select name="counterparty"', focused)

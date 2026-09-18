@@ -504,7 +504,7 @@ main:has(.account-detail-header){padding-block:12px 16px}
 .review-history p{margin:4px 0;font-size:12px}
 .review-form-grid .full-row{grid-column:1/-1}
 .review-form-grid label.inline-check{display:flex;gap:8px;align-items:center}
-.button-commit{font-size:1.1em;padding:10px 20px;margin-top:14px}
+.commit-form{text-align:right}.button-commit{font-size:1.1em;padding:10px 20px;margin-top:14px}
 .note-success{background-color:#d4edda;color:#155724}
 
 /* Secondary action inside a page heading ("Baixar arquivo") uses the body
@@ -597,6 +597,7 @@ h2 .heading-action{font-size:14px;font-weight:400}
 #xp-review-table tbody tr.row-excluded{--row-bg:#eef1f5;--row-hover:#e1e7ee}
 #xp-review-table tbody tr{background:var(--row-bg,#fff)}
 #xp-review-table tbody tr:hover{background:var(--row-hover,var(--row-bg,#fff))}
+#xp-review-table tbody tr[data-review-row]{cursor:pointer}
 #xp-review-table .state-icon{font-family:'Segoe UI Symbol','Arial Unicode MS',sans-serif;font-size:15px;line-height:1;font-weight:700}
 #xp-review-table .state-ready{color:#1f7a45}
 #xp-review-table .state-pending{color:#a5761b}
@@ -636,6 +637,9 @@ h2 .heading-action{font-size:14px;font-weight:400}
 .review-modal .section-title{margin-bottom:12px}
 .review-modal .section-title h3{margin-top:0}
 .review-modal .review-form-grid{grid-template-columns:minmax(180px,220px) minmax(0,1fr)}
+.import-review-row{display:flex;align-items:baseline;gap:1em}
+.import-review-row .import-review-back{margin:1em 0 1em}
+@media(max-width:640px){.import-review-row{display:block}.import-review-row .import-review-back{text-align:left}}
 .review-form-actions{
   display:flex;
   align-items:center;

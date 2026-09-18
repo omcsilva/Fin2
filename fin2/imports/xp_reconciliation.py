@@ -1,4 +1,5 @@
 """Audited XP evidence, account bindings and atomic financial decisions."""
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 import hashlib
 import json
@@ -62,6 +63,31 @@ def _dates_match(entry, row):
     if entry.get('settlement_date') is not None:
         dates.add(str(entry['settlement_date']))
     return bool(dates & {row.get('trade_date'), row.get('settlement_date')})
+
+
+def _as_date(value):
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10]) if value else None
+
+
+def _ledger_entries_for_row(available, row):
+    trade_date = _as_date(row.get('trade_date'))
+    settlement_date = _as_date(row.get('settlement_date'))
+    if not trade_date or not settlement_date:
+        return [], None, None
+    start = trade_date - timedelta(days=21)
+    end = settlement_date + timedelta(days=21)
+    result = []
+    for entry in available:
+        entry_dates = [_as_date(value)
+                       for value in (entry.get('trade_dates') or [])]
+        entry_dates.append(_as_date(entry.get('settlement_date')))
+        if any(value and start <= value <= end for value in entry_dates):
+            result.append(entry)
+    return result, start, end
 
 
 def _extract_asset_hint(description):
@@ -257,6 +283,8 @@ def detail(db, identifier):
     for row in item['rows']:
         row['candidates'] = [dict(e, label=f"{e['origin']} · {e['description']} · {e['amount']} · Liquidação {e['settlement_date']}") for e in available
                              if _dates_match(e, row)]
+        row['ledger_entries'], row['ledger_period_start'], row['ledger_period_end'] = _ledger_entries_for_row(
+            available, row)
         row['suggested_ids'] = [e['entry_id'] for e in row['candidates'] if e['amount'] == Decimal(row.get('amount', '0'))]
         row['applications'] = apps
         _app_id, _match_method = identify_application(row, apps)

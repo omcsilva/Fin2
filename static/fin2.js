@@ -177,6 +177,11 @@ document.querySelectorAll('form[data-auto-submit] select').forEach(select => {
   const close = () => { if (dialog.open) dialog.close(); };
   document.addEventListener('click', async event => {
     const link = event.target.closest('a[data-review-modal]');
+    const row = event.target.closest('tr[data-review-row]');
+    if (!link && row && !event.target.closest('a,button,input,select,textarea,summary')) {
+      row.querySelector('a[data-review-modal]')?.click();
+      return;
+    }
     if (link) {
       event.preventDefault();
       trigger = link;

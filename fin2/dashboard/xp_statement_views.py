@@ -51,6 +51,12 @@ def approval_table(request, selected, review=False):
             row['table_detail'] = ' · '.join(filter(None, detail))
             row['table_reason'] = effective.get('reason') or ''
             row['table_situation'] = {'ready': 'Pronto', 'excluded': 'Excluído'}.get(row.get('state'), 'Pendente')
+    category = request.GET.get('categoria', '') if review else ''
+    if category in dict(xp.CATEGORY_OPTIONS):
+        rows = [row for row in rows if ((row.get('decision') or row.get('identified') or {}).get('category')
+                                        or row.get('category')) == category]
+    else:
+        category = ''
     term = request.GET.get('q', '')[:200].strip()
     sort = request.GET.get('sort', 'line')
     allowed = ('line', 'trade_date', 'settlement_date', 'description', 'amount', 'balance', 'errors')
@@ -92,6 +98,7 @@ def approval_table(request, selected, review=False):
     if review:
         params['por_pagina'] = size
         if request.GET.get('situacao') in xp.REVIEW_STATES: params['situacao'] = request.GET['situacao']
+        if category: params['categoria'] = category
     else: params['preview'] = selected['import_id']
     selected['table_query'] = urlencode(params)
     selected.update(table_term=term, table_sort=sort, table_direction=direction)
@@ -104,7 +111,7 @@ def update(request, identifier):
         return HttpResponse('Escrita desabilitada', status=403)
     query = {}
     target = reverse('xp-statement-review', args=[identifier])
-    for field in ('q', 'sort', 'dir'):
+    for field in ('q', 'sort', 'dir', 'categoria'):
         if request.POST.get(field): query[field] = request.POST[field][:200]
     if request.POST.get('return_page','').isdigit(): query['page'] = request.POST['return_page']
     if request.POST.get('situacao') in xp.REVIEW_STATES: query['situacao'] = request.POST['situacao']
