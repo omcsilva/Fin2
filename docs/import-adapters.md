@@ -21,6 +21,18 @@ descarte remove a carga, as linhas, as decisões, o documento e o arquivo
 armazenado, devolvendo o processo à etapa de carregamento; nada sobre a decisão
 de aprovar ou rejeitar é registrado.
 
+Há dois formatos de nota de corretagem que devem ser distinguidos:
+
+- **SINACOR/B3**: formato legado, geralmente PDF de uma página, com a seção
+	`Negócios realizados` e descrições como `SANEPAR ON N2`.
+- **XP**: formato próprio da XP, geralmente PDF de duas páginas, com `Nota de
+	Negociação`, data da consulta, ticker explícito como `SAPR3` e resumo
+	financeiro separado.
+
+O formato **XP** é preferencial para a importação por preservar melhor o ticker
+e a estrutura financeira. O formato **SINACOR/B3** permanece como fallback
+compatível.
+
 `clear-brokerage-note` versão 1 reconhece notas PDF da Clear/XP pelo conteúdo,
 extrai negócios à vista, data do pregão, ativo, lado, quantidade, preço e valor,
 taxas, emolumentos e IRRF, e registra página e item. A conta é escolhida na prévia e cada ativo precisa

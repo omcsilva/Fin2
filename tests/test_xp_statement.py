@@ -189,6 +189,35 @@ class XPFlowTests(unittest.TestCase):
             self.assertEqual(db.execute("""select count(*) from ledger.audit_log
               where entity_type='file_import_decision'""").fetchone()[0], 0)
 
+    def test_document_step_lists_staged_attachments(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        identifier = self.stage(workbook())
+        xp.document(self.db, identifier)
+        with connect(self.db) as db:
+            db.execute("""insert into ledger.import_attachment
+              (parent_import_id,attachment_import_id) values (?,?)""",
+                       [identifier, 'b' * 32])
+            db.execute("""insert into ledger.file_import
+              (import_id,sha256,original_filename,storage_key,media_type,status,
+               row_count,error_count,preview,byte_size,adapter_id,adapter_version,document_type)
+              values (?,?,?,?,?,'preview',1,0,'[]',1,'clear-brokerage-note','1','brokerage_note')""",
+                       ['b' * 32, 'note-hash', 'nota.pdf', 'imports/note', 'application/pdf'])
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            response = Client().get(
+                reverse('xp-statement-notes', args=[identifier]))
+            self.assertEqual(response.status_code, 200)
+            html = response.content.decode()
+            self.assertIn('Documentos associados ao extrato', html)
+            self.assertIn('nota.pdf', html)
+            self.assertIn('3. Documentos', html)
+
     def test_individual_review_loads_into_the_list_modal(self):
         import os
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')

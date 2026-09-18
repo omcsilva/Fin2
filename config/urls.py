@@ -36,6 +36,8 @@ urlpatterns = [
     path("fin2/lancamentos/transferir/", views.manual_transfer, name="manual-transfer"),
     path("fin2/lancamentos/transferencias/<str:identifier>/reverter/", views.reverse_manual_transfer, name="manual-transfer-reverse"),
     path("fin2/importar/<str:identifier>/revisao/", views.xp_statement_review, name="xp-statement-review"),
+    path("fin2/importar/<str:identifier>/notas/",
+         views.xp_statement_notes, name="xp-statement-notes"),
     path("fin2/importar/", views.file_imports, name="file-imports"),
     path("fin2/importar/<str:identifier>/confirmar/", views.commit_file_import, name="file-import-commit"),
     path("fin2/importar/<str:identifier>/rejeitar/", views.reject_file_import, name="file-import-reject"),

@@ -1,0 +1,28 @@
+{% load fin2_format %}
+{% include 'dashboard/import_steps.html' %}
+<section class="panel">
+    <div class="section-title">
+        <h2>Documentos associados ao extrato</h2>
+        <span>{{ selected_import.original_filename }}</span>
+    </div>
+    <p>Carregue as notas e comprovantes disponíveis para as movimentações. Eles ficarão em uma tabela de trabalho até a revisão financeira.</p>
+    {% if note_error %}<div class="note">{{ note_error }}</div>{% endif %}
+    <form method="post" enctype="multipart/form-data" class="filters panel">{% csrf_token %}
+        <label>Documentos<input type="file" name="documents" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv" multiple required></label>
+        <button type="submit">Adicionar documentos</button>
+    </form>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Arquivo</th><th>Tipo</th><th>Linhas extraídas</th><th>Erros</th><th>Estado</th></tr></thead>
+            <tbody>
+            {% for item in attachments %}
+            <tr><td><a href="{% url 'file-import-file' item.attachment_import_id %}">{{ item.original_filename }}</a></td><td>{{ item.document_type }}</td><td>{{ item.row_count }}</td><td>{{ item.error_count }}</td><td>{{ item.status }}</td></tr>
+            {% empty %}<tr><td colspan="5">Nenhum documento associado.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="review-form-actions">
+        <a class="button review-cancel" href="{% url 'file-imports' %}?preview={{ selected_import.import_id }}">Voltar</a>
+        <a class="button review-save" href="{% url 'xp-statement-review' selected_import.import_id %}">Continuar para revisão</a>
+    </div>
+</section>

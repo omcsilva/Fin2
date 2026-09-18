@@ -98,14 +98,14 @@ revisão de status; o filtro não apaga dados nem altera lançamentos.
 
 ## Aprovação de extratos XP
 
-O assistente destaca as etapas Carregar, Aprovar carga, Revisão e Concluído.
+O assistente destaca as etapas Carregar, Aprovar carga, Documentos, Revisão e Concluído.
 A aprovação tem tabela de leitura com pesquisa, ordenação e paginação; os
 formulários de decisões por movimento ficam exclusivamente na revisão.
 O formulário de aprovação tem apenas duas ações — aprovar a carga ou descartar
 o arquivo —, ambas valendo para o arquivo inteiro, com a rejeição vermelha e a
 aprovação verde à direita. As regras de cor são específicas do formulário para
 prevalecer sobre o estilo geral dos botões, inclusive no hover.
-Concluída a revisão, a tela informa quantos lançamentos novos foram gerados e os
+Na etapa Documentos, podem ser carregados múltiplos documentos de qualquer categoria. Eles permanecem em staging e são associados às linhas do extrato durante a revisão; o upload não cria eventos no ledger. Concluída a revisão, a tela informa quantos lançamentos novos foram gerados e os
 lista, já que continuam vinculados ao extrato de origem; a tabela temporária de
 revisão é apagada nesse momento.
 Veja o [fluxo de extratos XP](xp-account-statement-plan.md#fluxo-de-interface-em-12092026).

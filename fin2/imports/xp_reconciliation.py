@@ -42,6 +42,43 @@ def applications(db, identifier):
       where c.source_record_id=? order by ap.name""", [identifier])
 
 
+def attachment_documents(db, import_id):
+    """Return documents staged as evidence for this statement import."""
+    return records(db, """select f.import_id attachment_import_id,
+            f.original_filename,f.document_type,f.row_count,f.error_count,f.status,
+            f.document_id, s.account_record
+            from ledger.import_attachment x
+            join ledger.file_import f on f.import_id=x.attachment_import_id
+            left join ledger.xp_statement s on s.import_id=x.parent_import_id
+            where x.parent_import_id=? order by f.created_at""", [import_id])
+
+
+def attachment_rows(db, import_id):
+    """Return normalized rows from each staged attachment, grouped by document."""
+    documents = attachment_documents(db, import_id)
+    result = {}
+    for document in documents:
+        rows = records(db, """select normalized from ledger.import_staging_line
+          where import_id=? order by row_number""", [document['attachment_import_id']])
+        result[document['document_id']] = [
+            {**json.loads(row['normalized']),
+             'document_name': document['original_filename']}
+            for row in rows]
+    return result
+
+
+def _selected_attachment_rows(db, item, document_id):
+    documents = {row['document_id']: row for row in attachment_documents(
+        db, item['import_id'])}
+    document = documents.get(document_id)
+    if not document:
+        raise ValueError('Documento complementar não pertence a este extrato')
+    return [json.loads(row['normalized']) for row in records(
+        db, """select normalized from ledger.import_staging_line
+        where import_id=? and state<>'rejected' order by row_number""",
+        [document['attachment_import_id']])]
+
+
 def entries(db, identifier):
     # Canonical cash only: no second copy from investment movements.
     return records(db, """select e.cash_entry_id entry_id,e.settlement_date,e.signed_amount amount,
@@ -264,6 +301,8 @@ def stage(database, storage_root, filename, body, media_type, options):
             for row in preview:
                 db.execute('insert into ledger.xp_statement_line(import_id,line_number,fingerprint,raw) values (?,?,?,?)',
                            [identifier, row['row_number'], row['fingerprint'], json.dumps(row)])
+            from fin2.imports.staging import seed
+            seed(db, identifier, preview)
             db.execute('COMMIT')
         except Exception:
             db.execute('ROLLBACK')
@@ -275,6 +314,8 @@ def detail(db, identifier):
     item = _load(db, identifier)
     available = entries(db, item['account_record'])
     apps = applications(db, item['account_record'])
+    item['attachment_documents'] = attachment_documents(db, identifier)
+    projected_by_document = attachment_rows(db, identifier)
     counts = {'new': 0, 'linked': 0, 'pending': 0, 'divergent': 0, 'excluded': 0}
     # Review state per row: ready = resolved, pending = still needs information,
     # excluded = the reviewer dropped the line from the load.
@@ -287,6 +328,9 @@ def detail(db, identifier):
             available, row)
         row['suggested_ids'] = [e['entry_id'] for e in row['candidates'] if e['amount'] == Decimal(row.get('amount', '0'))]
         row['applications'] = apps
+        row['attachment_documents'] = item['attachment_documents']
+        row['projected_events'] = projected_by_document.get(
+            (row['decision'] or {}).get('document_id'), [])
         _app_id, _match_method = identify_application(row, apps)
         row['suggested_application'] = _app_id or ''
         row['match_method'] = _match_method or ''
@@ -389,6 +433,42 @@ def _validate(db, item, row, decision, used):
         return
     if row['errors']:
         raise ValueError('Linha com erro de extração não pode ser confirmada')
+    if row.get('category') == 'brokerage' and decision['action'] == 'new':
+        if decision.get('document_id') and db.execute(
+            """select 1 from ledger.xp_statement_line
+               where import_id=? and line_number<>? and
+                 json_extract_string(decision,'$.document_id')=?""",
+                [item['import_id'], row['row_number'], decision['document_id']]).fetchone():
+            raise ValueError(
+                'O documento já está associado a outra linha deste extrato')
+        projected = _selected_attachment_rows(
+            db, item, decision.get('document_id'))
+        if not projected or any(projected_row.get('errors') for projected_row in projected):
+            raise ValueError(
+                'A nota associada possui linhas que precisam de revisão')
+        apps = {a['source_record_id']
+                for a in applications(db, item['account_record'])}
+        total = Decimal('0')
+        for projected_row in projected:
+            event_type = projected_row.get('event_type')
+            amount = Decimal(projected_row.get('amount', '0'))
+            if projected_row.get('account_record') != item['account_record']:
+                raise ValueError('A nota possui operação de outra conta')
+            if event_type not in {'buy', 'sell', 'fee', 'tax'} or not projected_row.get('settlement_date'):
+                raise ValueError('A nota possui operação financeira inválida')
+            if event_type in {'buy', 'sell'}:
+                if projected_row.get('application_record') not in apps or not projected_row.get('quantity'):
+                    raise ValueError(
+                        'A nota possui operação sem aplicação ou quantidade')
+                if Decimal(projected_row['quantity']) <= 0:
+                    raise ValueError('A nota possui quantidade inválida')
+            if amount == 0 or (event_type == 'buy' and amount >= 0) or (event_type in {'sell'} and amount <= 0):
+                raise ValueError('A nota possui sinal financeiro incompatível')
+            total += amount
+        if total != Decimal(row['amount']):
+            raise ValueError(
+                'O total líquido da nota difere do valor do extrato')
+        return
     available = {e['entry_id']: e for e in entries(db, item['account_record'])}
     if decision['action'] == 'link':
         ids = decision.get('entry_ids', [])
@@ -438,9 +518,11 @@ def _validate(db, item, row, decision, used):
     if event_type not in {'buy','redemption'} and decision.get('quantity'):
         raise ValueError('Quantidade só se aplica a resgate/previdência')
     if decision.get('document_id'):
-        doc = db.execute('select batch_id from source_document where document_id=?', [decision['document_id']]).fetchone()
-        if not doc or doc[0] != item['batch_id']:
-            raise ValueError('Documento complementar não pertence ao lote')
+        valid_documents = {document['document_id']
+                           for document in attachment_documents(db, item['import_id'])}
+        if decision['document_id'] not in valid_documents:
+            raise ValueError(
+                'Documento complementar não pertence a este extrato')
     if event_type in {'deposit','withdrawal','transfer'} and decision.get('application_record'):
         decision['application_record'] = None
     if event_type in {'buy', 'redemption'} and decision.get('quantity'):
@@ -450,9 +532,9 @@ def _validate(db, item, row, decision, used):
         except Exception:
             raise ValueError('Informe quantidade positiva comprovada') from None
     if event_type in {'buy', 'redemption'} and decision.get('document_id'):
-        document = db.execute('select batch_id from source_document where document_id=?', [decision.get('document_id')]).fetchone()
-        if not document or document[0] != item['batch_id'] or decision['document_id'] == item['document_id']:
-            raise ValueError('Selecione documento complementar deste lote que comprove produto e quantidade')
+        if decision['document_id'] == item['document_id']:
+            raise ValueError(
+                'Selecione documento complementar deste extrato que comprove produto e quantidade')
     if event_type == 'tax':
         related = next((r for r in item['rows'] if str(r['row_number']) == str(decision.get('related_line'))), None)
         if not related or related['category'] != 'redemption' or related.get('settlement_date') != row['settlement_date']:
@@ -581,7 +663,7 @@ def review(database, identifier, line_number, decision):
             item = _load(db, identifier, True)
             row = next((r for r in item['rows'] if r['row_number'] == line_number), None)
             if not row: raise ValueError('Linha desconhecida')
-            if decision.get('category') and not _apply_category(decision):
+            if decision.get('category') and decision.get('category') != 'brokerage' and not _apply_category(decision):
                 raise ValueError('Categoria inválida para lançamento novo')
             decision['reviewed_entries'] = sorted(e['entry_id'] for e in entries(db,item['account_record']) if _dates_match(e, row) and e['amount'] == Decimal(row.get('amount','0')))
             if decision['action'] != 'pending': _validate(db, item, row, decision, set())
@@ -641,12 +723,57 @@ def _create(db, item, row, decision):
           values (?,?,?,?,?,?,?,?,?,?,?)''', [event_id, account_id, decision.get('application_record') if not transfer_id else None,
                                              kind, row['trade_date'], row['settlement_date'], 'BRL', decision.get('quantity') or None,
                                              value, row['description'], transfer_id])
+        if decision.get('document_id'):
+            db.execute('insert into ledger.manual_event_document(event_id,document_id) values (?,?)',
+                       [event_id, decision['document_id']])
         if kind == 'buy':
             db.execute(
                 "insert into ledger.purchase_funding values (?,'investment_balance')", [event_id])
         db.execute("insert into ledger.audit_log(audit_id,entity_type,entity_id,action,payload) values (?,'manual_event',?,'create',?)",
                    [uuid4().hex, event_id, json.dumps({'import_id': item['import_id'], 'line_number': row['row_number'], 'decision': decision, 'subtype': row['category']})])
     return [event_id for event_id, _account_id, _kind, _value in events], len(events)
+
+
+def _create_attachment_events(db, item, row, decision):
+    projected = _selected_attachment_rows(db, item, decision['document_id'])
+    ids = []
+    for projected_row in projected:
+        event_id = uuid4().hex
+        db.execute('''insert into ledger.manual_event
+          (event_id,account_source_record_id,application_source_record_id,event_type,
+           trade_date,settlement_date,currency,quantity,amount,description,transfer_id)
+          values (?,?,?,?,?,?,?,?,?,?,NULL)''',
+                   [event_id, item['account_record'], projected_row.get('application_record'),
+                    projected_row['event_type'], projected_row.get(
+                        'trade_date'),
+                    projected_row['settlement_date'], projected_row.get(
+                        'currency', 'BRL'),
+                    projected_row.get('quantity'), projected_row['amount'],
+                    projected_row.get('description', 'Nota associada')])
+        if projected_row['event_type'] == 'buy':
+            db.execute(
+                "insert into ledger.purchase_funding values (?,'investment_balance')", [event_id])
+        db.execute('insert into ledger.manual_event_document(event_id,document_id) values (?,?)',
+                   [event_id, decision['document_id']])
+        db.execute("""insert into ledger.audit_log
+          (audit_id,entity_type,entity_id,action,payload) values (?,'manual_event',?,'create',?)""",
+                   [uuid4().hex, event_id, json.dumps({'import_id': item['import_id'],
+                    'line_number': row['row_number'], 'decision': decision,
+                    'subtype': row['category'], 'document_id': decision['document_id']})])
+        ids.append(event_id)
+    return ids, len(ids)
+
+
+def _finalize_attachments(db, import_id):
+    """Conclude child document imports while preserving their evidence."""
+    attachments = db.execute(
+        'select attachment_import_id from ledger.import_attachment where parent_import_id=?',
+        [import_id]).fetchall()
+    for (attachment_id,) in attachments:
+        db.execute('delete from ledger.import_staging_line where import_id=?', [
+                   attachment_id])
+        db.execute("""update ledger.file_import set status='committed',committed_at=now()
+          where import_id=? and status='preview'""", [attachment_id])
 
 
 def commit(database, identifier):
@@ -687,7 +814,11 @@ def commit(database, identifier):
                     # Dropped during review: no event, no link and no claim.
                     continue
                 if decision['action'] == 'new':
-                    ids, created = _create(db, item, row, decision)
+                    if row.get('category') == 'brokerage':
+                        ids, created = _create_attachment_events(
+                            db, item, row, decision)
+                    else:
+                        ids, created = _create(db, item, row, decision)
                     count += created
                 else:
                     ids = decision['entry_ids']
@@ -700,10 +831,13 @@ def commit(database, identifier):
                       [item['account_record'], row['fingerprint'], identifier, row['row_number'],
                        row.get('description'), row.get('settlement_date')])
             _document(db, item)
+            _finalize_attachments(db, identifier)
             db.execute("update ledger.file_import set status='committed',committed_at=now() where import_id=?", [identifier])
             # Step 4: the review is over, so the temporary staging is discarded.
             # The link to the statement (xp_statement_link) and the deduplication
             # claim (xp_statement_claim) stay, because later loads rely on both.
+            db.execute(
+                'delete from ledger.import_staging_line where import_id=?', [identifier])
             db.execute('delete from ledger.xp_statement_decision where import_id=?', [identifier])
             db.execute('delete from ledger.xp_statement_line where import_id=?', [identifier])
             db.execute('delete from ledger.xp_statement where import_id=?', [identifier])

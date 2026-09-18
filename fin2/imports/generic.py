@@ -131,7 +131,9 @@ def stage(database,storage_root,filename,body,media_type='application/octet-stre
            created_at,committed_at,byte_size,adapter_id,adapter_version,document_type,detection_confidence,
            batch_id,document_id,document_metadata)
           values (?,?,?,?,?,?,?,?,?,now(),NULL,?,?,?,?,?,?,?,?)""",
-          [import_id,digest,Path(filename).name,target.relative_to(root).as_posix(),media_type,'preview',len(preview),sum(bool(r['errors']) for r in preview),json.dumps(preview,ensure_ascii=False),len(body),adapter.adapter_id,adapter.version,adapter.document_type,confidence,batch_id,document_id,json.dumps(metadata) if metadata else None])
+                   [import_id, digest, Path(filename).name, target.relative_to(root).as_posix(), media_type, 'preview', len(preview), sum(bool(r['errors']) for r in preview), json.dumps(preview, ensure_ascii=False), len(body), adapter.adapter_id, adapter.version, adapter.document_type, confidence, batch_id, document_id, json.dumps(metadata) if metadata else None])
+        from fin2.imports.staging import seed
+        seed(db, import_id, preview)
     return import_id,'preview'
 
 def commit(database,import_id):
@@ -145,7 +147,11 @@ def commit(database,import_id):
         migrate(db);item=db.execute("select status,error_count,preview,document_id,document_metadata,batch_id from ledger.file_import where import_id=?",[import_id]).fetchone()
         if not item or item[0]!='preview': raise ValueError('Pré-visualização indisponível')
         if item[1]: raise ValueError('Corrija os erros antes de importar')
-        rows=json.loads(item[2]);document_id=item[3];metadata=json.loads(item[4]) if item[4] else None;db.execute('BEGIN')
+        from fin2.imports.staging import load_for_commit
+        rows = load_for_commit(db, import_id, json.loads(item[2]))
+        document_id = item[3]
+        metadata = json.loads(item[4]) if item[4] else None
+        db.execute('BEGIN')
         try:
             created=[]
             for row in rows:
@@ -187,6 +193,8 @@ def commit(database,import_id):
                   [observation_id,item[5],account,document_id,metadata['period_start'],metadata['period_end'],
                    metadata['currency'],metadata['opening_balance'],metadata['closing_balance'],
                    metadata.get('source_page'),'Importado automaticamente do extrato'])
+            db.execute(
+                'delete from ledger.import_staging_line where import_id=?', [import_id])
             db.execute("update ledger.file_import set status='committed',committed_at=now() where import_id=?",[import_id]);db.execute('COMMIT')
         except Exception: db.execute('ROLLBACK');raise
     return len(rows)
@@ -206,6 +214,8 @@ def reject(database,storage_root,import_id):
         document_id,storage_key=item[1],item[2]
         db.execute('BEGIN')
         try:
+            db.execute(
+                'delete from ledger.import_staging_line where import_id=?', [import_id])
             db.execute('delete from ledger.xp_statement_decision where import_id=?',[import_id])
             db.execute('delete from ledger.xp_statement_line where import_id=?',[import_id])
             db.execute('delete from ledger.xp_statement where import_id=?',[import_id])

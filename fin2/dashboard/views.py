@@ -1312,27 +1312,97 @@ def file_imports(request):
 
             wizard_step = 1
             if identifier and selected:
-                if selected['status'] in ('committed','completed'):
-                    wizard_step = 4
-                elif selected['status'] == 'preview':
-                    # Re-uploaded files retain their documentary history, but
-                    # their preview must still let the user approve the load.
-                    wizard_step = 2
+              if selected['status'] in ('committed', 'completed'):
+                wizard_step = 5 if selected.get(
+                    'adapter_id') == 'xp-account-statement' else 4
+              elif selected['status'] == 'preview':
+                # Re-uploaded files retain their documentary history, but
+                # their preview must still let the user approve the load.
+                wizard_step = 3 if selected.get(
+                    'adapter_id') == 'xp-account-statement' and selected.get('documented_at') else 2
             data['wizard_step'] = wizard_step
 
-            data.update(import_error=request.GET.get('error'),selected_import=selected)
-            return render(request,'dashboard/file_imports.html',data,status=400 if request.GET.get('error') else 200)
-    except (ValueError,OSError) as exc:
+            data.update(import_error=request.GET.get(
+                'error'), selected_import=selected)
+            return render(request, 'dashboard/file_imports.html', data, status=400 if request.GET.get('error') else 200)
+    except (ValueError, OSError) as exc:
         try:
             with reader(settings.WAREHOUSE_PATH) as connection:
-                data=context(request,connection)
+                data = context(request, connection)
                 from fin2.imports.xp_reconciliation import accounts as import_accounts
-                data['accounts']=[a for a in import_accounts(connection) if a['batch_id']==data['batch']['batch_id']]
-                data['selected_upload_account']=request.POST.get('account','')
-                data['selected_upload_adapter']=request.POST.get('adapter','')
-                data.update(imports=query(connection,'select * exclude(preview) from ledger.file_import order by created_at desc limit 50'),import_error=str(exc),selected_import=None)
-                return render(request,'dashboard/file_imports.html',data,status=400)
-        except Unavailable:return render(request,'dashboard/unavailable.html',status=503)
+                data['accounts'] = [a for a in import_accounts(
+                    connection) if a['batch_id'] == data['batch']['batch_id']]
+                data['selected_upload_account'] = request.POST.get(
+                    'account', '')
+                data['selected_upload_adapter'] = request.POST.get(
+                    'adapter', '')
+                data.update(imports=query(connection, 'select * exclude(preview) from ledger.file_import order by created_at desc limit 50'),
+                            import_error=str(exc), selected_import=None)
+                return render(request, 'dashboard/file_imports.html', data, status=400)
+        except Unavailable:
+            return render(request, 'dashboard/unavailable.html', status=503)
+
+
+@require_http_methods(['GET', 'POST'])
+def xp_statement_notes(request, identifier):
+    if not settings.WRITE_ENABLED:
+        return HttpResponse('Escrita desabilitada', status=403)
+    if not re.fullmatch(r'[a-f0-9]{32}', identifier):
+        raise Http404
+    try:
+        with reader(settings.WAREHOUSE_PATH) as connection:
+            parent = query(connection, """select f.*,s.account_record,s.documented_at
+              from ledger.file_import f join ledger.xp_statement s using(import_id)
+              where f.import_id=? and f.adapter_id='xp-account-statement'""", [identifier])
+            if not parent:
+                raise Http404
+            selected = parent[0]
+            if selected['status'] != 'preview' or not selected['documented_at']:
+                return redirect('/fin2/importar/?' + urlencode({'preview': identifier}))
+            if request.method == 'POST':
+                uploads = request.FILES.getlist('documents')
+                if not uploads:
+                    raise ValueError('Selecione pelo menos um documento')
+                from fin2.imports.generic import stage as stage_file_import
+                from warehouse.database import connect
+                for upload in uploads:
+                    attachment, _status = stage_file_import(
+                        settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
+                        upload.name, upload.read(), upload.content_type,
+                        options={'account_record': selected['account_record']})
+                    with connect(settings.WAREHOUSE_PATH) as writable:
+                        writable.execute(
+                            """insert into ledger.import_attachment
+                               (parent_import_id,attachment_import_id) values (?,?)
+                               on conflict do nothing""",
+                            [identifier, attachment])
+                return redirect(reverse('xp-statement-notes', args=[identifier]))
+            attachments = query(connection, """select f.import_id attachment_import_id,
+              f.original_filename,f.document_type,f.row_count,f.error_count,f.status
+              from ledger.import_attachment x join ledger.file_import f
+                on f.import_id=x.attachment_import_id
+              where x.parent_import_id=? order by f.created_at""", [identifier])
+            selected['document_metadata'] = json.loads(
+                selected['document_metadata'])
+            data = context(request, connection)
+            data.update(selected_import=selected, attachments=attachments,
+                        wizard_step=3, note_error=None)
+            return render(request, 'dashboard/xp_statement_notes.html', data)
+    except (ValueError, OSError) as exc:
+        with reader(settings.WAREHOUSE_PATH) as connection:
+            selected = query(connection, """select f.*,s.account_record,s.documented_at
+              from ledger.file_import f join ledger.xp_statement s using(import_id)
+              where f.import_id=?""", [identifier])[0]
+            attachments = query(connection, """select f.import_id attachment_import_id,
+              f.original_filename,f.document_type,f.row_count,f.error_count,f.status
+              from ledger.import_attachment x join ledger.file_import f
+                on f.import_id=x.attachment_import_id where x.parent_import_id=?""", [identifier])
+            selected['document_metadata'] = json.loads(
+                selected['document_metadata'])
+            data = context(request, connection)
+            data.update(selected_import=selected, attachments=attachments,
+                        wizard_step=3, note_error=str(exc))
+            return render(request, 'dashboard/xp_statement_notes.html', data, status=400)
 
 
 @page_view
@@ -1353,17 +1423,20 @@ def xp_statement_review(request, connection, identifier):
             line = int(request.GET['review_line'])
         except ValueError:
             raise Http404
-        selected['rows'] = [row for row in selected['rows'] if row['row_number'] == line]
+        selected['rows'] = [row for row in selected['rows']
+                            if row['row_number'] == line]
         if not selected['rows']:
             raise Http404
     elif request.GET.get('situacao') in REVIEW_STATES:
-        selected['rows'] = [row for row in selected['rows'] if row['state'] == request.GET['situacao']]
+        selected['rows'] = [row for row in selected['rows']
+                            if row['state'] == request.GET['situacao']]
     if request.GET.get('review_line'):
         selected['page'] = Paginator(selected['rows'], 20).get_page(1)
     else:
         from fin2.dashboard.xp_statement_views import approval_table
         approval_table(request, selected, review=True)
-    data.update(selected_import=selected, wizard_step=3, import_error=request.GET.get('error'))
+    data.update(selected_import=selected, wizard_step=4,
+                import_error=request.GET.get('error'))
     return render(request, 'dashboard/xp_statement_review.html', data, status=400 if request.GET.get('error') else 200)
 
 

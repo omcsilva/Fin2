@@ -119,6 +119,7 @@ def update(request, identifier):
     try:
         if request.POST.get('operation') == 'document':
             xp.document(settings.WAREHOUSE_PATH, identifier)
+            return redirect(reverse('xp-statement-notes', args=[identifier]))
         else:
             entry_ids = request.POST.getlist('entry_ids')
             # The single review form has no explicit decision field: the action

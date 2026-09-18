@@ -224,7 +224,8 @@ As migrações seguintes complementam o fluxo: `0055_statement_matching.sql`
    eventos financeiros. **Rejeitar descarta a carga** — linhas, decisões,
    documento e arquivo — e devolve o processo à etapa 1, sem registro algum da
    decisão.
-3. **Revisão:** após aprovar a carga, abrir a rota própria
+3. **Documentos:** após aprovar a carga, carregar zero ou mais notas e comprovantes de qualquer categoria. O adapter é detectado por arquivo, a evidência original permanece preservada e as linhas normalizadas ficam em staging mutável. A associação inicial é uma nota por linha do extrato; o upload ainda não cria eventos financeiros.
+4. **Revisão:** após associar os documentos, abrir a rota própria
    `/fin2/importar/<identificador>/revisao/`. Ao abrir, o Fin2 identifica cada
    lançamento sozinho — categoria/tipo, aplicação e vínculo com movimentos já
    existentes da mesma conta — a partir do extrato e do banco. Não existe mais
@@ -264,7 +265,7 @@ As migrações seguintes complementam o fluxo: `0055_statement_matching.sql`
      `ledger.audit_log` (`entity_type='manual_event'`) com `import_id`,
      `line_number` e a decisão aplicada, e cada decisão também fica em
      `ledger.xp_statement_decision`. Não foi criada tabela nova para isso.
-4. **Concluído:** depois das validações financeiras, o botão lança no ledger os
+5. **Concluído:** depois das validações financeiras, o botão lança no ledger os
    lançamentos **Pronto** e o processo termina. A tela informa quantos
    lançamentos novos foram gerados e os lista, já que permanecem vinculados ao
    extrato de origem. Neste momento a tabela temporária de revisão é apagada:

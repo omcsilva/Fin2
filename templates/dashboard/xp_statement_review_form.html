@@ -35,6 +35,11 @@
             {% if r.decision.application_record %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.decision.application_record %}selected{% endif %}>{{ a.name }}</option>{% endfor %}</select>{% elif r.match_method == 'exact_symbol' or r.match_method == 'cnpj' %}<span class="field-value">{{ r.suggested_application_name }} <small>({{ r.match_method }})</small></span><input type="hidden" name="application_record" value="{{ r.suggested_application }}"><details><summary>Alterar sugestão</summary><select name="application_record_override"><option value="">Manter sugestão</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}">{{ a.name }}</option>{% endfor %}</select></details>{% else %}<select name="application_record"><option value="">Selecione</option>{% for a in r.applications %}<option value="{{ a.source_record_id }}" {% if a.source_record_id == r.suggested_application %}selected{% endif %}>{{ a.name }}{% if a.source_record_id == r.suggested_application and r.match_method %} (sugerido · {{ r.match_method }}){% endif %}</option>{% endfor %}</select>{% endif %}
             </div>
 
+            <label>Documento associado</label>
+            <div>
+            <select name="document_id"><option value="">Selecione</option>{% for document in r.attachment_documents %}<option value="{{ document.document_id }}" {% if document.document_id == r.decision.document_id %}selected{% endif %}>{{ document.original_filename }} · {{ document.document_type }}{% if document.error_count %} · {{ document.error_count }} erro(s){% endif %}</option>{% endfor %}</select>
+            </div>
+
             <label>Resgate relacionado ao imposto</label>
             <div><select name="related_line"><option value="">Selecione para IRRF</option>{% for related in selected_import.redemption_lines %}<option value="{{ related.row_number }}" {% if r.decision.related_line == related.row_number|stringformat:"s" %}selected{% endif %}>Linha {{ related.row_number }} · {{ related.description }} · {{ related.settlement_date|short_date }}</option>{% endfor %}</select></div>
 
@@ -51,6 +56,18 @@
             <button type="submit" class="review-save">Salvar revisão</button>
         </div>
         </form>
+
+        {% if r.projected_events %}
+        <section class="panel review-projected-events">
+            <h4>Registros projetados a partir do documento</h4>
+            <div class="table-wrap"><table>
+                <thead><tr><th>Tipo</th><th>Aplicação</th><th>Quantidade</th><th>Datas</th><th class="number">Valor</th></tr></thead>
+                <tbody>{% for event in r.projected_events %}
+                <tr><td>{{ event.event_type }}</td><td>{{ event.application|default:'—' }}</td><td>{{ event.quantity|default:'—' }}</td><td>{{ event.trade_date|short_date }} · {{ event.settlement_date|short_date }}</td><td class="number">{{ event.amount|money:'BRL' }}</td></tr>
+                {% endfor %}</tbody>
+            </table></div>
+        </section>
+        {% endif %}
 
         <section class="panel review-ledger">
             <h4>Lançamentos no ledger no período da linha</h4>

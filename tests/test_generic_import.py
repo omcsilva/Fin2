@@ -3,6 +3,7 @@ from decimal import Decimal
 import json
 
 from fin2.imports.generic import stage,commit,reject
+from fin2.imports.staging import update
 from tests import test_fin1_import as fixtures
 from warehouse.database import connect
 
@@ -10,6 +11,41 @@ HEADER=b'account,application,type,trade_date,settlement_date,currency,quantity,a
 
 
 class GenericImportTests(unittest.TestCase):
+    def test_staging_edit_changes_commit_without_changing_raw_evidence(self):
+        f = fixtures.ImportTests()
+        f.setUp()
+        try:
+            f.run_import()
+            with connect(f.database) as db:
+                account = db.execute(
+                    'select source_record_id from portfolio.account').fetchone()[0]
+            body = HEADER + \
+                (account+',,deposit,,2026-08-31,BRL,,10,Aporte original\n').encode()
+            identifier, _ = stage(
+                f.database, f.database.parent/'documents', 'editable.csv', body)
+            with connect(f.database) as db:
+                original = db.execute('select raw from ledger.import_staging_line where import_id=?', [
+                                      identifier]).fetchone()[0]
+            with connect(f.database) as db:
+                normalized = db.execute('select normalized from ledger.import_staging_line where import_id=?', [
+                                        identifier]).fetchone()[0]
+            edited = json.loads(normalized)
+            edited['amount'] = '25.0000'
+            edited['description'] = 'Aporte revisado'
+            update(f.database, identifier, 2, edited, 'ready')
+            self.assertEqual(commit(f.database, identifier), 1)
+            with connect(f.database) as db:
+                event = db.execute(
+                    'select amount,description from ledger.manual_event').fetchone()
+                self.assertEqual(
+                    event, (Decimal('25.0000'), 'Aporte revisado'))
+                self.assertEqual(db.execute('select raw from ledger.import_staging_line where import_id=?', [
+                                 identifier]).fetchone(), None)
+            self.assertEqual(json.loads(original)[
+                             'description'], 'Aporte original')
+        finally:
+            f.tearDown()
+
     def test_preview_dedup_preservation_and_atomic_commit(self):
         f=fixtures.ImportTests();f.setUp()
         try:
