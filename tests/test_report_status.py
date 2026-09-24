@@ -129,3 +129,34 @@ class ReportStatusTests(unittest.TestCase):
                                 self.assertEqual(expected[menu['kind']] in ids, include,
                                                  menu['kind'])
             self.status(kind, item, '')
+
+    def test_account_menu_includes_institution_and_owner_images(self):
+        from django.test import RequestFactory
+        from fin2.dashboard.views import context
+        from unittest.mock import patch
+
+        with connect(self.f.database) as db:
+            batch_id = db.execute(
+                'SELECT batch_id FROM import_batch').fetchone()[0]
+            db.execute("""
+                INSERT INTO catalog.record (record_id, batch_id, table_name, legacy_id, payload, revision)
+                VALUES (?, ?, 'fin1_titular', ?, '{\"imagem\":\"ownerhash\"}', 1)
+                ON CONFLICT(record_id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision
+            """, [self.owner['record_id'], batch_id, self.owner['legacy_id']])
+            db.execute("""
+                INSERT INTO catalog.record (record_id, batch_id, table_name, legacy_id, payload, revision)
+                VALUES (?, ?, 'fin1_instituicao', ?, '{\"imagem\":\"insthash\"}', 1)
+                ON CONFLICT(record_id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision
+            """, [self.institution['record_id'], batch_id, self.institution['legacy_id']])
+        with patch('fin2.dashboard.catalog_images.manifest', return_value={
+            'ownerhash': {'hash': 'ownerhash'},
+            'insthash': {'hash': 'insthash'},
+        }):
+            request = RequestFactory().get('/fin2/')
+            with connect(self.f.database) as db:
+                account_menu = next(menu for menu in context(request, db)[
+                                    'navigation_catalogs'] if menu['kind'] == 'conta')
+                item = next(
+                    row for row in account_menu['items'] if row['legacy_id'] == self.account['legacy_id'])
+                self.assertEqual([img['hash'] for img in item['images']], [
+                                 'insthash', 'ownerhash'])

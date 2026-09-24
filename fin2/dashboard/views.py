@@ -108,7 +108,27 @@ def context(request, connection, batch_id=None):
             WHERE pm.batch_id=ap.batch_id AND pm.application_id=ap.legacy_id
               AND CAST(pm.collection_id AS VARCHAR)=?))
           ORDER BY name,1""",[selected,portfolio,portfolio])
-        for item in items:item['image']=images.get(item['image_key'])
+        for item in items:
+            item['image'] = images.get(item['image_key'])
+            item['images'] = []
+            if kind == 'conta':
+                account = query(menu_connection, """
+                    SELECT ac.source_record_id, ac.legacy_id,
+                           json_extract_string(i.payload, '$.imagem') AS institution_image,
+                           json_extract_string(t.payload, '$.imagem') AS investor_image
+                    FROM portfolio.account ac
+                    LEFT JOIN portfolio.institution i ON i.batch_id=ac.batch_id AND i.legacy_id=ac.institution_id
+                    LEFT JOIN portfolio.investor t ON t.batch_id=ac.batch_id AND t.legacy_id=ac.investor_id
+                    WHERE ac.batch_id=? AND ac.source_record_id=?
+                """, [selected, item['source_record_id']])
+                if account:
+                    row = account[0]
+                    for image_key in (row['institution_image'], row['investor_image']):
+                        image = images.get(image_key)
+                        if image and image not in item['images']:
+                            item['images'].append(image)
+            else:
+                item['images'] = [item['image']] if item['image'] else []
         navigation_catalogs.append({'kind':kind,'symbol':symbol,'label':label,'items':items})
     latest_price_update=connection.execute("SELECT last_successful_at FROM market.price_update_state WHERE state_key='assets'").fetchone()[0]
     latest_job=query(connection,"SELECT * FROM price_update_job ORDER BY created_at DESC LIMIT 1")
