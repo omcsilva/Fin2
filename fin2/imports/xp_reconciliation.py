@@ -410,11 +410,19 @@ CATEGORY_OPTIONS = (
     ('jcp', 'JCP'),
     ('dividend', 'Dividendo'),
     ('income', 'Rendimento'),
+    ('brokerage', 'Operações em bolsa'),
     ('transfer', 'Transferência / movimentação'),
     ('redemption_tax', 'IRRF sobre resgate'),
     ('redemption', 'Resgate'),
     ('pension', 'Previdência (aplicação)'),
 )
+
+
+def category_label(value):
+    """Category wording shown to the reviewer, never the internal slug."""
+    return dict(CATEGORY_OPTIONS).get(value, value or '')
+
+
 # Wording of the ledger entry each event type produces, shown before confirming.
 EVENT_LABELS = {
     'income': 'Provento / rendimento',

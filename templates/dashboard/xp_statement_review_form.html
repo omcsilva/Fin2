@@ -16,7 +16,7 @@
         <input type="hidden" name="counterparty" value="RESULTADO">
 
         <p><strong>Descrição:</strong> {{ r.description }}<br>
-           <strong>Categoria sugerida:</strong> {{ r.category }}<br>
+           <strong>Categoria sugerida:</strong> {{ r.category|category_label }}<br>
            <strong>Data Mov.:</strong> {{ r.trade_date|short_date }} · <strong>Liq.:</strong> {{ r.settlement_date|short_date }}<br>
            <strong>Valor:</strong> {{ r.amount|money:'BRL' }}
         </p>
@@ -82,7 +82,7 @@
         <section class="panel review-history">
             <h4>Histórico de revisões</h4>
             {% for h in r.history %}
-            <p><small class="muted">{{ h.created_at }}</small> · {{ h.action_label }}{% if h.payload.category %} · {{ h.payload.category }}{% endif %}{% if h.payload.reason %} · {{ h.payload.reason }}{% endif %}</p>
+            <p><small class="muted">{{ h.created_at }}</small> · {{ h.action_label }}{% if h.payload.category %} · {{ h.payload.category|category_label }}{% endif %}{% if h.payload.reason %} · {{ h.payload.reason }}{% endif %}</p>
             {% empty %}
             <p class="muted">Nenhuma revisão registrada.</p>
             {% endfor %}

@@ -4,7 +4,12 @@ from datetime import date, datetime
 
 from django import template
 
+from fin2.imports.xp_reconciliation import category_label
+
 register = template.Library()
+# The reviewer always sees the category wording, never the internal slug; the
+# mapping lives with the categories themselves.
+register.filter('category_label', category_label)
 
 
 @register.filter

@@ -6,5 +6,6 @@ class PrivateResponses:
         response = self.get_response(request)
         response["Cache-Control"] = "private, no-store"
         response["Referrer-Policy"] = "same-origin"
-        response.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self'; object-src 'none'; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'")
+        response.setdefault("Content-Security-Policy",
+                            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'")
         return response

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date,datetime
 from decimal import Decimal
 import io
 import json
@@ -205,14 +205,11 @@ class XPFlowTests(unittest.TestCase):
         identifier = self.stage(workbook())
         xp.document(self.db, identifier)
         with connect(self.db) as db:
+            preview = json.dumps([{'row_number': 1, 'description': 'Compra SPXI11', 'errors': ['aplicação não encontrada de forma única: SPXI11']}])
+            db.execute("insert into ledger.file_import (import_id,sha256,original_filename,storage_key,media_type,status,row_count,error_count,preview,byte_size,adapter_id,adapter_version,document_type) values (?,?,?,?,?,'preview',1,1,?,1,'clear-brokerage-note','1','brokerage_note')", ['b' * 32, 'note-hash', 'nota.pdf', 'imports/note', 'application/pdf', preview])
             db.execute("""insert into ledger.import_attachment
               (parent_import_id,attachment_import_id) values (?,?)""",
                        [identifier, 'b' * 32])
-            db.execute("""insert into ledger.file_import
-              (import_id,sha256,original_filename,storage_key,media_type,status,
-               row_count,error_count,preview,byte_size,adapter_id,adapter_version,document_type)
-              values (?,?,?,?,?,'preview',1,0,'[]',1,'clear-brokerage-note','1','brokerage_note')""",
-                       ['b' * 32, 'note-hash', 'nota.pdf', 'imports/note', 'application/pdf'])
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
             response = Client().get(
@@ -222,6 +219,9 @@ class XPFlowTests(unittest.TestCase):
             html = response.content.decode()
             self.assertIn('Carregar anexos', html)
             self.assertIn('nota.pdf', html)
+            self.assertIn('Log de importação', html)
+            self.assertIn('Compra SPXI11', html)
+            self.assertIn('aplicação não encontrada de forma única: SPXI11', html)
             self.assertIn('3. Carregar anexos', html)
             self.assertIn('Lançamentos relacionados', html)
             self.assertIn('Descrição:', html)
@@ -235,6 +235,35 @@ class XPFlowTests(unittest.TestCase):
             self.assertNotIn('Baixar arquivo', html)
             self.assertNotIn('xp-approval-table', html)
             self.assertNotIn('Página 1 de 1', html)
+
+    def test_document_upload_closes_reader_before_staging(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import Client, override_settings
+        from django.urls import reverse
+        from fin2.imports.base import SourceRow
+
+        identifier = self.stage(workbook())
+        xp.document(self.db, identifier)
+        parsed = [SourceRow({'page': 1, 'section': 'negocios_realizados', 'item': 1}, {
+            'kind': 'trade', 'side': 'V', 'market': 'VISTA', 'asset': 'TEST',
+            'quantity': Decimal('1'), 'price': Decimal('10'), 'amount': Decimal('10'),
+            'trade_date': date(2025, 1, 2)})]
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']), \
+               patch('fin2.imports.clear_brokerage.ClearBrokerageNoteAdapter.detect', return_value=98), \
+             patch('fin2.imports.clear_brokerage.ClearBrokerageNoteAdapter.parse', return_value=parsed):
+            response = Client().post(reverse('xp-statement-notes', args=[identifier]), {
+                'documents': SimpleUploadedFile('nota.pdf', b'%PDF-fixture', 'application/pdf'),
+                'description': 'Nota XP'})
+        self.assertEqual(response.status_code, 302)
+        with connect(self.db) as db:
+            self.assertEqual(db.execute(
+                'select count(*) from ledger.import_attachment where parent_import_id=?',
+                [identifier]).fetchone()[0], 1)
 
     def test_individual_review_loads_into_the_list_modal(self):
         import os

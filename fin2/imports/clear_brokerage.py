@@ -24,12 +24,32 @@ def _text(body):
 def _rows_from_text(text,page=1):
     lines=[line.strip() for line in text.splitlines() if line.strip()]
     plain=[_plain(line).replace('\ufffd','') for line in lines]
-    try:
-        marker=next(i for i,line in enumerate(plain) if line.startswith('DATA PREGAO'))
-        trade_date=datetime.strptime(re.sub(r'[^0-9/]','',lines[marker+1]),'%d/%m/%Y').date()
-    except (StopIteration,IndexError,ValueError):trade_date=None
+    trade_date=None
+    for label in ('DATA PREGAO','DATA DE REFERENCIA'):
+        for index,line in enumerate(plain):
+            if not line.startswith(label):continue
+            candidates=(lines[index],lines[index+1] if index+1<len(lines) else '')
+            match=next((re.search(r'\b\d{2}/\d{2}/\d{4}\b',candidate) for candidate in candidates
+                        if re.search(r'\b\d{2}/\d{2}/\d{4}\b',candidate)),None)
+            if match:trade_date=datetime.strptime(match.group(),'%d/%m/%Y').date()
+            break
+        if trade_date:break
     rows=[]
     for index,line in enumerate(plain):
+        compact = re.fullmatch(
+            r'\d+-BOVESPA\s+([CV])\s+(\S+)\s+(.+?)\s+([\d.]+)\s+([\d.]+,\d+)\s+([\d.]+,\d+)\s+[CD]',
+            line)
+        if compact:
+            side, market, asset, quantity, price, gross = compact.groups()
+            asset = re.sub(r'\s+(?:@|#|[28DFBTACPHXYLI])$', '', asset).strip()
+            try:
+                quantity, price, gross = map(_money, (quantity, price, gross))
+            except InvalidOperation:
+                continue
+            rows.append(SourceRow({'page': page, 'section': 'negocios_realizados', 'item': len(rows)+1},
+                                  {'kind': 'trade', 'side': side, 'market': market, 'asset': asset, 'quantity': quantity, 'price': price,
+                                   'amount': gross, 'trade_date': trade_date}))
+            continue
         if not re.fullmatch(r'\d+-BOVESPA',line):continue
         try:
             side=plain[index+1];market=plain[index+2];cursor=index+3
@@ -71,9 +91,14 @@ def _rows_from_text(text,page=1):
 class ClearBrokerageNoteAdapter:
     adapter_id='clear-brokerage-note';version='1';document_type='brokerage_note'
     def detect(self,filename,body):
-        if not body.startswith(b'%PDF-'):return 0
+        if b'%PDF-' not in body[:1024]:
+            return 0
         plain=_plain(_text(body)).replace('\ufffd','')
-        return 98 if 'CLEAR CORRETORA' in plain and ('NOTA DE NEGOCI' in plain or 'NEGOCIOS REALIZADOS' in plain) else 0
+        broker = 'CLEAR CORRETORA' in plain or 'XP INVESTIMENTOS CORRETORA' in plain
+        note = 'NOTA DE NEGOCI' in plain or 'NEGOCIOS REALIZADOS' in plain
+        structure = 'DATA PREGAO' in plain and (
+            'BOVESPA' in plain or 'RESUMO FINANCEIRO' in plain)
+        return 98 if note and (broker or structure) else 10
     def parse(self,filename,body):
         reader=PdfReader(io.BytesIO(body));rows=[]
         for page_number,page in enumerate(reader.pages,1):
@@ -105,19 +130,20 @@ class ClearBrokerageNoteAdapter:
         found=db.execute('select source_record_id,name,legacy_id from portfolio.account where source_record_id=?',[account]).fetchone() if account else None
         if not found:errors.append('selecione a conta de corretagem correspondente')
         else:normalized.update(account_record=found[0],account=found[1])
-        if values['kind']=='trade':
-            key=' '.join(_plain(values['asset']).split())
-            apps=db.execute("""select ap.source_record_id,ap.name from portfolio.application ap
-              left join portfolio.asset a on a.batch_id=ap.batch_id and a.legacy_id=ap.asset_id
-              where ap.account_id=? and (upper(trim(ap.name))=? or upper(trim(coalesce(a.symbol,'')))=?
-                or upper(trim(coalesce(a.name,'')))=?)""",
-              [found[2] if found else -1,key,key,key]).fetchall()
-            if len(apps)!=1:errors.append(f'aplicação não encontrada de forma única: {values["asset"]}')
-            else:normalized.update(application_record=apps[0][0],application=apps[0][1])
-        else:normalized.update(application_record=None,application='')
+        if 'kind' in values:
+                if values['kind']=='trade':
+                        key=' '.join(_plain(values['asset']).split())
+                        ticker_match=re.search(r'\b[A-Z]{4}\d{1,2}\b',key)
+                        ticker=ticker_match.group() if ticker_match else key
+                        apps=db.execute("""select ap.source_record_id,ap.name from portfolio.application ap
+                            left join portfolio.asset a on a.batch_id=ap.batch_id and a.legacy_id=ap.asset_id
+                            where ap.account_id=? and (upper(trim(ap.name))=? or upper(trim(coalesce(a.symbol,'')))=?
+                                or upper(trim(coalesce(a.name,'')))=? or upper(trim(coalesce(a.symbol,'')))=?)""",
+                            [found[2] if found else -1,key,key,key,ticker]).fetchall()
+                        if len(apps)!=1:errors.append(f'aplicação não encontrada de forma única: {values["asset"]}')
+                        else:normalized.update(application_record=apps[0][0],application=apps[0][1])
+                else:normalized.update(application_record=None,application='')
         if not values['trade_date']:errors.append('data do pregão não identificada')
         normalized['errors']=errors
         return normalized
-
-
 CLEAR_ADAPTER=register(ClearBrokerageNoteAdapter())

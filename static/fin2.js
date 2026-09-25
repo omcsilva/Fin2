@@ -130,12 +130,6 @@ document.querySelectorAll('form[data-confirm-submit]').forEach(form => {
   groups.forEach(group => group.addEventListener('toggle',() => {
     if (group.open) groups.forEach(other => { if (other!==group) other.open=false; });
   }));
-  document.addEventListener('click',event => {
-    if (!event.target.closest('.menu-group')) groups.forEach(group => group.open=false);
-  });
-  document.addEventListener('keydown',event => {
-    if (event.key==='Escape') groups.forEach(group => group.open=false);
-  });
 })();
 
 // Forms that reload the page as soon as one of their selects changes.
@@ -143,25 +137,8 @@ document.querySelectorAll('form[data-auto-submit] select').forEach(select => {
   select.addEventListener('change', () => select.form.submit());
 });
 
-// Keep multi-select choices while the attachment description is edited.
-document.querySelectorAll('.attachment-upload-form').forEach(form => {
-  const related = form.querySelector('select[name="related_lines"]');
-  const description = form.querySelector('textarea[name="description"]');
-  if (!related || !description) return;
-  const remember = () => { form.dataset.relatedLines = JSON.stringify([...related.selectedOptions].map(option => option.value)); };
-  const restore = () => {
-    if (!form.dataset.relatedLines) return;
-    const values = new Set(JSON.parse(form.dataset.relatedLines));
-    [...related.options].forEach(option => { option.selected = values.has(option.value); });
-  };
-  ['pointerdown', 'mousedown', 'click', 'input', 'change', 'keyup'].forEach(eventName => {
-    related.addEventListener(eventName, remember);
-  });
-  ['pointerdown', 'mousedown', 'focusin'].forEach(eventName => {
-    description.addEventListener(eventName, restore);
-    form.querySelector('label[for="attachment-description"]')?.addEventListener(eventName, restore);
-  });
-  remember();
+document.querySelectorAll('.global-filters select[name="portfolio"] option[value=""], .global-filters select[name="year"] option[value=""]').forEach(option => {
+  option.textContent = '-';
 });
 
 // Individual XP statement review: load the dedicated review view and present it

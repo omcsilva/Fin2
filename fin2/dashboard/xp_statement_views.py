@@ -22,11 +22,6 @@ def review_page_size(value):
     return value if value in PAGE_SIZES or value == PAGE_SIZE_ALL else DEFAULT_PAGE_SIZE
 
 
-def category_label(value):
-    """Category wording shown to the reviewer."""
-    return dict(xp.CATEGORY_OPTIONS).get(value, value or '')
-
-
 def approval_table(request, selected, review=False):
     """Search and order the full statement before paginating its preview."""
     rows = selected['rows']
@@ -42,7 +37,7 @@ def approval_table(request, selected, review=False):
             if action == 'excluded':
                 detail = ['Excluído do ledger']
             else:
-                detail = [category_label(effective.get('category') or row.get('category'))]
+                detail = [xp.category_label(effective.get('category') or row.get('category'))]
                 if action == 'link':
                     detail.append('Vincular a movimento existente')
             missing = row.get('identification_missing') or []

@@ -36,6 +36,13 @@
             </tbody>
         </table>
     </div>
+    {% if attachments %}<section class="import-log" aria-labelledby="import-log-title">
+        <h3 id="import-log-title">Log de importação</h3>
+        {% for item in attachments %}<div class="note">
+            <strong>{{ item.original_filename }}</strong> — {{ item.row_count }} linha{{ item.row_count|pluralize }} extraída{{ item.row_count|pluralize }}; {{ item.error_count }} erro{{ item.error_count|pluralize }}; estado {{ item.status }}.
+            {% if item.error_rows %}<ul>{% for row in item.error_rows %}<li>Linha {{ row.row_number }} — {{ row.description|default:'Sem descrição' }}: {% for error in row.errors %}{{ error }}{% if not forloop.last %}; {% endif %}{% endfor %}</li>{% endfor %}</ul>{% else %}<p>Nenhum erro de validação.</p>{% endif %}
+        </div>{% endfor %}
+    </section>{% endif %}
     <div class="review-form-actions" id="review-form-actions">
         <a class="button review-cancel" href="{% url 'file-imports' %}?preview={{ selected_import.import_id }}">Voltar</a>
         <a class="button review-save" href="{% url 'xp-statement-review' selected_import.import_id %}">Continuar para revisão</a>

@@ -12,6 +12,7 @@ from django.conf import settings
 from django.core.paginator import Paginator
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_safe, require_POST
 
 from warehouse.repositories.dashboard import Unavailable, query, reader
@@ -1360,6 +1361,19 @@ def file_imports(request):
             return render(request, 'dashboard/unavailable.html', status=503)
 
 
+def _statement_attachments(connection, identifier):
+    attachments = query(connection, """select f.import_id attachment_import_id,
+      f.original_filename,f.document_type,f.row_count,f.error_count,f.status,f.preview,
+      x.description,x.related_lines
+      from ledger.import_attachment x join ledger.file_import f
+        on f.import_id=x.attachment_import_id
+      where x.parent_import_id=? order by f.created_at""", [identifier])
+    for attachment in attachments:
+        preview = json.loads(attachment.pop('preview'))
+        attachment['error_rows'] = [row for row in preview if row.get('errors')]
+    return attachments
+
+
 @require_http_methods(['GET', 'POST'])
 def xp_statement_notes(request, identifier):
     if not settings.WRITE_ENABLED:
@@ -1367,6 +1381,7 @@ def xp_statement_notes(request, identifier):
     if not re.fullmatch(r'[a-f0-9]{32}', identifier):
         raise Http404
     try:
+        pending_upload = None
         with reader(settings.WAREHOUSE_PATH) as connection:
             parent = query(connection, """select f.*,s.account_record,s.documented_at
               from ledger.file_import f join ledger.xp_statement s using(import_id)
@@ -1393,52 +1408,47 @@ def xp_statement_notes(request, identifier):
                 }
                 if any(line not in available_lines for line in selected_lines):
                     raise ValueError('Lançamento relacionado inválido')
-                from fin2.imports.generic import stage as stage_file_import
-                from warehouse.database import connect
-                attachment, _status = stage_file_import(
-                    settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
-                    upload.name, upload.read(), upload.content_type,
-                    options={'account_record': selected['account_record']})
-                with connect(settings.WAREHOUSE_PATH) as writable:
-                  writable.execute(
-                      """insert into ledger.import_attachment
-                     (parent_import_id,attachment_import_id,description,related_lines)
-                     values (?,?,?,?)
-                       on conflict do nothing""",
-                      [identifier, attachment, description, json.dumps(selected_lines)])
-                return redirect(reverse('xp-statement-notes', args=[identifier]))
-            attachments = query(connection, """select f.import_id attachment_import_id,
-                  f.original_filename,f.document_type,f.row_count,f.error_count,f.status,
-                  x.description,x.related_lines
-              from ledger.import_attachment x join ledger.file_import f
-                on f.import_id=x.attachment_import_id
-              where x.parent_import_id=? order by f.created_at""", [identifier])
-            selected['document_metadata'] = json.loads(
-                selected['document_metadata'])
-            from fin2.dashboard.xp_statement_views import approval_table
-            selected = detail(connection, identifier)
-            related_lines = sorted(
-                selected['rows'],
-                key=lambda row: int(row['source_locator']['row']))
-            for row in related_lines:
-              row['attachment_trade_date'] = date.fromisoformat(
-                  str(row['trade_date'])).strftime('%d/%m')
-            approval_table(request, selected)
-            data = context(request, connection)
-            data.update(selected_import=selected, attachments=attachments,
-                        related_lines=related_lines,
-                        wizard_step=3, note_error=None)
-            return render(request, 'dashboard/xp_statement_notes.html', data)
+                pending_upload = (upload.name, upload.read(), upload.content_type,
+                                  selected['account_record'], description, selected_lines)
+            else:
+                attachments = _statement_attachments(connection, identifier)
+                selected['document_metadata'] = json.loads(
+                    selected['document_metadata'])
+                from fin2.dashboard.xp_statement_views import approval_table
+                selected = detail(connection, identifier)
+                related_lines = sorted(
+                    selected['rows'],
+                    key=lambda row: int(row['source_locator']['row']))
+                for row in related_lines:
+                  row['attachment_trade_date'] = date.fromisoformat(
+                      str(row['trade_date'])).strftime('%d/%m')
+                approval_table(request, selected)
+                data = context(request, connection)
+                data.update(selected_import=selected, attachments=attachments,
+                            related_lines=related_lines,
+                            wizard_step=3, note_error=None)
+                return render(request, 'dashboard/xp_statement_notes.html', data)
+        name, body, content_type, account_record, description, selected_lines = pending_upload
+        from fin2.imports.generic import stage as stage_file_import
+        from warehouse.database import connect
+        attachment, _status = stage_file_import(
+            settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
+            name, body, content_type,
+            options={'account_record': account_record})
+        with connect(settings.WAREHOUSE_PATH) as writable:
+          writable.execute(
+              """insert into ledger.import_attachment
+             (parent_import_id,attachment_import_id,description,related_lines)
+             values (?,?,?,?)
+               on conflict do nothing""",
+              [identifier, attachment, description, json.dumps(selected_lines)])
+        return redirect(reverse('xp-statement-notes', args=[identifier]))
     except (ValueError, OSError) as exc:
         with reader(settings.WAREHOUSE_PATH) as connection:
             selected = query(connection, """select f.*,s.account_record,s.documented_at
               from ledger.file_import f join ledger.xp_statement s using(import_id)
               where f.import_id=?""", [identifier])[0]
-            attachments = query(connection, """select f.import_id attachment_import_id,
-              f.original_filename,f.document_type,f.row_count,f.error_count,f.status,
-              x.description,x.related_lines
-              from ledger.import_attachment x join ledger.file_import f
-                on f.import_id=x.attachment_import_id where x.parent_import_id=?""", [identifier])
+            attachments = _statement_attachments(connection, identifier)
             selected['document_metadata'] = json.loads(
                 selected['document_metadata'])
             from fin2.dashboard.xp_statement_views import approval_table

@@ -75,11 +75,11 @@ button, .button { font-weight: 650; }
 /* Global analysis scope; carbon texture above remains unchanged. */
 .global-filters{display:flex;align-items:end;gap:9px;margin:0 0 0 auto}
 .global-filters label{display:flex;flex-direction:column;gap:2px;font:9px/1.2 Consolas,'Cascadia Code',monospace;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)}
-.global-filters select{min-width:125px;width:auto;padding:7px 28px 7px 9px;font-size:12px;background:#090e14;border-color:#40515c}
+.global-filters select{field-sizing:content;min-width:0;width:auto;padding:7px 28px 7px 9px;font-size:12px;background:#090e14;border-color:#40515c}
 .global-filters button{padding:0;font-size:18px}
 .analysis-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:1100px){header{flex-wrap:wrap}.global-filters{order:2}}
-@media(max-width:600px){.global-filters{order:3;width:100%}.global-filters label{flex:1}.global-filters select{width:100%}.global-filters button{display:none}.analysis-stats{grid-template-columns:1fr}}
+@media(max-width:600px){.global-filters{order:3;width:100%}.global-filters label{flex:1}.global-filters select{field-sizing:fixed;width:100%}.global-filters button{display:none}.analysis-stats{grid-template-columns:1fr}}
 
 /* Thin metallic navigation rail below the carbon-fiber header. */
 .main-menu{
@@ -300,7 +300,8 @@ th.number{white-space:normal}
 @font-face{font-family:Geist;src:url('fonts/geist/GeistVariable.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
 @font-face{font-family:Geist;src:url('fonts/geist/GeistVariable-Italic.woff2') format('woff2');font-style:italic;font-weight:100 900;font-display:swap}
 body,h1,h2,h3,h4,h5,h6{font-family:Geist,Tahoma,sans-serif;font-optical-sizing:auto}
-table,table th,table td,table .sort-button,form :is(input,select,textarea,button,.button),input::file-selector-button{font-family:Geist,Tahoma,sans-serif;font-optical-sizing:auto}
+table,table th,table td,table .sort-button,form :is(input,select,textarea){font-family:Consolas,'Cascadia Code','Courier New',monospace}
+form :is(button,.button),input::file-selector-button{font-family:Geist,Tahoma,sans-serif;font-optical-sizing:auto}
 table{color-scheme:light;--muted:#394957;--green:#005266;color:#101820;background:#fff;border:1px solid #8193a5}
 table th{color:#142331;background:#c3d0dd;border-bottom:2px solid #71869a;font-weight:700}
 table td{border-bottom-color:#aab9c7}
@@ -313,6 +314,7 @@ table :is(a,button,input,select):focus-visible{outline-color:#007589}
 :is(form,.global-filters,.flow-review) :is(input,select,textarea){color-scheme:light;color:#202c39;background:#f8fafc;border-color:#a5b5c5;accent-color:#007589}
 form input::placeholder,form textarea::placeholder{color:#657487;opacity:1}
 form select option{background:#f8fafc;color:#202c39}
+form select option:checked{background:#007589;color:#fff}
 form button:not(.sort-button),form .button,input::file-selector-button{color:#243746;background:linear-gradient(#f7fafc,#dce5ee);border-color:#a5b5c5;box-shadow:inset 0 1px 0 #fff}
 form button:not(.sort-button):hover,form .button:hover,input::file-selector-button:hover{background:#d0e5ef;color:#123b4a}
 form button:not(.sort-button):active{background:#bfd7e3;box-shadow:inset 0 1px 3px #6f8b9c66}
@@ -539,19 +541,14 @@ h2 .heading-action{font-size:14px;font-weight:400}
 #xp-import-done-table th:nth-child(5){width:7%}
 #xp-import-done-table th:nth-child(6){width:11%}
 
-/* Approval table (wizard step 2). Lançamento is the elastic column in both the
+/* Approval table (wizard step 2). Values are shown in full: every column but
+   Lançamento keeps its content on a single line, and Lançamento is the elastic
+   column that wraps and absorbs the width the others leave, in both the
    six-column layout and the seven-column one used when reading errors exist. */
-#xp-approval-table th:nth-child(1){width:5%}
-#xp-approval-table th:nth-child(2){width:11%}
-#xp-approval-table th:nth-child(3){width:10%}
-#xp-approval-table th:nth-child(5){width:13%}
-#xp-approval-table th:nth-child(6){width:13%}
-#xp-approval-table.with-reading-errors th:nth-child(1){width:4%}
-#xp-approval-table.with-reading-errors th:nth-child(2){width:9%}
-#xp-approval-table.with-reading-errors th:nth-child(3){width:8%}
-#xp-approval-table.with-reading-errors th:nth-child(5){width:10%}
-#xp-approval-table.with-reading-errors th:nth-child(6){width:10%}
-#xp-approval-table.with-reading-errors th:nth-child(7){width:18%}
+#xp-approval-table{table-layout:auto}
+#xp-approval-table .t{max-width:none;overflow:visible;text-overflow:clip}
+#xp-approval-table td:not(.wrap-text),#xp-approval-table td:not(.wrap-text) .t,#xp-approval-table td:not(.wrap-text) .t *{white-space:nowrap}
+#xp-approval-table .wrap-text,#xp-approval-table .wrap-text .t,#xp-approval-table .wrap-text .t *{white-space:normal;overflow-wrap:anywhere}
 
 /* Review table (wizard step 3). Only the Lançamento column has no declared
    width, so in a fixed layout it absorbs every point the other columns leave,
