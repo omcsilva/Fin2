@@ -85,6 +85,24 @@ class XPParserTests(unittest.TestCase):
         self.assertEqual([row['source_locator']['row'] for row in selected['rows']], [1])
         self.assertIn('categoria=dividend', selected['table_query'])
 
+    def test_review_table_detail_shows_pending_reason_not_attachment_origin(self):
+        from types import SimpleNamespace
+        from fin2.dashboard.xp_statement_views import approval_table
+        rows = [
+            dict(source_locator={'row': 28, 'item': 1}, category='brokerage',
+                 state='pending', identified={'action': 'new', 'category': 'brokerage'},
+                 identification_missing=['Total líquido da nota (R$ 100,00) difere do valor do extrato (R$ 90,00)'],
+                 errors=[], table_detail='Linha 28 do extrato · nota.pdf'),
+            dict(source_locator={'row': 29, 'item': 1}, category='brokerage',
+                 state='ready', identified={'action': 'new', 'category': 'brokerage'},
+                 identification_missing=[], errors=[], table_detail='Linha 29 do extrato · nota.pdf'),
+        ]
+        selected = {'review_entries': rows, 'rows': rows}
+        approval_table(SimpleNamespace(GET={'por_pagina': 'todos'}), selected, review=True)
+        self.assertEqual(selected['review_entries'][0]['table_detail'],
+                         'Falta: Total líquido da nota (R$ 100,00) difere do valor do extrato (R$ 90,00)')
+        self.assertEqual(selected['review_entries'][1]['table_detail'], '')
+
     def test_approval_search_and_numeric_sort_before_pagination(self):
         from types import SimpleNamespace
         from fin2.dashboard.xp_statement_views import approval_table
@@ -158,6 +176,7 @@ class XPFlowTests(unittest.TestCase):
         django.setup()
         from django.core.files.uploadedfile import SimpleUploadedFile
         from django.test import Client, override_settings
+        from django.urls import reverse
 
         body = workbook()
         identifier = self.stage(body)
@@ -165,7 +184,7 @@ class XPFlowTests(unittest.TestCase):
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
             client = Client()
-            response = client.post('/fin2/importar/', {
+            response = client.post(reverse('statement-imports'), {
                 'file': SimpleUploadedFile('extrato.xlsx', body),
                 'adapter': 'xp-account-statement', 'account': self.account,
             }, follow=True)
@@ -181,7 +200,6 @@ class XPFlowTests(unittest.TestCase):
             self.assertNotIn('Justificativa da associação', html)
             self.assertNotIn('Revisão em lote', html)
             self.assertEqual(len(response.redirect_chain), 1)
-            from django.urls import reverse
             response = client.post(reverse('xp-statement-update', args=[identifier]),
                                    {'operation': 'document'}, follow=True)
             self.assertEqual(response.status_code, 200)
@@ -193,6 +211,75 @@ class XPFlowTests(unittest.TestCase):
                                        [identifier]).fetchone()[0])
             self.assertEqual(db.execute("""select count(*) from ledger.audit_log
               where entity_type='file_import_decision'""").fetchone()[0], 0)
+
+    def test_generic_import_page_excludes_statement_formats(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            response = Client().get(reverse('file-imports'))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('>Importar arquivo</button>', html)
+        self.assertIn('<h2>Arquivos recebidos</h2>', html)
+        self.assertIn('generic-ledger', html)
+        self.assertIn('clear-brokerage-note', html)
+        self.assertIn('bb-tesouro-receipt', html)
+        self.assertNotIn('xp-account-statement', html)
+        self.assertNotIn('apex-account-statement', html)
+
+    def test_statement_import_page_only_offers_statement_formats(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            response = Client().get(reverse('statement-imports'))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('>Carregar extrato</button>', html)
+        self.assertIn('<h2>Visualizar extrato</h2>', html)
+        self.assertIn('xp-account-statement', html)
+        self.assertIn('apex-account-statement', html)
+        self.assertNotIn('generic-ledger', html)
+        self.assertNotIn('clear-brokerage-note', html)
+        self.assertNotIn('bb-tesouro-receipt', html)
+        table = html.split('<h2>Visualizar extrato</h2>', 1)[1].split('</table>', 1)[0]
+        for header in ('<th>Adaptador</th>', '<th>Tipo</th>', '<th>Estado</th>'):
+            self.assertNotIn(header, table)
+
+    def test_generic_import_page_rejects_statement_upload_even_when_autodetected(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        body = workbook()
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            for adapter in ('', 'xp-account-statement'):
+                response = client.post(reverse('file-imports'), {
+                    'file': SimpleUploadedFile('extrato.xlsx', body),
+                    'adapter': adapter, 'account': self.account,
+                })
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('página de extratos', response.content.decode())
+        with connect(self.db) as db:
+            self.assertEqual(db.execute('select count(*) from ledger.xp_statement').fetchone()[0], 0)
+            self.assertEqual(db.execute('select count(*) from ledger.xp_account_binding').fetchone()[0], 0)
 
     def test_document_step_lists_staged_attachments(self):
         import os
@@ -215,8 +302,15 @@ class XPFlowTests(unittest.TestCase):
                  'trade_date': '2025-01-02', 'settlement_date': '2025-01-02',
                  'quantity': '5', 'amount': '-50', 'application': 'Vale3',
                  'errors': []},
+                 {'row_number': 3, 'source_locator': {'page': 1, 'item': 3},
+                  'description': 'Taxa de liquidação', 'event_type': 'fee',
+                  'quantity': None, 'amount': '-7.64', 'allocation_role': 'expense',
+                  'errors': []},
+                 {'row_number': 4, 'source_locator': {'page': 1, 'item': 4},
+                  'description': 'IRRF', 'event_type': 'tax', 'quantity': None,
+                  'amount': '-1.52', 'allocation_role': 'withholding', 'errors': []},
             ])
-            db.execute("insert into ledger.file_import (import_id,sha256,original_filename,storage_key,media_type,status,row_count,error_count,preview,byte_size,adapter_id,adapter_version,document_type) values (?,?,?,?,?,'preview',2,1,?,1,'clear-brokerage-note','1','brokerage_note')", ['b' * 32, 'note-hash', 'nota.pdf', 'imports/note', 'application/pdf', preview])
+            db.execute("insert into ledger.file_import (import_id,sha256,original_filename,storage_key,media_type,status,row_count,error_count,preview,byte_size,adapter_id,adapter_version,document_type) values (?,?,?,?,?,'preview',4,1,?,1,'clear-brokerage-note','1','brokerage_note')", ['b' * 32, 'note-hash', 'nota.pdf', 'imports/note', 'application/pdf', preview])
             db.execute("""insert into ledger.import_attachment
               (parent_import_id,attachment_import_id) values (?,?)""",
                        [identifier, 'b' * 32])
@@ -238,6 +332,9 @@ class XPFlowTests(unittest.TestCase):
             html = response.content.decode()
             self.assertIn('Carregar anexos', html)
             self.assertIn('nota.pdf', html)
+            self.assertIn('Tipo de anexo:', html)
+            self.assertIn('Nota de corretagem Clear/XP', html)
+            self.assertIn('Comprovante BB Tesouro Direto', html)
             self.assertNotIn('Log de importação', html)
 
             response = client.get(
@@ -259,6 +356,8 @@ class XPFlowTests(unittest.TestCase):
             self.assertNotIn('<th>Erros</th>', log_html)
             self.assertIn('Vale3', html)
             self.assertIn('Compra VALE3', html)
+            self.assertIn('Taxa rateada entre ativos identificados', log_html)
+            self.assertIn('Imposto rateado entre ativos identificados', log_html)
             self.assertIn('02/01/25', html)
             self.assertRegex(log_html,
                              r'<td class="number">5</td>\s*<td class="number">02/01/25</td>')
@@ -296,16 +395,20 @@ class XPFlowTests(unittest.TestCase):
             'trade_date': date(2025, 1, 2)})]
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']), \
-               patch('fin2.imports.clear_brokerage.ClearBrokerageNoteAdapter.detect', return_value=98), \
-             patch('fin2.imports.clear_brokerage.ClearBrokerageNoteAdapter.parse', return_value=parsed):
+                patch('fin2.imports.clear_brokerage.ClearBrokerageNoteAdapter.parse',
+                      return_value=parsed):
             response = Client().post(reverse('xp-statement-notes', args=[identifier]), {
                 'documents': SimpleUploadedFile('nota.pdf', b'%PDF-fixture', 'application/pdf'),
-                'description': 'Nota XP'})
+                'adapter_id': 'clear-brokerage-note', 'description': 'Nota XP'})
         self.assertEqual(response.status_code, 302)
         with connect(self.db) as db:
             self.assertEqual(db.execute(
                 'select count(*) from ledger.import_attachment where parent_import_id=?',
                 [identifier]).fetchone()[0], 1)
+            adapter_id = db.execute("""select f.adapter_id from ledger.file_import f
+              join ledger.import_attachment x on x.attachment_import_id=f.import_id
+              where x.parent_import_id=?""", [identifier]).fetchone()[0]
+            self.assertEqual(adapter_id, 'clear-brokerage-note')
 
     def test_individual_review_loads_into_the_list_modal(self):
         import os
@@ -452,16 +555,16 @@ class XPFlowTests(unittest.TestCase):
             html = client.get(review).content.decode()
             self.assertIn('class="button-commit">', html)
             # Pending lines still block step 4, and the reviewer stays in step 3.
-            response = client.post(reverse('file-import-commit', args=[partly_ready]))
+            response = client.post(reverse('statement-import-commit', args=[partly_ready]))
             self.assertEqual(response.status_code, 302)
             self.assertTrue(response['Location'].startswith(review + '?'))
             self.assertIn('Resolva todas as linhas', unquote_plus(response['Location']))
             with connect(self.db) as db:
                 self.assertEqual(db.execute('select count(*) from ledger.manual_event').fetchone()[0], 0)
             # With every line resolved the load concludes and step 4 lists what was created.
-            response = client.post(reverse('file-import-commit', args=[all_ready]))
+            response = client.post(reverse('statement-import-commit', args=[all_ready]))
             self.assertEqual(response.status_code, 302)
-            self.assertEqual(response['Location'], '/fin2/importar/?preview='+all_ready)
+            self.assertEqual(response['Location'], '/fin2/extratos/?preview='+all_ready)
             page = client.get(response['Location']).content.decode()
             self.assertIn('Importação de extrato concluída', page)
             self.assertIn('DIVIDENDOS DE CLIENTES TEST3', page)
@@ -478,10 +581,10 @@ class XPFlowTests(unittest.TestCase):
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
             client = Client()
-            response = client.post(reverse('file-import-reject', args=[identifier]))
+            response = client.post(reverse('statement-import-reject', args=[identifier]))
             # Back to the upload step: no preview is selected any more.
             self.assertEqual(response.status_code, 302)
-            self.assertEqual(response['Location'], '/fin2/importar/')
+            self.assertEqual(response['Location'], '/fin2/extratos/')
             with connect(self.db) as db:
                 self.assertIsNone(db.execute('select 1 from ledger.file_import where import_id=?',
                                              [identifier]).fetchone())
@@ -491,6 +594,7 @@ class XPFlowTests(unittest.TestCase):
                 self.assertEqual(db.execute("""select count(*) from ledger.audit_log
                   where entity_type='file_import_decision'""").fetchone()[0], 0)
             self.assertEqual(client.get('/fin2/importar/', {'preview': identifier}).status_code, 404)
+            self.assertEqual(client.get('/fin2/extratos/', {'preview': identifier}).status_code, 404)
             self.assertEqual(client.get(reverse('xp-statement-review', args=[identifier])).status_code, 404)
 
     def test_document_records_evidence_without_a_decision_log(self):
@@ -544,7 +648,7 @@ class XPFlowTests(unittest.TestCase):
         from django.test import Client, override_settings
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
-            response = Client().get('/fin2/importar/', {'preview': identifier})
+            response = Client().get('/fin2/extratos/', {'preview': identifier})
             self.assertEqual(response.status_code, 200)
             html = response.content.decode()
             # Step 4 reports the load and lists the entries it generated.
@@ -656,14 +760,14 @@ class XPFlowTests(unittest.TestCase):
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
             client = Client()
-            response = client.post('/fin2/importar/', {
+            response = client.post('/fin2/extratos/', {
                 'file': SimpleUploadedFile('extrato.xlsx', body),
                 'adapter': 'xp-account-statement', 'account': self.account,
             })
             self.assertEqual(response.status_code, 400)
             self.assertIn('Confirme o número e o titular', response.content.decode())
 
-            response = client.post('/fin2/importar/', {
+            response = client.post('/fin2/extratos/', {
                 'file': SimpleUploadedFile('extrato.xlsx', body),
                 'adapter': 'xp-account-statement', 'account': self.account,
                 'confirm_identity': 'on', 'identity_reason': 'Número e titular conferidos',
@@ -772,10 +876,22 @@ class XPFlowTests(unittest.TestCase):
               values (?,?,?)""",
                        [identifier, attachment_id, json.dumps([9])])
 
+        xp.update_attachment_event(self.db, identifier, document_id, 3, '0,00')
+        with connect(self.db) as db:
+            edited = json.loads(db.execute(
+                "select normalized from ledger.import_staging_line where import_id=? and row_number=3",
+                [attachment_id]).fetchone()[0])
+        self.assertEqual(edited['amount'], '0.00')
+        xp.update_attachment_event(self.db, identifier, document_id, 3, '-10,00')
+
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
             client = Client()
             review_url = reverse('xp-statement-review', args=[identifier])
+            with connect(self.db) as db:
+                item = xp.detail(db, identifier)
+            self.assertEqual(item['rows'][0]['state'], 'ready')
+            self.assertEqual(item['rows'][0]['identified']['document_id'], document_id)
             response = client.get(review_url)
             self.assertEqual(response.status_code, 200)
             linked_html = response.content.decode()
@@ -783,17 +899,8 @@ class XPFlowTests(unittest.TestCase):
             self.assertIn('Venda TEST3', linked_html)
             self.assertIn('Taxa da nota', linked_html)
             self.assertNotIn('OPERAÇÕES EM BOLSA PR 02/01/2025 NOTA Nº 123', linked_html)
-
-            xp.review(self.db, identifier, 1, {
-                'action': 'new', 'category': 'brokerage', 'document_id': document_id,
-                'reason': 'Nota conciliada'})
-            response = client.get(review_url)
-        self.assertEqual(response.status_code, 200)
-        html = response.content.decode()
-        self.assertIn('Compra TEST3', html)
-        self.assertIn('Venda TEST3', html)
-        self.assertIn('Taxa da nota', html)
-        self.assertNotIn('OPERAÇÕES EM BOLSA PR 02/01/2025 NOTA Nº 123', html)
+            response = client.get(review_url, {'review_line': '1'})
+            self.assertIn('name="attachment_row_number" value="3"', response.content.decode())
 
         self.assertEqual(commit(self.db, identifier), 4)
         with connect(self.db) as db:
@@ -855,6 +962,11 @@ class XPFlowTests(unittest.TestCase):
         identifier=self.stage(workbook([
             ('2025-01-02','2025-01-02','IRRF S/RESGATE FUNDOS Teste',-5,195),
             ('2025-01-02','2025-01-02','RESGATE Teste',100,200)]))
+        with connect(self.db) as db:
+            item = xp.detail(db, identifier)
+        self.assertEqual(item['rows'][0]['effective_application'], self.application)
+        self.assertEqual(item['rows'][0]['identified']['related_line'], 2)
+        self.assertEqual(item['rows'][0]['state'], 'ready')
         with self.assertRaisesRegex(ValueError,'Vincule o imposto'):
             xp.review(self.db,identifier,1,self.decision(event_type='tax'))
         xp.review(self.db, identifier, 1, self.decision(

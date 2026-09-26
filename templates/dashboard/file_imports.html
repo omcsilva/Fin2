@@ -1,43 +1,47 @@
-{% extends 'dashboard/base.html' %}{% load fin2_format %}{% block title %}{% if wizard_step == 2 %}Conferir extrato{% elif wizard_step == 6 %}Conclusão{% else %}Carregar extrato{% endif %} · Fin2{% endblock %}{% block content %}
-<p class="eyebrow">INGESTÃO / PRÉ-VISUALIZAÇÃO</p>
-<div class="import-page-title"><h1>{% if wizard_step == 2 %}Conferir extrato{% elif wizard_step == 6 %}Conclusão{% else %}Carregar extrato{% endif %}</h1><p class="lead">{% if wizard_step == 2 %}Confira os lançamentos identificados e aprove ou exclua o extrato inteiro.{% else %}Carregue o documento, revise os movimentos e confirme os lançamentos novos. Extratos XP permitem registrar a evidência enquanto a conciliação está pendente.{% endif %}</p></div>
+{% extends 'dashboard/base.html' %}{% load fin2_format %}{% block title %}{% if statement_page %}{% if wizard_step == 2 %}Conferir extrato{% elif wizard_step == 6 %}Conclusão{% else %}Carregar extrato{% endif %}{% else %}{% if selected_import %}Pré-visualizar arquivo{% else %}Importar arquivos{% endif %}{% endif %} · Fin2{% endblock %}{% block content %}
+<p class="eyebrow">{% if statement_page %}INGESTÃO / PRÉ-VISUALIZAÇÃO{% else %}IMPORTAÇÃO DE ARQUIVOS{% endif %}</p>
+<div class="import-page-title"><h1>{% if statement_page %}{% if wizard_step == 2 %}Conferir extrato{% elif wizard_step == 6 %}Conclusão{% else %}Carregar extrato{% endif %}{% else %}{% if selected_import %}Pré-visualizar arquivo{% else %}Importar arquivos{% endif %}{% endif %}</h1><p class="lead">{% if statement_page %}{% if wizard_step == 2 %}Confira os lançamentos identificados e aprove ou exclua o extrato inteiro.{% else %}Carregue e confira extratos de conta XP ou Apex.{% endif %}{% else %}Carregue lançamentos, notas de corretagem ou comprovantes.{% endif %}</p></div>
+<p class="import-scope-link">{% if statement_page %}<a href="{% url 'file-imports' %}">Importar arquivos</a>{% else %}<a href="{% url 'statement-imports' %}">Carregar extratos</a>{% endif %}</p>
 
-{% include 'dashboard/import_steps.html' %}
+{% if statement_page %}{% include 'dashboard/import_steps.html' %}{% endif %}
 
 {% if import_error %}<div class="note">{{ import_error }}</div>{% endif %}
 
 {% if wizard_step == 1 or not wizard_step %}
 <form class="filters panel" method="post" enctype="multipart/form-data">
 	{% csrf_token %}
-	<label>Arquivo<input type="file" name="file" accept=".csv,.xlsx,.pdf,.png,.jpg,.jpeg" required></label>
+	<label>Arquivo<input type="file" name="file" accept="{% if statement_page %}.xlsx,.pdf{% else %}.csv,.xlsx,.pdf,.png,.jpg,.jpeg{% endif %}" required></label>
 	<label>Formato<select name="adapter">
 		<option value="">Detectar automaticamente</option>
-		<option value="generic-ledger"{% if selected_upload_adapter == "generic-ledger" %} selected{% endif %}>Genérico CSV/XLSX</option>
-		<option value="clear-brokerage-note"{% if selected_upload_adapter == "clear-brokerage-note" %} selected{% endif %}>Nota Clear/XP</option>
+		{% if statement_page %}
 		<option value="xp-account-statement"{% if selected_upload_adapter == "xp-account-statement" %} selected{% endif %}>Extrato XP — XLSX</option>
-		<option value="apex-account-statement"{% if selected_upload_adapter == "apex-account-statement" %} selected{% endif %}>Extrato Apex</option>
+		<option value="apex-account-statement"{% if selected_upload_adapter == "apex-account-statement" %} selected{% endif %}>Extrato Apex — PDF</option>
+		{% else %}
+		<option value="generic-ledger"{% if selected_upload_adapter == "generic-ledger" %} selected{% endif %}>Genérico CSV/XLSX</option>
+		<option value="clear-brokerage-note"{% if selected_upload_adapter == "clear-brokerage-note" %} selected{% endif %}>Nota de corretagem Clear/XP</option>
 		<option value="bb-tesouro-receipt"{% if selected_upload_adapter == "bb-tesouro-receipt" %} selected{% endif %}>Comprovante BB Tesouro Direto</option>
+		{% endif %}
 	</select></label>
 	<label>Conta da instituição<select name="account">
 		<option value="">Selecione quando necessário</option>
 		{% for account in accounts %}<option value="{{ account.source_record_id }}"{% if account.source_record_id == selected_upload_account %} selected{% endif %}>{{ account.name }} · {{ account.holder|default:"Sem titular" }} · {{ account.currency }}</option>{% endfor %}
 	</select></label>
-	<fieldset>
+	{% if statement_page %}<fieldset>
 		<legend>Primeira associação de extrato XP</legend>
 		<label><input type="checkbox" name="confirm_identity" value="on"{% if selected_identity_confirmed %} checked{% endif %}> Confirmo o número e o titular do extrato para esta conta</label>
 		<label>Justificativa<input name="identity_reason" maxlength="500" value="{{ selected_identity_reason }}" placeholder="Número e titular conferidos"></label>
-	</fieldset>
-	<button type="submit">Pré-visualizar</button>
+	</fieldset>{% endif %}
+	<button type="submit">{% if statement_page %}Carregar extrato{% else %}Importar arquivo{% endif %}</button>
 </form>
 
-<section class="panel table-wrap"><h2>Arquivos recebidos</h2><table><thead><tr><th>Arquivo</th><th>Adaptador</th><th>Tipo</th><th>Estado</th><th>Linhas</th><th>Erros</th><th>Recebido</th></tr></thead><tbody>{% for item in imports %}<tr><td><a href="?preview={{ item.import_id }}">{{ item.original_filename }}</a></td><td>{{ item.adapter_id }} v{{ item.adapter_version }}</td><td>{{ item.document_type }}</td><td>{{ item.status }}</td><td>{{ item.row_count }}</td><td>{{ item.error_count }}</td><td>{{ item.created_at|date:'d/m/Y H:i' }}</td></tr>{% empty %}<tr><td colspan="7">Nenhum arquivo recebido.</td></tr>{% endfor %}</tbody></table></section>
+<section class="panel table-wrap"><h2>{% if statement_page %}Visualizar extrato{% else %}Arquivos recebidos{% endif %}</h2><table><thead><tr><th>Arquivo</th><th>Linhas</th><th>Erros</th><th>Recebido</th></tr></thead><tbody>{% for item in imports %}<tr><td><a href="?preview={{ item.import_id }}">{{ item.original_filename }}</a></td><td>{{ item.row_count }}</td><td>{{ item.error_count }}</td><td>{{ item.created_at|date:'d/m/Y H:i' }}</td></tr>{% empty %}<tr><td colspan="4">{% if statement_page %}Nenhum extrato carregado.{% else %}Nenhum arquivo recebido.{% endif %}</td></tr>{% endfor %}</tbody></table></section>
 {% endif %}
 
-{% if selected_import.adapter_id == 'xp-account-statement' %}{% include 'dashboard/xp_statement.html' %}
+{% if statement_page and selected_import.adapter_id == 'xp-account-statement' %}{% include 'dashboard/xp_statement.html' %}
 {% elif selected_import %}<section class="panel"><div class="section-title"><h2><a href="{% url 'file-import-file' selected_import.import_id %}">{{ selected_import.original_filename }}</a></h2><span>{{ selected_import.status }} · {{ selected_import.adapter_id }} v{{ selected_import.adapter_version }} · confiança {{ selected_import.detection_confidence }}% · {{ selected_import.row_count }} linhas · {{ selected_import.error_count }} erros</span></div>
 {% if selected_import.document_metadata %}<div class="note">Período {{ selected_import.document_metadata.period_start }} a {{ selected_import.document_metadata.period_end }} · saldo inicial {{ selected_import.document_metadata.opening_balance|money:selected_import.document_metadata.currency }} · saldo final {{ selected_import.document_metadata.closing_balance|money:selected_import.document_metadata.currency }}</div>{% endif %}
 {% if selected_import.error_count %}<div class="panel note"><h3>Log de importação</h3><ul>{% for r in selected_import.rows %}{% if r.errors %}<li><strong>Linha {{ r.row_number }}</strong> — {{ r.description|default:'Sem descrição' }}: {% for error in r.errors %}{{ error }}{% if not forloop.last %}; {% endif %}{% endfor %}</li>{% endif %}{% empty %}<li>Sem erros de validação.</li>{% endfor %}</ul></div>{% endif %}
 <div class="table-wrap"><table><thead><tr><th>Linha</th><th>Conta / aplicação</th><th>Tipo / data</th><th>Descrição</th><th class="number">Quantidade</th><th class="number">Valor</th><th>Validação</th></tr></thead><tbody>{% for r in selected_import.rows %}<tr><td>{{ r.row_number }}</td><td>{{ r.account|default:'—' }}<br>{{ r.application|default:'—' }}</td><td>{{ r.event_type|default:'—' }}<br>{{ r.settlement_date|default:'—' }}</td><td>{{ r.description|default:'—' }}</td><td class="number">{{ r.quantity|default:'—' }}</td><td class="number">{{ r.amount|money:r.currency }}</td><td>{% for error in r.errors %}{{ error }}{% empty %}Pronta{% endfor %}</td></tr>{% endfor %}</tbody></table></div>
-{% if selected_import.status == 'preview' and not selected_import.error_count %}<form method="post" action="{% url 'file-import-commit' selected_import.import_id %}" data-confirm-submit="Confirmar a importação de todos os registros?">{% csrf_token %}<button type="submit">Confirmar importação atômica</button></form>{% endif %}{% if selected_import.status == 'preview' %}<form method="post" action="{% url 'file-import-reject' selected_import.import_id %}" data-confirm-submit="Descartar este arquivo? A carga não será importada e o processo volta ao início.">{% csrf_token %}<button type="submit">Rejeitar arquivo</button></form>{% endif %}</section>{% endif %}
+{% if selected_import.status == 'preview' and not selected_import.error_count %}<form method="post" action="{% if statement_page %}{% url 'statement-import-commit' selected_import.import_id %}{% else %}{% url 'file-import-commit' selected_import.import_id %}{% endif %}" data-confirm-submit="Confirmar a importação de todos os registros?">{% csrf_token %}<button type="submit">Confirmar importação atômica</button></form>{% endif %}{% if selected_import.status == 'preview' %}<form method="post" action="{% if statement_page %}{% url 'statement-import-reject' selected_import.import_id %}{% else %}{% url 'file-import-reject' selected_import.import_id %}{% endif %}" data-confirm-submit="Descartar este arquivo? A carga não será importada e o processo volta ao início.">{% csrf_token %}<button type="submit">Rejeitar arquivo</button></form>{% endif %}</section>{% endif %}
 
 {% endblock %}

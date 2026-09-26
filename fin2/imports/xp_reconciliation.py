@@ -1,6 +1,6 @@
 """Audited XP evidence, account bindings and atomic financial decisions."""
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import re
@@ -63,6 +63,7 @@ def attachment_rows(db, import_id):
                        [document['attachment_import_id']])
         result[document['document_id']] = [
             {**json.loads(row['normalized']),
+             'attachment_import_id': document['attachment_import_id'],
              'document_name': document['original_filename']}
             for row in rows]
     return result
@@ -78,6 +79,62 @@ def _selected_attachment_rows(db, item, document_id):
         db, """select normalized from ledger.import_staging_line
         where import_id=? and state<>'rejected' order by row_number""",
         [document['attachment_import_id']])]
+
+
+def update_attachment_event(database, parent_id, document_id, row_number, amount):
+    """Update one staged attachment event while its parent remains in preview."""
+    raw_amount = str(amount).strip()
+    normalized_amount = (raw_amount.replace('.', '').replace(',', '.')
+                         if ',' in raw_amount else raw_amount)
+    try:
+        parsed = Decimal(normalized_amount)
+    except InvalidOperation:
+        raise ValueError('Informe um valor financeiro válido') from None
+    if not parsed.is_finite():
+        raise ValueError('Informe um valor financeiro válido')
+    with connect(Path(database).resolve(strict=True)) as db:
+        migrate(db)
+        attachment = db.execute("""select x.attachment_import_id
+          from ledger.import_attachment x join ledger.file_import f
+          on f.import_id=x.attachment_import_id
+          where x.parent_import_id=? and f.document_id=? and f.status='preview'""",
+                               [parent_id, document_id]).fetchone()
+        if not attachment:
+            raise ValueError('Anexo indisponível para edição')
+        row = db.execute("""select normalized from ledger.import_staging_line
+          where import_id=? and row_number=?""", [attachment[0], row_number]).fetchone()
+        if not row:
+            raise ValueError('Lançamento do anexo não encontrado')
+        normalized = json.loads(row[0])
+        if normalized.get('event_type') not in {'buy', 'sell', 'fee', 'tax'}:
+            raise ValueError('Tipo de lançamento não pode ser editado')
+        if normalized.get('event_type') in {'buy', 'sell'} and parsed == 0:
+            raise ValueError('Operação não pode ter valor zero')
+        normalized['amount'] = str(parsed)
+        db.execute("""update ledger.import_staging_line set normalized=?,state='ready'
+          where import_id=? and row_number=?""",
+                   [json.dumps(normalized, ensure_ascii=False), attachment[0], row_number])
+
+
+def _related_brokerage_document(db, item, row):
+    """Return the uniquely selected brokerage document for a statement row."""
+    source_line = str(row['source_locator']['row'])
+    matches = []
+    for document in attachment_documents(db, item['import_id']):
+        related_lines = document.get('related_lines') or []
+        if isinstance(related_lines, str):
+            related_lines = json.loads(related_lines)
+        if (document['document_type'] == 'brokerage_note'
+                and len(related_lines) == 1
+                and str(related_lines[0]) == source_line):
+            matches.append(document)
+    if len(matches) != 1:
+        return None
+    document = matches[0]
+    projected = attachment_rows(db, item['import_id']).get(document['document_id'], [])
+    if not projected or any(projected_row.get('errors') for projected_row in projected):
+        return None
+    return document['document_id']
 
 
 def entries(db, identifier):
@@ -416,6 +473,7 @@ def detail(db, identifier):
                     'effective_quantity': event.get('quantity'),
                     'amount': event.get('amount'),
                     'errors': event_errors,
+                    'identification_missing': row.get('identification_missing') or [],
                     'state': state,
                     'prior_claim': row['prior_claim'],
                     'decision': row['decision'] or {},
@@ -470,6 +528,7 @@ def detail(db, identifier):
             'effective_application_name': application_name or row['effective_application_name'],
             'effective_quantity': effective.get('quantity') or row['effective_quantity'],
             'amount': row['amount'], 'errors': row['errors'],
+            'identification_missing': row.get('identification_missing') or [],
             'state': row['state'], 'prior_claim': row['prior_claim'],
             'decision': row['decision'] or {}, 'identified': row['identified'] or {},
             'table_detail': 'Lançamento pendente de identificação' if row['state'] == 'pending' else '',
@@ -541,6 +600,12 @@ def category_label(value):
     return dict(CATEGORY_OPTIONS).get(value, value or '')
 
 
+def _brl(value):
+    amount = Decimal(str(value)).quantize(Decimal('.01'))
+    rendered = f'{abs(amount):,.2f}'.translate(str.maketrans({',': '.', '.': ','}))
+    return f"{'-' if amount < 0 else ''}R$ {rendered}"
+
+
 # Wording of the ledger entry each event type produces, shown before confirming.
 EVENT_LABELS = {
     'income': 'Provento / rendimento',
@@ -592,12 +657,13 @@ def _validate(db, item, row, decision, used):
                         'A nota possui operação sem aplicação ou quantidade')
                 if Decimal(projected_row['quantity']) <= 0:
                     raise ValueError('A nota possui quantidade inválida')
-            if amount == 0 or (event_type == 'buy' and amount >= 0) or (event_type in {'sell'} and amount <= 0):
+            if (amount == 0 and event_type not in {'fee', 'tax'}) or (event_type == 'buy' and amount >= 0) or (event_type in {'sell'} and amount <= 0):
                 raise ValueError('A nota possui sinal financeiro incompatível')
             total += amount
         if total != Decimal(row['amount']):
             raise ValueError(
-                'O total líquido da nota difere do valor do extrato')
+                f'Total líquido da nota ({_brl(total)}) difere do valor do extrato '
+                f'({_brl(row["amount"])})')
         return
     available = {e['entry_id']: e for e in entries(db, item['account_record'])}
     if decision['action'] == 'link':
@@ -760,6 +826,17 @@ def _identify(db, item, row, available, apps, reserved):
         return decision, [], True
     if candidates:
         return None, ['Escolha entre os movimentos existentes'], False
+    if row.get('category') == 'brokerage':
+        document_id = _related_brokerage_document(db, item, row)
+        if document_id:
+            decision = {'action': 'new', 'category': 'brokerage',
+                        'document_id': document_id, 'reviewed_entries': [],
+                        'reason': 'Identificação automática: anexo associado'}
+            try:
+                _validate(db, item, row, decision, set(reserved))
+            except ValueError as exc:
+                return None, [MISSING_LABELS.get(str(exc), str(exc))], False
+            return decision, [], True
     app_id, match_method = identify_application(row, apps)
     decision = {'action': 'new', 'category': row['category'], 'reviewed_entries': [],
                 'reason': f'Identificação automática: {match_method}' if match_method else 'Identificação automática'}
@@ -771,7 +848,15 @@ def _identify(db, item, row, available, apps, reserved):
         same_date = [r for r in item['rows'] if r['category'] == 'redemption'
                      and r.get('settlement_date') == row.get('settlement_date')]
         if len(same_date) == 1:
-            decision['related_line'] = same_date[0]['row_number']
+            related = same_date[0]
+            decision['related_line'] = related['row_number']
+            related_application = (related.get('decision') or {}).get('application_record')
+            related_method = 'decision'
+            if not related_application:
+                related_application, related_method = identify_application(related, apps)
+            if related_application:
+                decision['application_record'] = related_application
+                decision['match_method'] = f'related_line:{related_method}'
     missing = _missing_items(decision)
     if missing:
         return None, missing, False
@@ -876,6 +961,8 @@ def _create_attachment_events(db, item, row, decision):
     allocatable = []
     for projected_row in projected:
         event_id = uuid4().hex
+        if projected_row['event_type'] in {'fee', 'tax'} and Decimal(projected_row.get('amount', '0')) == 0:
+            continue
         db.execute('''insert into ledger.manual_event
           (event_id,account_source_record_id,application_source_record_id,event_type,
            trade_date,settlement_date,currency,quantity,amount,description,transfer_id)

@@ -72,6 +72,8 @@ def save(database,*,batch,kind,values,record_id=None,revision=0,request_key,imag
         before=existing['payload'] if existing else None
         payload=dict(before or {})
         for field,(label,target) in KINDS[kind][1].items():
+            if kind=='aplicacao' and field=='nome' and not existing:
+                continue
             value=str(values.get(field) or '').strip()
             if field in ('status','decisao'):
                 if field not in values:
@@ -113,6 +115,22 @@ def save(database,*,batch,kind,values,record_id=None,revision=0,request_key,imag
                 payload['taxa']=str(rate)
             _validate_aliases(payload)
         if kind=='aplicacao':
+            if not existing:
+                account_id=payload.get('conta_id')
+                asset_id=payload.get('ativo_id')
+                account_record=next((r for r in records(db,batch,'conta')
+                                     if r['legacy_id']==account_id),None)
+                asset_record=next((r for r in records(db,batch,'ativo')
+                                   if r['legacy_id']==asset_id),None)
+                if not account_record or not asset_record:
+                    raise ValueError('Conta e ativo devem ser selecionados')
+                account_label=(account_record['payload'].get('abrev')
+                               or account_record['payload'].get('nome') or '').strip()
+                asset_label=(asset_record['payload'].get('abrev')
+                             or asset_record['payload'].get('nome') or '').strip()
+                if not account_label or not asset_label:
+                    raise ValueError('Conta e ativo precisam ter abreviação ou nome')
+                payload['nome']=f'{account_label} {asset_label}'
             _validate_aliases(payload)
         others=[r for r in records(db,batch,kind) if r['record_id']!=record_id]
         if kind=='aplicacao_carteira':

@@ -38,7 +38,7 @@
         <td><div class="t">
         {% if r.state == 'ready' %}<span class="state-icon state-ready" role="img" aria-label="Pronto" title="Pronto">●</span>{% elif r.state == 'excluded' %}<span class="state-icon state-excluded" role="img" aria-label="Excluído" title="Excluído">⊘</span>{% else %}<span class="state-icon state-pending" role="img" aria-label="Pendente" title="Pendente">○</span>{% endif %}
         {% for error in r.errors %}<div class="cell-error">{{ error }}</div>{% endfor %}
-        {% if r.prior_claim %}<div class="cell-extra"><a href="{% url 'file-imports' %}?preview={{ r.prior_claim }}">Confirmada noutro extrato</a></div>{% endif %}
+        {% if r.prior_claim %}<div class="cell-extra"><a href="{% url 'statement-imports' %}?preview={{ r.prior_claim }}">Confirmada noutro extrato</a></div>{% endif %}
         </div></td>
         <td class="wrap-text"><div class="t">{% if r.table_detail %}{{ r.table_detail }}{% endif %}</div></td>
         </tr>{% empty %}<tr><td colspan="11">Nenhum movimento encontrado.</td></tr>{% endfor %}
@@ -53,7 +53,7 @@
             <p class="pager-links">{% if selected_import.page.has_previous %}<a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.previous_page_number }}">Anterior</a> · {% endif %}Página {{ selected_import.page.number }} de {{ selected_import.page.paginator.num_pages }}{% if selected_import.page.has_next %} · <a href="?{{ selected_import.table_query }}&amp;page={{ selected_import.page.next_page_number }}">Próxima</a>{% endif %}</p>
         </div>
 
-        {% if selected_import.status == 'preview' %}<form method="post" class="commit-form" action="{% url 'file-import-commit' selected_import.import_id %}" data-confirm-submit="Lançar no ledger os lançamentos prontos?">{% csrf_token %}<button type="submit" class="button-commit"{% if not selected_import.can_commit %} disabled{% endif %}>Lançar no ledger os lançamentos prontos</button></form>
+        {% if selected_import.status == 'preview' %}<form method="post" class="commit-form" action="{% url 'statement-import-commit' selected_import.import_id %}" data-confirm-submit="Lançar no ledger os lançamentos prontos?">{% csrf_token %}<button type="submit" class="button-commit"{% if not selected_import.can_commit %} disabled{% endif %}>Lançar no ledger os lançamentos prontos</button></form>
         {% if not selected_import.can_commit %}<p class="muted">Nenhuma linha está pronta para lançar: resolva as pendências em cada linha.</p>{% endif %}{% endif %}
 
         <dialog class="review-modal" data-review-dialog tabindex="-1" aria-label="Revisão individual do movimento">

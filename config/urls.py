@@ -9,7 +9,7 @@ from fin2.dashboard.catalog_images import catalog_image
 from fin2.dashboard.xp_statement_views import update as xp_statement_update
 
 urlpatterns = [
-    path('fin2/importar/<str:identifier>/revisar-xp/', xp_statement_update, name='xp-statement-update'),
+    path('fin2/extratos/<str:identifier>/revisar-xp/', xp_statement_update, name='xp-statement-update'),
     path('fin2/cotacoes/manuais/', manual_prices, name='manual-prices'),
     path('fin2/historico/fin1/cotacoes/', historical(views.prices), name='legacy-prices'),
     path('fin2/historico/fin1/', historical(views.overview), name='legacy-overview'),
@@ -35,12 +35,15 @@ urlpatterns = [
     path("fin2/lancamentos/", views.manual_events, name="manual-events"),
     path("fin2/lancamentos/transferir/", views.manual_transfer, name="manual-transfer"),
     path("fin2/lancamentos/transferencias/<str:identifier>/reverter/", views.reverse_manual_transfer, name="manual-transfer-reverse"),
-    path("fin2/importar/<str:identifier>/revisao/", views.xp_statement_review, name="xp-statement-review"),
-    path("fin2/importar/<str:identifier>/notas/",
+    path("fin2/extratos/<str:identifier>/revisao/", views.xp_statement_review, name="xp-statement-review"),
+    path("fin2/extratos/<str:identifier>/notas/",
          views.xp_statement_notes, name="xp-statement-notes"),
     path("fin2/importar/", views.file_imports, name="file-imports"),
+    path("fin2/extratos/", views.statement_imports, name="statement-imports"),
     path("fin2/importar/<str:identifier>/confirmar/", views.commit_file_import, name="file-import-commit"),
     path("fin2/importar/<str:identifier>/rejeitar/", views.reject_file_import, name="file-import-reject"),
+    path("fin2/extratos/<str:identifier>/confirmar/", views.commit_file_import, name="statement-import-commit"),
+    path("fin2/extratos/<str:identifier>/rejeitar/", views.reject_file_import, name="statement-import-reject"),
     path("fin2/importar/<str:identifier>/arquivo/", views.file_import_file, name="file-import-file"),
     path("fin2/lancamentos/<str:identifier>/reverter/", views.reverse_manual_event, name="manual-event-reverse"),
     path("fin2/alocacao/", views.allocation, name="allocation"),

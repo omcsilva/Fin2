@@ -121,7 +121,7 @@ def cash(request, connection, account_id=None, institution_id=None, investor_id=
             import_options = {'account': data['account']['source_record_id']}
             if account_currency == 'BRL' and 'XP' in (data['account']['institution_name'] or '').upper():
                 import_options['adapter'] = 'xp-account-statement'
-            data['account_import_url'] = reverse('file-imports') + '?' + data['global_query'] + '&' + urlencode(import_options)
+            data['account_import_url'] = reverse('statement-imports') + '?' + data['global_query'] + '&' + urlencode(import_options)
         data['account_balance'] = next(
             (row for row in data['accounts'] if row['currency'] == account_currency),
             {'balance': 0, 'pending': 0, 'currency': account_currency})

@@ -18,11 +18,11 @@ def import_step_url(step, import_id, selected_attachment=''):
     """Destination URL for the given import-wizard step, or '' when there is
     no selected import yet (steps 2-6 have nothing to navigate to)."""
     if step == 1:
-        return reverse('file-imports')
+        return reverse('statement-imports')
     if not import_id:
         return ''
     if step in (2, 6):
-        return f"{reverse('file-imports')}?preview={import_id}"
+        return f"{reverse('statement-imports')}?preview={import_id}"
     if step == 3:
         return reverse('xp-statement-notes', args=[import_id])
     if step == 4:

@@ -228,6 +228,15 @@ D
         self.assertEqual(normalized['application_record'],'application-record')
         self.assertEqual(normalized['errors'],[])
         self.assertEqual(normalized['description'],'LIGHT S/A LIGT3 ON NM (VISTA)')
+        for asset in ('KLABIN S/A KLBN11F ON NM', 'KLABIN S/A KLBN11 F ON NM'):
+            fractional = ClearBrokerageNoteAdapter().normalize(SourceRow(
+                {'page':1,'item':2},{'kind':'trade','side':'V','market':'FRACIONARIO',
+                 'asset':asset,'quantity':Decimal('1'),'price':Decimal('20'),
+                 'amount':Decimal('20'),'trade_date':date(2025,8,11)}),
+                database,{'account_record':'account-record'})
+            self.assertEqual(database.assert_ticker,'KLBN11')
+            self.assertEqual(fractional['application_record'],'application-record')
+            self.assertEqual(fractional['errors'],[])
         normalized_tax=ClearBrokerageNoteAdapter().normalize(SourceRow(
             {'page':2,'section':'resumo_financeiro','item':3},
             {'kind':'expense','category':'tax','label':'IRRF','amount':Decimal('1.52'),

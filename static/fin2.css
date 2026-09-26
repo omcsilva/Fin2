@@ -317,6 +317,11 @@ select {
 
 button,
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  text-align: center;
   font: inherit;
   font-size: 13px;
   background: var(--green);
@@ -1001,6 +1006,10 @@ button,
   margin-bottom: 20px
 }
 
+.catalog-application-form .form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .form-grid label {
   display: flex;
   flex-direction: column;
@@ -1020,13 +1029,15 @@ button,
 }
 
 @media(max-width:900px) {
-  .form-grid {
+  .form-grid,
+  .catalog-application-form .form-grid {
     grid-template-columns: repeat(2, 1fr)
   }
 }
 
 @media(max-width:520px) {
-  .form-grid {
+  .form-grid,
+  .catalog-application-form .form-grid {
     grid-template-columns: 1fr
   }
 
@@ -3024,7 +3035,7 @@ h2 .heading-action {
 }
 
 #xp-review-table th:nth-child(7) {
-  width: 5%
+  width: 18%
 }
 
 #xp-review-table th:nth-child(8) {
@@ -3322,8 +3333,12 @@ h2 .heading-action {
   min-width: 0
 }
 
-.attachment-upload-form>select {
-  height: 220px
+.attachment-upload-form>select:not([multiple]) {
+  height: 40px
+}
+
+.attachment-upload-form>select[multiple] {
+  height: 156px
 }
 
 .attachment-upload-help {
@@ -3333,6 +3348,8 @@ h2 .heading-action {
 }
 
 form.attachment-upload-form>button.attachment-upload-submit {
+  grid-column: 2;
+  justify-self: start;
   background: #287a4b !important;
   border-color: #58b879 !important;
   color: #f2fff5 !important

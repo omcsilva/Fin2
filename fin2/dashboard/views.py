@@ -1292,79 +1292,119 @@ def reverse_manual_transfer(request,identifier):
     return redirect('manual-events')
 
 
-@require_http_methods(['GET','POST'])
+@require_http_methods(['GET', 'POST'])
 def file_imports(request):
-    if not settings.WRITE_ENABLED:return HttpResponse('Escrita desabilitada',status=403)
+    return _file_imports(request, statement_page=False)
+
+
+@require_http_methods(['GET','POST'])
+def statement_imports(request):
+    return _file_imports(request, statement_page=True)
+
+
+def _file_imports(request, statement_page):
+    if not settings.WRITE_ENABLED:
+      return HttpResponse('Escrita desabilitada', status=403)
     try:
-        if request.method=='POST':
-            upload=request.FILES.get('file')
-            if not upload: raise ValueError('Selecione um arquivo CSV ou XLSX')
-            identifier,_=stage_file_import(settings.WAREHOUSE_PATH,settings.DOCUMENT_ROOT,
-              upload.name,upload.read(),upload.content_type,
-              options={'account_record':request.POST.get('account') or None,
-                       'adapter_id': request.POST.get('adapter') or None,
-                       'confirm_identity': request.POST.get('confirm_identity') == 'on',
-                       'identity_reason': request.POST.get('identity_reason', '')})
-            return redirect('/fin2/importar/?preview='+identifier)
-        with reader(settings.WAREHOUSE_PATH) as connection:
-            data=context(request,connection)
-            from fin2.imports.xp_reconciliation import accounts as import_accounts
-            data['accounts']=[a for a in import_accounts(connection) if a['batch_id']==data['batch']['batch_id']]
-            data['selected_upload_account']=request.GET.get('account','')
-            data['selected_upload_adapter']=request.GET.get('adapter','')
-            data['imports']=query(connection,"select * exclude(preview) from ledger.file_import where document_type='account_statement' order by created_at desc limit 50")
-            identifier=request.GET.get('preview','');selected=None
-            if identifier:
-                if not re.fullmatch(r'[a-f0-9]{32}',identifier):raise Http404
-                rows=query(connection,'select * from ledger.file_import where import_id=?',[identifier])
-                if not rows:raise Http404
-                selected=rows[0];selected['rows']=json.loads(selected['preview'])
-                selected['document_metadata']=json.loads(selected['document_metadata']) if selected.get('document_metadata') else None
-                if selected['adapter_id']=='xp-account-statement' and selected['status']=='preview':
-                    from fin2.imports.xp_reconciliation import detail
-                    selected=detail(connection,identifier)
-                    from fin2.dashboard.xp_statement_views import approval_table
-                    approval_table(request, selected)
-                elif selected['adapter_id']=='xp-account-statement':
-                    # The review staging is gone: the completed step lists the
-                    # entries the confirmed load generated in the ledger.
-                    from fin2.imports.xp_reconciliation import created_entries
-                    selected['created_entries']=created_entries(connection,identifier)
+      if request.method == 'POST':
+        upload = request.FILES.get('file')
+        if not upload:
+          raise ValueError('Selecione um arquivo')
+        body = upload.read()
+        adapter_id = request.POST.get('adapter') or None
+        from fin2.imports.clear_brokerage import CLEAR_ADAPTER
+        from fin2.imports.apex_statement import APEX_ADAPTER
+        from fin2.imports.bb_fixed_income import BB_FIXED_INCOME_ADAPTER
+        from fin2.imports.xp_statement import XP_ADAPTER
+        from fin2.imports.registry import detect as detect_adapter, get
+        adapter = get(adapter_id) if adapter_id else detect_adapter(upload.name, body)[0]
+        allowed_adapters = ({'xp-account-statement', 'apex-account-statement'}
+                  if statement_page else
+                  {'generic-ledger', 'clear-brokerage-note', 'bb-tesouro-receipt'})
+        if adapter.adapter_id not in allowed_adapters:
+          if statement_page:
+            raise ValueError('Esta página aceita somente extratos XP ou Apex')
+          raise ValueError('Este formato deve ser carregado pela página de extratos')
+        identifier, _status = stage_file_import(
+          settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
+          upload.name, body, upload.content_type,
+          options={'account_record': request.POST.get('account') or None,
+               'adapter_id': adapter_id,
+               'confirm_identity': request.POST.get('confirm_identity') == 'on',
+               'identity_reason': request.POST.get('identity_reason', '')})
+        page_name = 'statement-imports' if statement_page else 'file-imports'
+        return redirect(reverse(page_name) + '?preview=' + identifier)
 
-            wizard_step = 1
-            if identifier and selected:
-              if selected['status'] in ('committed', 'completed'):
-                wizard_step = 6 if selected.get(
-                    'adapter_id') == 'xp-account-statement' else 5
-              elif selected['status'] == 'preview':
-                # Re-uploaded files retain their documentary history, but
-                # their preview must still let the user approve the load.
-                wizard_step = 2
-            data['wizard_step'] = wizard_step
+      with reader(settings.WAREHOUSE_PATH) as connection:
+        data = context(request, connection)
+        from fin2.imports.xp_reconciliation import accounts as import_accounts
+        data['accounts'] = [a for a in import_accounts(connection)
+                  if a['batch_id'] == data['batch']['batch_id']]
+        data['selected_upload_account'] = request.GET.get('account', '')
+        data['selected_upload_adapter'] = request.GET.get('adapter', '')
+        data['statement_page'] = statement_page
+        operator = '=' if statement_page else '<>'
+        data['imports'] = query(connection,
+          f"select * exclude(preview) from ledger.file_import "
+          f"where document_type {operator} ? order by created_at desc limit 50",
+          ['account_statement'])
+        identifier = request.GET.get('preview', '')
+        selected = None
+        if identifier:
+          if not re.fullmatch(r'[a-f0-9]{32}', identifier):
+            raise Http404
+          rows = query(connection,
+                 'select * from ledger.file_import where import_id=?',
+                 [identifier])
+          if not rows:
+            raise Http404
+          selected = rows[0]
+          if (selected['document_type'] == 'account_statement') != statement_page:
+            raise Http404
+          selected['rows'] = json.loads(selected['preview'])
+          selected['document_metadata'] = (
+            json.loads(selected['document_metadata'])
+            if selected.get('document_metadata') else None)
+          if selected['adapter_id'] == 'xp-account-statement' and selected['status'] == 'preview':
+            from fin2.imports.xp_reconciliation import detail
+            selected = detail(connection, identifier)
+            from fin2.dashboard.xp_statement_views import approval_table
+            approval_table(request, selected)
+          elif selected['adapter_id'] == 'xp-account-statement':
+            from fin2.imports.xp_reconciliation import created_entries
+            selected['created_entries'] = created_entries(connection, identifier)
 
-            data.update(import_error=request.GET.get(
-                'error'), selected_import=selected)
-            return render(request, 'dashboard/file_imports.html', data, status=400 if request.GET.get('error') else 200)
+        wizard_step = 1
+        if identifier and selected and selected['status'] in ('committed', 'completed'):
+          wizard_step = 6 if selected.get('adapter_id') == 'xp-account-statement' else 5
+        elif identifier and selected and selected['status'] == 'preview':
+          wizard_step = 2
+        data['wizard_step'] = wizard_step
+        data.update(import_error=request.GET.get('error'), selected_import=selected)
+        return render(request, 'dashboard/file_imports.html', data,
+                status=400 if request.GET.get('error') else 200)
     except (ValueError, OSError) as exc:
-        try:
-            with reader(settings.WAREHOUSE_PATH) as connection:
-                data = context(request, connection)
-                from fin2.imports.xp_reconciliation import accounts as import_accounts
-                data['accounts'] = [a for a in import_accounts(
-                    connection) if a['batch_id'] == data['batch']['batch_id']]
-                data['selected_upload_account'] = request.POST.get(
-                    'account', '')
-                data['selected_upload_adapter'] = request.POST.get(
-                    'adapter', '')
-                data['selected_identity_confirmed'] = request.POST.get(
-                  'confirm_identity') == 'on'
-                data['selected_identity_reason'] = request.POST.get(
-                  'identity_reason', '')
-                data.update(imports=query(connection, "select * exclude(preview) from ledger.file_import where document_type='account_statement' order by created_at desc limit 50"),
-                            import_error=str(exc), selected_import=None)
-                return render(request, 'dashboard/file_imports.html', data, status=400)
-        except Unavailable:
-            return render(request, 'dashboard/unavailable.html', status=503)
+      try:
+        with reader(settings.WAREHOUSE_PATH) as connection:
+          data = context(request, connection)
+          from fin2.imports.xp_reconciliation import accounts as import_accounts
+          data['accounts'] = [a for a in import_accounts(connection)
+                    if a['batch_id'] == data['batch']['batch_id']]
+          operator = '=' if statement_page else '<>'
+          data.update(
+            statement_page=statement_page,
+            selected_upload_account=request.POST.get('account', ''),
+            selected_upload_adapter=request.POST.get('adapter', ''),
+            selected_identity_confirmed=request.POST.get('confirm_identity') == 'on',
+            selected_identity_reason=request.POST.get('identity_reason', ''),
+            imports=query(connection,
+              "select * exclude(preview) from ledger.file_import "
+              f"where document_type {operator} ? "
+              "order by created_at desc limit 50", ['account_statement']),
+            import_error=str(exc), selected_import=None)
+          return render(request, 'dashboard/file_imports.html', data, status=400)
+      except Unavailable:
+        return render(request, 'dashboard/unavailable.html', status=503)
 
 
 def _statement_attachments(connection, identifier):
@@ -1372,46 +1412,51 @@ def _statement_attachments(connection, identifier):
       f.original_filename,f.document_type,f.row_count,f.error_count,f.status,f.preview,
       x.description,x.related_lines
       from ledger.import_attachment x join ledger.file_import f
-        on f.import_id=x.attachment_import_id
+      on f.import_id=x.attachment_import_id
       where x.parent_import_id=? order by f.created_at""", [identifier])
     for attachment in attachments:
-        preview = json.loads(attachment.pop('preview'))
-        staged = query(connection, """select normalized,state
-          from ledger.import_staging_line where import_id=? order by row_number""",
-                       [attachment['attachment_import_id']])
-        ledger_rows = [
-            {**json.loads(row['normalized']), 'staging_state': row['state']}
-            for row in staged
-        ] or [{**row, 'staging_state': 'pending' if row.get('errors') else 'ready'}
-              for row in preview]
-        event_labels = {
-            'buy': 'Compra', 'sell': 'Venda', 'fee': 'Taxa', 'tax': 'Imposto',
-            'income': 'Provento', 'transfer': 'Transferência', 'deposit': 'Aporte',
-            'withdrawal': 'Retirada', 'redemption': 'Resgate',
-        }
-        for row in ledger_rows:
-            row['errors'] = row.get('errors') or []
-            row['identified_asset'] = (row.get('application') or row.get('asset')
-                                       or row.get('symbol') or 'Não identificado')
-            row['ledger_line'] = ((row.get('source_locator') or {}).get('item')
-                                  or row.get('row_number') or '—')
-            row['ledger_description'] = (row.get('description') or 'Sem descrição').removeprefix('Nota Clear: ')
-            row['ledger_quantity'] = row.get('quantity') or '—'
-            raw_date = row.get('settlement_date') or row.get('trade_date')
-            try:
-              row['ledger_date'] = date.fromisoformat(str(raw_date)).strftime('%d/%m/%y')
-            except (TypeError, ValueError):
-              row['ledger_date'] = '—'
-            row['ledger_type_label'] = event_labels.get(
-                row.get('event_type'), 'Não identificado')
-            row['ledger_ready'] = row['staging_state'] == 'ready' and not row['errors']
-            row['ledger_observation'] = ('; '.join(row['errors']) if row['errors'] else
-              'Registro rejeitado' if row['staging_state'] == 'rejected' else
-              'Pendente de revisão' if row['staging_state'] != 'ready' else '')
-        attachment['ledger_rows'] = ledger_rows
-        attachment['error_rows'] = [row for row in ledger_rows if row['errors']]
-        attachment['error_count'] = len(attachment['error_rows'])
-        attachment['row_count'] = len(ledger_rows)
+      preview = json.loads(attachment.pop('preview'))
+      staged = query(connection, """select normalized,state
+        from ledger.import_staging_line where import_id=? order by row_number""",
+               [attachment['attachment_import_id']])
+      ledger_rows = [
+        {**json.loads(row['normalized']), 'staging_state': row['state']}
+        for row in staged
+      ] or [{**row, 'staging_state': 'pending' if row.get('errors') else 'ready'}
+          for row in preview]
+      event_labels = {
+        'buy': 'Compra', 'sell': 'Venda', 'fee': 'Taxa', 'tax': 'Imposto',
+        'income': 'Provento', 'transfer': 'Transferência', 'deposit': 'Aporte',
+        'withdrawal': 'Retirada', 'redemption': 'Resgate',
+      }
+      for row in ledger_rows:
+        row['errors'] = row.get('errors') or []
+        if row.get('allocation_role') == 'withholding':
+          row['identified_asset'] = 'Imposto rateado entre ativos identificados'
+        elif row.get('allocation_role') == 'expense':
+          row['identified_asset'] = 'Taxa rateada entre ativos identificados'
+        else:
+          row['identified_asset'] = (row.get('application') or row.get('asset')
+                         or row.get('symbol') or 'Não identificado')
+        row['ledger_line'] = ((row.get('source_locator') or {}).get('item')
+                    or row.get('row_number') or '—')
+        row['ledger_description'] = (row.get('description') or 'Sem descrição').removeprefix('Nota Clear: ')
+        row['ledger_quantity'] = row.get('quantity') or '—'
+        raw_date = row.get('settlement_date') or row.get('trade_date')
+        try:
+          row['ledger_date'] = date.fromisoformat(str(raw_date)).strftime('%d/%m/%y')
+        except (TypeError, ValueError):
+          row['ledger_date'] = '—'
+        row['ledger_type_label'] = event_labels.get(
+          row.get('event_type'), 'Não identificado')
+        row['ledger_ready'] = row['staging_state'] == 'ready' and not row['errors']
+        row['ledger_observation'] = ('; '.join(row['errors']) if row['errors'] else
+          'Registro rejeitado' if row['staging_state'] == 'rejected' else
+          'Pendente de revisão' if row['staging_state'] != 'ready' else '')
+      attachment['ledger_rows'] = ledger_rows
+      attachment['error_rows'] = [row for row in ledger_rows if row['errors']]
+      attachment['error_count'] = len(attachment['error_rows'])
+      attachment['row_count'] = len(ledger_rows)
     return attachments
 
 
@@ -1462,7 +1507,7 @@ def xp_statement_notes(request, identifier):
                 raise Http404
             selected = parent[0]
             if selected['status'] != 'preview' or not selected['documented_at']:
-                return redirect('/fin2/importar/?' + urlencode({'preview': identifier}))
+                return redirect(reverse('statement-imports') + '?' + urlencode({'preview': identifier}))
             from fin2.imports.xp_reconciliation import detail
             if request.method == 'POST':
                 form_action = request.POST.get('form_action', 'create')
@@ -1493,11 +1538,15 @@ def xp_statement_notes(request, identifier):
                             raise ValueError('Anexo inválido')
                         pending_update = (attachment_id, description, selected_lines)
                     else:
-                        upload = request.FILES.get('documents')
-                        if not upload:
-                            raise ValueError('Selecione pelo menos um documento')
-                        pending_upload = (upload.name, upload.read(), upload.content_type,
-                                          selected['account_record'], description, selected_lines)
+                      adapter_id = request.POST.get('adapter_id', '')
+                      if adapter_id not in {'clear-brokerage-note', 'bb-tesouro-receipt'}:
+                        raise ValueError('Selecione um tipo de anexo válido')
+                      upload = request.FILES.get('documents')
+                      if not upload:
+                        raise ValueError('Selecione pelo menos um documento')
+                      pending_upload = (upload.name, upload.read(), upload.content_type,
+                                selected['account_record'], description, selected_lines,
+                                adapter_id)
             else:
                 attachments = _statement_attachments(connection, identifier)
                 selected['document_metadata'] = json.loads(
@@ -1518,6 +1567,7 @@ def xp_statement_notes(request, identifier):
                 data.update(selected_import=selected, attachments=table_attachments,
                             selected_attachment=selected_item['attachment_import_id'] if selected_item else None,
                             selected_item=selected_item,
+                            selected_attachment_adapter=request.GET.get('adapter_id', ''),
                             related_lines=related_lines,
                             wizard_step=wizard_step, note_error=None, note_info=note_info)
                 return render(request, 'dashboard/xp_statement_notes.html', data)
@@ -1549,12 +1599,12 @@ def xp_statement_notes(request, identifier):
                     [description, json.dumps(selected_lines), identifier, attachment_id])
             return redirect(reverse('xp-statement-notes', args=[identifier]) +
                              '?' + urlencode({'attachment': attachment_id}))
-        name, body, content_type, account_record, description, selected_lines = pending_upload
+        name, body, content_type, account_record, description, selected_lines, adapter_id = pending_upload
         from fin2.imports.generic import stage as stage_file_import
         attachment, _status = stage_file_import(
             settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
             name, body, content_type,
-            options={'account_record': account_record})
+          options={'account_record': account_record, 'adapter_id': adapter_id})
         with connect(settings.WAREHOUSE_PATH) as writable:
           writable.execute(
               """insert into ledger.import_attachment
@@ -1587,6 +1637,7 @@ def xp_statement_notes(request, identifier):
             data.update(selected_import=selected, attachments=table_attachments,
                         selected_attachment=selected_item['attachment_import_id'] if selected_item else None,
                         selected_item=selected_item,
+                        selected_attachment_adapter=request.POST.get('adapter_id', ''),
                         related_lines=related_lines,
                         wizard_step=wizard_step, note_error=str(exc), note_info=note_info)
             return render(request, 'dashboard/xp_statement_notes.html', data, status=400)
@@ -1603,7 +1654,7 @@ def xp_statement_review(request, connection, identifier):
         raise Http404
     selected = detail(connection, identifier)
     if selected['status'] != 'preview' or not selected.get('documented_at') or selected['financial_status'] == 'confirmed':
-        return redirect('/fin2/importar/?' + urlencode({'preview': identifier}))
+        return redirect(reverse('statement-imports') + '?' + urlencode({'preview': identifier}))
     data = context(request, connection)
     if request.GET.get('review_line'):
         try:
@@ -1636,19 +1687,29 @@ def commit_file_import(request,identifier):
         # The XP review stays in step 3 and shows why the load was refused.
         with reader(settings.WAREHOUSE_PATH) as connection:
             if query(connection,'select 1 from ledger.xp_statement where import_id=?',[identifier]):
-                return redirect('/fin2/importar/'+identifier+'/revisao/?'+urlencode({'error':str(exc)}))
+                return redirect(reverse('xp-statement-review', args=[identifier]) + '?' + urlencode({'error':str(exc)}))
         return HttpResponse(str(exc),status=400)
-    return redirect('/fin2/importar/?preview='+identifier)
+    return redirect(reverse(_import_page_name(identifier)) + '?preview=' + identifier)
+
+
+def _import_page_name(identifier):
+    with reader(settings.WAREHOUSE_PATH) as connection:
+        rows = query(connection,
+                     'select document_type from ledger.file_import where import_id=?',
+                     [identifier])
+    return ('statement-imports' if rows and
+            rows[0]['document_type'] == 'account_statement' else 'file-imports')
 
 
 @require_POST
 def reject_file_import(request,identifier):
     if not settings.WRITE_ENABLED:return HttpResponse('Escrita desabilitada',status=403)
     if not re.fullmatch(r'[a-f0-9]{32}',identifier):raise Http404
+    page_name = _import_page_name(identifier)
     try:reject_import(settings.WAREHOUSE_PATH,settings.DOCUMENT_ROOT,identifier)
     except ValueError as exc:
-        return redirect('/fin2/importar/?'+urlencode({'preview':identifier,'error':str(exc)}))
-    return redirect('/fin2/importar/')
+        return redirect(reverse(page_name) + '?' + urlencode({'preview':identifier,'error':str(exc)}))
+    return redirect(reverse(page_name))
 
 
 @page_view

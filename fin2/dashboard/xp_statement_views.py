@@ -36,6 +36,8 @@ def approval_table(request, selected, review=False):
             action = effective.get('action')
             if action == 'excluded':
                 detail = ['Excluído do ledger']
+            elif row.get('category') == 'brokerage':
+                detail = ['Vincular a movimento existente'] if action == 'link' else []
             else:
                 detail = [xp.category_label(effective.get('category') or row.get('category'))]
                 if action == 'link':
@@ -43,7 +45,10 @@ def approval_table(request, selected, review=False):
             missing = row.get('identification_missing') or []
             if missing:
                 detail.append('Falta: ' + ', '.join(missing))
-            row['table_detail'] = row.get('table_detail') or ' · '.join(filter(None, detail))
+            errors = row.get('errors') or []
+            if errors:
+                detail.append('Erro: ' + '; '.join(errors))
+            row['table_detail'] = ' · '.join(filter(None, detail))
             row['table_reason'] = effective.get('reason') or ''
             row['table_situation'] = {'ready': 'Pronto', 'excluded': 'Excluído'}.get(row.get('state'), 'Pendente')
     category = request.GET.get('categoria', '') if review else ''
@@ -126,6 +131,13 @@ def update(request, identifier):
         if request.POST.get('operation') == 'document':
             xp.document(settings.WAREHOUSE_PATH, identifier)
             return redirect(reverse('xp-statement-notes', args=[identifier]))
+        elif request.POST.get('operation') == 'attachment-event':
+            xp.update_attachment_event(
+                settings.WAREHOUSE_PATH, identifier,
+                request.POST.get('document_id') or '',
+                int(request.POST.get('attachment_row_number', '0')),
+                request.POST.get('amount', ''))
+            return redirect(target + '?' + urlencode(query) if query else target)
         else:
             entry_ids = request.POST.getlist('entry_ids')
             # The single review form has no explicit decision field: the action
@@ -148,7 +160,7 @@ def update(request, identifier):
             })
     except ValueError as exc:
         if request.POST.get('operation') == 'document':
-            target = reverse('file-imports')
+            target = reverse('statement-imports')
             query['preview'] = identifier
         elif request.POST.get('line_number'):
             query['review_line'] = request.POST['line_number']

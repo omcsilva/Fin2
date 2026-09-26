@@ -43,6 +43,55 @@ class CatalogTests(unittest.TestCase):
    response=client.post('/fin2/cadastros/carteira/',{'nome':'Teste','request_key':'e'*32,'revision':'0','csrfmiddlewaretoken':token})
    self.assertEqual(response.status_code,302)
    self.assertEqual(client.get(response.url).status_code,200)
+ def test_new_application_form_prefills_account_from_link(self):
+  with connect(self.f.database) as db:
+   account_id=db.execute('select legacy_id from portfolio.account limit 1').fetchone()[0]
+  with override_settings(WAREHOUSE_PATH=self.f.database,ALLOWED_HOSTS=['testserver'],WRITE_ENABLED=True):
+   response=Client().get(f'/fin2/cadastros/aplicacao/?conta_id={account_id}')
+  self.assertEqual(response.status_code,200)
+  html=response.content.decode()
+  self.assertRegex(html,rf'<option value="{account_id}" selected')
+  self.assertNotIn('name="nome"',html)
+  self.assertIn('>Incluir</button>',html)
+  self.assertNotIn('>Novo cadastro</a>',html)
+ def test_application_list_filters_by_account_asset_and_free_text(self):
+  from uuid import uuid4
+  def add(kind,values):
+   record=save(self.f.database,batch=self.batch,kind=kind,values=values,
+    request_key=uuid4().hex)
+   with connect(self.f.database) as db:
+    return next(row for row in records(db,self.batch,kind)
+     if row['record_id']==record)
+  owner=add('titular',{'nome':'Titular filtro'})
+  institution=add('instituicao',{'nome':'Instituição filtro','abrev':'FILT'})
+  currency=add('moeda',{'nome':'Moeda filtro','abrev':'BRL'})
+  category=add('classe',{'nome':'Classe filtro'})
+  accounts=[add('conta',{'nome':'Conta '+suffix,'titular_id':owner['legacy_id'],
+   'instituicao_id':institution['legacy_id'],'moeda_id':currency['legacy_id']})
+   for suffix in ('A','B')]
+  assets=[add('ativo',{'nome':'Ativo '+symbol,'abrev':symbol,
+   'moeda_id':currency['legacy_id'],'classe_id':category['legacy_id']})
+   for symbol in ('QTEST','ZTEST')]
+  for account,asset in zip(accounts,assets):
+   save(self.f.database,batch=self.batch,kind='aplicacao',
+    values={'nome':'Nome gerado','conta_id':account['legacy_id'],
+     'ativo_id':asset['legacy_id']},request_key=uuid4().hex)
+  with override_settings(WAREHOUSE_PATH=self.f.database,ALLOWED_HOSTS=['testserver'],WRITE_ENABLED=True):
+   client=Client()
+   queries=[
+    {'conta':accounts[0]['legacy_id']},
+    {'ativo':assets[1]['legacy_id']},
+    {'q':'QTEST'},
+    {'conta':accounts[0]['legacy_id'],'ativo':assets[0]['legacy_id'],'q':'QTEST'},
+   ]
+   for query in queries:
+    response=client.get('/fin2/cadastros/aplicacao/',query)
+    self.assertEqual(response.status_code,200)
+    table=response.content.decode().split('<table',1)[1].split('</table>',1)[0]
+    expected='Ativo ZTEST' if query.get('ativo')==assets[1]['legacy_id'] else 'Ativo QTEST'
+    unexpected='Ativo QTEST' if expected=='Ativo ZTEST' else 'Ativo ZTEST'
+    self.assertIn(expected,table,query)
+    self.assertNotIn(unexpected,table,query)
  def test_new_account_asset_and_application_can_receive_events(self):
   from fin2.portfolio.manual_ledger import create
   def add(kind,values):
@@ -57,7 +106,8 @@ class CatalogTests(unittest.TestCase):
   category=add('classe',{'nome':'Classe nova'})
   account=add('conta',{'nome':'Conta nova','titular_id':owner['legacy_id'],'instituicao_id':institution['legacy_id'],'moeda_id':currency['legacy_id']})
   asset=add('ativo',{'nome':'Ativo novo','abrev':'TEST4','moeda_id':currency['legacy_id'],'classe_id':category['legacy_id']})
-  application=add('aplicacao',{'nome':'Aplicação nova','conta_id':account['legacy_id'],'ativo_id':asset['legacy_id']})
+  application=add('aplicacao',{'nome':'Nome ignorado','conta_id':account['legacy_id'],'ativo_id':asset['legacy_id']})
+  self.assertEqual(application['payload']['nome'],'Conta nova TEST4')
   portfolio=add('carteira',{'nome':'Carteira nova'})
   add('aplicacao_carteira',{'aplicacao_id':application['legacy_id'],'carteira_id':portfolio['legacy_id']})
   event=create(self.f.database,account_record=account['record_id'],application_record=application['record_id'],

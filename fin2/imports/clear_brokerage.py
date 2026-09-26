@@ -175,7 +175,7 @@ def _rows_from_text(text,page=1):
 
 
 class ClearBrokerageNoteAdapter:
-    adapter_id='clear-brokerage-note';version='4';document_type='brokerage_note'
+    adapter_id='clear-brokerage-note';version='5';document_type='brokerage_note'
     def detect(self,filename,body):
         if b'%PDF-' not in body[:1024]:
             return 0
@@ -219,8 +219,8 @@ class ClearBrokerageNoteAdapter:
         if 'kind' in values:
                 if values['kind']=='trade':
                         key=' '.join(_plain(values['asset']).split())
-                        ticker_match=re.search(r'\b[A-Z]{4}\d{1,2}\b',key)
-                        ticker=ticker_match.group() if ticker_match else key
+                        ticker_match=re.search(r'\b([A-Z]{4}\d{1,2})(?:\s*F)?\b',key)
+                        ticker=ticker_match.group(1) if ticker_match else key
                         apps=db.execute("""select ap.source_record_id,ap.name from portfolio.application ap
                             left join portfolio.asset a on a.batch_id=ap.batch_id and a.legacy_id=ap.asset_id
                             where ap.account_id=? and (upper(trim(ap.name))=? or upper(trim(coalesce(a.symbol,'')))=?

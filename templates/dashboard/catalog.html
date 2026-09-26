@@ -8,12 +8,24 @@
 {% if catalog_saved %}<div class="note" role="status">Cadastro salvo.</div>{% endif %}
 {% if catalog_writable %}<section class="panel"><h2>{% if catalog_selected %}Editar cadastro{% else %}Novo cadastro{% endif %}</h2>
 {% if catalog_selected.image %}<img src="{% url 'catalog-image' catalog_selected.image.hash %}" alt="Imagem de {{ catalog_selected.payload.nome }}" class="catalog-preview-image">{% endif %}
-<form method="post" enctype="multipart/form-data" data-confirm-submit="Confirmar este cadastro?">{% csrf_token %}
+<form method="post" enctype="multipart/form-data" class="catalog-form{% if catalog_application_form %} catalog-application-form{% endif %}" data-confirm-submit="Confirmar este cadastro?">{% csrf_token %}
 <input type="hidden" name="request_key" value="{{ catalog_request_key }}"><input type="hidden" name="revision" value="{{ catalog_revision }}">
-<div class="form-grid">{{ catalog_form.as_p }}</div><button type="submit">Salvar</button>
-{% if catalog_selected %}<a href="{% url 'catalog-kind' catalog_kind %}?{{ global_query }}">Novo cadastro</a>{% endif %}</form>
+<div class="form-grid">{{ catalog_form.as_p }}</div><button type="submit">{% if catalog_application_form %}Incluir{% else %}Salvar{% endif %}</button>
+</form>
 {% if catalog_history %}<details><summary>Histórico de alterações</summary><ul>{% for item in catalog_history %}<li>Revisão {{ item.revision }} · {{ item.created_at|date:'d/m/Y H:i:s' }}</li>{% endfor %}</ul></details>{% endif %}</section>{% endif %}
+{% if catalog_kind == 'aplicacao' %}
+<form class="filters panel application-search" method="get">
+<input type="hidden" name="batch" value="{{ batch.batch_id }}">
+{% if portfolio_filter %}<input type="hidden" name="portfolio" value="{{ portfolio_filter }}">{% endif %}
+{% if year_filter %}<input type="hidden" name="year" value="{{ year_filter }}">{% endif %}
+{% if include_zeroed %}<input type="hidden" name="include_zeroed" value="1">{% endif %}
+<label>Conta<select name="conta"><option value="">Todas</option>{% for id,label in application_accounts %}<option value="{{ id }}"{% if application_account_filter == id|stringformat:'s' %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Ativo<select name="ativo"><option value="">Todos</option>{% for id,label in application_assets %}<option value="{{ id }}"{% if application_asset_filter == id|stringformat:'s' %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Pesquisar<input name="q" value="{{ application_search }}" maxlength="200" placeholder="Nome, conta, ativo ou código"></label>
+<button type="submit">Filtrar</button>
+</form>
+{% endif %}
 <section class="panel table-wrap"><table><thead><tr><th>Ação</th>{% if catalog_has_images %}<th>Imagem</th>{% endif %}{% for label in catalog_columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>
-{% for item in catalog_items %}<tr><td><a class="button catalog-edit-button{% if catalog_selected.record_id == item.record_id %} active{% endif %}" href="{% url 'catalog-kind' catalog_kind %}?{{ global_query }}&amp;edit={{ item.record_id }}" title="Editar" aria-label="Editar"><span aria-hidden="true">▶</span></a></td>{% if catalog_has_images %}<td>{% if item.image %}<img src="{% url 'catalog-image' item.image.hash %}" alt="Imagem de {{ item.payload.nome }}" width="48" height="48" loading="lazy" class="catalog-thumb">{% else %}—{% endif %}</td>{% endif %}{% for cell in item.cells %}<td>{{ cell }}</td>{% endfor %}</tr>{% empty %}<tr><td>Nenhum cadastro.</td></tr>{% endfor %}
+{% for item in catalog_items %}<tr><td><a class="button catalog-edit-button{% if catalog_selected.record_id == item.record_id %} active{% endif %}" href="{% url 'catalog-kind' catalog_kind %}?{{ global_query }}{% if application_filter_query %}&amp;{{ application_filter_query|safe }}{% endif %}&amp;edit={{ item.record_id }}" title="Editar" aria-label="Editar"><span aria-hidden="true">▶</span></a></td>{% if catalog_has_images %}<td>{% if item.image %}<img src="{% url 'catalog-image' item.image.hash %}" alt="Imagem de {{ item.payload.nome }}" width="48" height="48" loading="lazy" class="catalog-thumb">{% else %}—{% endif %}</td>{% endif %}{% for cell in item.cells %}<td>{{ cell }}</td>{% endfor %}</tr>{% empty %}<tr><td>Nenhuma aplicação encontrada para os filtros.</td></tr>{% endfor %}
 </tbody></table></section>
 </div>{% endblock %}

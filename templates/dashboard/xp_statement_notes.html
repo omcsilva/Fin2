@@ -19,7 +19,7 @@
         <span class="attachment-upload-help">O arquivo não pode ser trocado; carregue um novo anexo para isso</span>
 
         <label for="attachment-related-lines">Lançamentos relacionados:</label>
-        <select id="attachment-related-lines" name="related_lines" multiple size="10">
+        <select id="attachment-related-lines" name="related_lines" multiple size="6">
             {% for row in related_lines %}<option value="{{ row.source_locator.row }}"{% if row.source_locator.row|stringformat:"s" in selected_item.related_line_numbers %} selected{% endif %}>L{{ row.source_locator.row }} - {{ row.attachment_trade_date }} {{ row.description|truncatechars:90 }} {{ row.amount|money:'BRL' }}</option>{% endfor %}
         </select>
         <span class="attachment-upload-help">Selecione um ou mais lançamentos relacionados</span>
@@ -33,12 +33,19 @@
     {% else %}
     <form method="post" enctype="multipart/form-data" class="attachment-upload-form">{% csrf_token %}
         <input type="hidden" name="form_action" value="create">
+        <label for="attachment-type">Tipo de anexo:</label>
+        <select id="attachment-type" name="adapter_id" required>
+            <option value="">Selecione o tipo de anexo</option>
+            <option value="clear-brokerage-note"{% if selected_attachment_adapter == 'clear-brokerage-note' %} selected{% endif %}>Nota de corretagem Clear/XP</option>
+            <option value="bb-tesouro-receipt"{% if selected_attachment_adapter == 'bb-tesouro-receipt' %} selected{% endif %}>Comprovante BB Tesouro Direto</option>
+        </select>
+        <span class="attachment-upload-help">Escolha o tipo que corresponde ao arquivo</span>
         <label for="attachment-documents">Arquivo:</label>
-        <input id="attachment-documents" type="file" name="documents" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv" required>
+        <input id="attachment-documents" type="file" name="documents" accept=".pdf,.png,.jpg,.jpeg" required>
         <span class="attachment-upload-help">Indique o arquivo com o anexo a ser carregado</span>
 
         <label for="attachment-related-lines">Lançamentos relacionados:</label>
-        <select id="attachment-related-lines" name="related_lines" multiple size="10">
+        <select id="attachment-related-lines" name="related_lines" multiple size="6">
             {% for row in related_lines %}<option value="{{ row.source_locator.row }}">L{{ row.source_locator.row }} - {{ row.attachment_trade_date }} {{ row.description|truncatechars:90 }} {{ row.amount|money:'BRL' }}</option>{% endfor %}
         </select>
         <span class="attachment-upload-help">Selecione um ou mais lançamentos relacionados</span>
@@ -94,7 +101,7 @@
         </table></div>
     </section>{% endif %}
     <div class="review-form-actions" id="review-form-actions">
-        <a class="button review-cancel" href="{% if wizard_step == 4 %}{% url 'xp-statement-notes' selected_import.import_id %}{% else %}{% url 'file-imports' %}?preview={{ selected_import.import_id }}{% endif %}">Voltar</a>
+        <a class="button review-cancel" href="{% if wizard_step == 4 %}{% url 'xp-statement-notes' selected_import.import_id %}{% else %}{% url 'statement-imports' %}?preview={{ selected_import.import_id }}{% endif %}">Voltar</a>
         <a class="button review-save" href="{% url 'xp-statement-review' selected_import.import_id %}">Continuar para revisão</a>
     </div>
 </section>

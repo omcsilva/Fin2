@@ -24,7 +24,7 @@
 {% endif %}
 {% if account_tab == 'aplicacoes' %}
 {% if portfolio_filter %}<div class="note">O filtro de carteira limita as aplicações exibidas.</div>{% endif %}
-<section class="panel table-wrap"><h2>Aplicações</h2><table><thead><tr><th>Ativo / aplicação</th><th>Classe</th><th class="number">Quantidade no corte</th><th class="number">Valor da posição</th><th>Situação</th></tr></thead><tbody>
+<section class="panel table-wrap"><div class="section-title"><h2>Aplicações</h2><a class="button" href="{% url 'catalog-kind' 'aplicacao' %}?{{ global_query }}&amp;conta_id={{ account.legacy_id }}">Adicionar aplicação</a></div><table><thead><tr><th>Ativo / aplicação</th><th>Classe</th><th class="number">Quantidade no corte</th><th class="number">Valor da posição</th><th>Situação</th></tr></thead><tbody>
 {% for p in applications %}<tr><td><a href="{% url 'quantity-detail' p.source_record_id %}?{{ global_query }}">{{ p.asset_name|default:p.name|default:'Sem nome' }}</a> <small class="muted">#{{ p.legacy_id }}</small></td><td>{{ p.class_name|default:'—' }}</td><td class="number">{{ p.quantity_at_cutoff|number }}</td><td class="number">{{ p.reference_value|money:p.currency }}</td><td>{{ p.status_label }}</td></tr>{% empty %}<tr><td colspan="5">Nenhuma aplicação neste escopo.</td></tr>{% endfor %}
 </tbody></table></section>
 {% endif %}
