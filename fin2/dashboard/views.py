@@ -1302,7 +1302,9 @@ def file_imports(request):
             identifier,_=stage_file_import(settings.WAREHOUSE_PATH,settings.DOCUMENT_ROOT,
               upload.name,upload.read(),upload.content_type,
               options={'account_record':request.POST.get('account') or None,
-                       'adapter_id': request.POST.get('adapter') or None})
+                       'adapter_id': request.POST.get('adapter') or None,
+                       'confirm_identity': request.POST.get('confirm_identity') == 'on',
+                       'identity_reason': request.POST.get('identity_reason', '')})
             return redirect('/fin2/importar/?preview='+identifier)
         with reader(settings.WAREHOUSE_PATH) as connection:
             data=context(request,connection)
@@ -1354,6 +1356,10 @@ def file_imports(request):
                     'account', '')
                 data['selected_upload_adapter'] = request.POST.get(
                     'adapter', '')
+                data['selected_identity_confirmed'] = request.POST.get(
+                  'confirm_identity') == 'on'
+                data['selected_identity_reason'] = request.POST.get(
+                  'identity_reason', '')
                 data.update(imports=query(connection, 'select * exclude(preview) from ledger.file_import order by created_at desc limit 50'),
                             import_error=str(exc), selected_import=None)
                 return render(request, 'dashboard/file_imports.html', data, status=400)

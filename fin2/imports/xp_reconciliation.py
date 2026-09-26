@@ -269,6 +269,11 @@ def stage(database, storage_root, filename, body, media_type, options):
         if not binding:
             if db.execute('select 1 from ledger.xp_account_binding where account_record=?', [selected['source_record_id']]).fetchone():
                 raise ValueError('Conta cadastrada já associada a outro número XP')
+            if not options.get('confirm_identity'):
+                raise ValueError('Confirme o número e o titular do extrato antes da primeira associação')
+            identity_reason = ' '.join(str(options.get('identity_reason', '')).split())
+            if not 5 <= len(identity_reason) <= 500:
+                raise ValueError('Informe justificativa de 5 a 500 caracteres para associar a conta XP')
         existing = db.execute('select import_id,status from ledger.file_import where sha256=?', [digest]).fetchone()
         if existing:
             return existing
@@ -284,8 +289,7 @@ def stage(database, storage_root, filename, body, media_type, options):
         try:
             if not binding:
                 db.execute('insert into ledger.xp_account_binding(account_number,account_record,holder,reason) values (?,?,?,?)',
-                           [metadata['account_number'], selected['source_record_id'], metadata['holder'],
-                            'Associação automática por número da conta e titular do extrato'])
+                           [metadata['account_number'], selected['source_record_id'], metadata['holder'], identity_reason])
             db.execute('''insert into source_document(document_id,batch_id,source_path,original_filename,sha256,byte_size,storage_key)
               values (?,?,?,?,?,?,?)''', [document_id, selected['batch_id'], f'FIN2/imports/{digest}/{Path(filename).name}',
                                         Path(filename).name, digest, len(body), target.relative_to(root).as_posix()])
@@ -441,6 +445,10 @@ def _validate(db, item, row, decision, used):
         return
     if row['errors']:
         raise ValueError('Linha com erro de extração não pode ser confirmada')
+    if (row.get('category') == 'brokerage' and decision['action'] == 'new'
+            and decision.get('category') != 'brokerage'):
+        raise ValueError(
+            'Categoria exige vínculo com movimentos existentes ou documento detalhado; não gere operação pelo saldo líquido')
     if row.get('category') == 'brokerage' and decision['action'] == 'new':
         if decision.get('document_id') and db.execute(
             """select 1 from ledger.xp_statement_line

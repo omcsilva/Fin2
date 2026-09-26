@@ -171,7 +171,7 @@ class XPFlowTests(unittest.TestCase):
             }, follow=True)
             self.assertEqual(response.status_code, 200)
             html = response.content.decode()
-            self.assertIn('<h1>Aprovar/Excluir extrato</h1>', html)
+            self.assertIn('<h1>Conferir extrato</h1>', html)
             self.assertIn('DIVIDENDOS DE CLIENTES TEST3', html)
             self.assertIn('xp-approval-table', html)
             self.assertIn('Pesquisar', html)
@@ -212,17 +212,27 @@ class XPFlowTests(unittest.TestCase):
                        [identifier, 'b' * 32])
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
-            response = Client().get(
-                reverse('xp-statement-notes', args=[identifier]),
-                {'q': 'DIVIDENDOS', 'por_pagina': '10'})
+            client = Client()
+            notes_url = reverse('xp-statement-notes', args=[identifier])
+            response = client.get(
+                notes_url, {'q': 'DIVIDENDOS', 'por_pagina': '10'})
             self.assertEqual(response.status_code, 200)
             html = response.content.decode()
             self.assertIn('Carregar anexos', html)
             self.assertIn('nota.pdf', html)
+            self.assertNotIn('Log de importação', html)
+
+            response = client.get(
+                notes_url, {'q': 'DIVIDENDOS', 'por_pagina': '10',
+                            'attachment': 'b' * 32})
+            self.assertEqual(response.status_code, 200)
+            html = response.content.decode()
+            self.assertIn('<h2>Conferir anexo</h2>', html)
             self.assertIn('Log de importação', html)
             self.assertIn('Compra SPXI11', html)
             self.assertIn('aplicação não encontrada de forma única: SPXI11', html)
-            self.assertIn('3. Carregar anexos', html)
+            self.assertIn(
+                '<span class="import-step-number" aria-hidden="true">4</span>', html)
             self.assertIn('Lançamentos relacionados', html)
             self.assertIn('Descrição:', html)
             self.assertIn('Identificador opcional do anexo', html)
@@ -232,7 +242,6 @@ class XPFlowTests(unittest.TestCase):
             self.assertNotIn(
                 'name="documents" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv" multiple', html)
             self.assertNotIn('49 lançamentos identificados', html)
-            self.assertNotIn('Baixar arquivo', html)
             self.assertNotIn('xp-approval-table', html)
             self.assertNotIn('Página 1 de 1', html)
 
@@ -601,6 +610,38 @@ class XPFlowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Titular'): self.stage(workbook(holder='PESSOA ERRADA',number='999'),account='digital')
         with self.assertRaisesRegex(ValueError,'Confirme'):
             stage(self.db,self.documents,'x.xlsx',workbook(holder='ANA TESTE',number='111'),options={'account_record':'digital'})
+
+    def test_upload_requires_and_records_identity_confirmation(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import Client, override_settings
+
+        body = workbook()
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            response = client.post('/fin2/importar/', {
+                'file': SimpleUploadedFile('extrato.xlsx', body),
+                'adapter': 'xp-account-statement', 'account': self.account,
+            })
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('Confirme o número e o titular', response.content.decode())
+
+            response = client.post('/fin2/importar/', {
+                'file': SimpleUploadedFile('extrato.xlsx', body),
+                'adapter': 'xp-account-statement', 'account': self.account,
+                'confirm_identity': 'on', 'identity_reason': 'Número e titular conferidos',
+            })
+            self.assertEqual(response.status_code, 302)
+
+        with connect(self.db) as db:
+            binding = db.execute(
+                'select reason from ledger.xp_account_binding where account_record=?',
+                [self.account]).fetchone()
+            self.assertEqual(binding[0], 'Número e titular conferidos')
 
     def test_pending_rejection_and_atomic_rollback(self):
         identifier=self.stage(workbook([

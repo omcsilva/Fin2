@@ -86,8 +86,10 @@ class DashboardTests(unittest.TestCase):
         for tab, heading in [('movimentacoes', 'Extrato do ledger')]:
             response = self.client.get(f'/fin2/contas/{account_id}/?tab={tab}')
             self.assertEqual(response.status_code, 200)
-            self.assertIn(f'<h2>{heading}</h2>', response.content.decode())
-            self.assertNotIn('<h2>Aplicações</h2>', response.content.decode())
+            movement_html = response.content.decode()
+            self.assertIn(f'<h2>{heading}', movement_html)
+            self.assertIn('Importar extrato', movement_html)
+            self.assertNotIn('<h2>Aplicações</h2>', movement_html)
         self.assertIn(f'/fin2/posicoes/{application}/', html)
         self.assertIn(f'/fin2/contas/{account_id}/?', html)
         self.assertEqual(self.client.get('/fin2/contas/999999/').status_code, 404)
