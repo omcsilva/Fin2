@@ -33,6 +33,21 @@ catalog-images/. O arquivo .env pode fornecer BRAPI_TOKEN e não é versionado.
 
 ## Verificação
 
+Para alterações pontuais, execute primeiro o caso ou módulo afetado:
+
+~~~bash
+.venv/bin/python -m unittest tests.test_<modulo>.ClasseDeTeste.test_caso -q
+.venv/bin/python -m unittest tests.test_<modulo> -q
+~~~
+
+Exemplo para importação de notas XP e notas de corretagem:
+
+~~~bash
+.venv/bin/python -m unittest tests.test_xp_statement tests.test_clear_brokerage -q
+~~~
+
+Antes de integrar, execute a verificação completa:
+
 ~~~bash
 .venv/bin/python manage.py check
 .venv/bin/python -m unittest discover -s tests -q

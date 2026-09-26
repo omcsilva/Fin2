@@ -77,8 +77,21 @@
         <h3 id="import-log-title">Log de importação</h3>
         <div class="note">
             <strong>{{ selected_item.original_filename }}</strong> — {{ selected_item.row_count }} linha{{ selected_item.row_count|pluralize }} extraída{{ selected_item.row_count|pluralize }}; {{ selected_item.error_count }} erro{{ selected_item.error_count|pluralize }}; estado {{ selected_item.status }}.
-            {% if selected_item.error_rows %}<ul>{% for row in selected_item.error_rows %}<li>Linha {{ row.row_number }} — {{ row.description|default:'Sem descrição' }}: {% for error in row.errors %}{{ error }}{% if not forloop.last %}; {% endif %}{% endfor %}</li>{% endfor %}</ul>{% else %}<p>Nenhum erro de validação.</p>{% endif %}
         </div>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Linha</th><th>Registro para o ledger</th><th>Ativo identificado</th><th class="number">QTD</th><th class="number">DATA</th><th class="number">Valor</th><th>OBSERVAÇÃO</th></tr></thead>
+            <tbody>{% for row in selected_item.ledger_rows %}
+            <tr>
+                <td>{{ row.ledger_line }}</td>
+                <td>{{ row.ledger_type_label }} · {{ row.ledger_description }}</td>
+                <td>{{ row.identified_asset }}</td>
+                <td class="number">{{ row.ledger_quantity }}</td>
+                <td class="number">{{ row.ledger_date }}</td>
+                <td class="number">{{ row.amount|money:'BRL' }}</td>
+                <td>{{ row.ledger_observation }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="7">Nenhum registro normalizado para importar.</td></tr>{% endfor %}</tbody>
+        </table></div>
     </section>{% endif %}
     <div class="review-form-actions" id="review-form-actions">
         <a class="button review-cancel" href="{% if wizard_step == 4 %}{% url 'xp-statement-notes' selected_import.import_id %}{% else %}{% url 'file-imports' %}?preview={{ selected_import.import_id }}{% endif %}">Voltar</a>

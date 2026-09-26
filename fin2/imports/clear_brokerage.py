@@ -65,31 +65,117 @@ def _rows_from_text(text,page=1):
         rows.append(SourceRow({'page':page,'section':'negocios_realizados','item':len(rows)+1},
           {'kind':'trade','side':side,'market':market,'asset':asset,'quantity':quantity,'price':price,
            'amount':gross,'trade_date':trade_date}))
-    components=(('TAXA DE LIQUIDA','fee','Taxa de liquidação'),
-                ('TAXA DE REGISTRO','fee','Taxa de registro'),
-                ('EMOLUMENTOS','fee','Emolumentos'),('TAXA OPERACIONAL','fee','Taxa operacional'),
-                ('EXECU','fee','Execução'),('TAXA DE CUSTODIA','fee','Taxa de custódia'),
-                ('I.R.R.F.','tax','IRRF'),('IRRF','tax','IRRF'))
+    components=(
+        (r'\bTAXA\s+DE\s+LIQUIDA\w*\b','fee','Taxa de liquidação'),
+        (r'\bTAXA\s+(?:DE\s+)?REGISTRO\b','fee','Taxa de registro'),
+        (r'\bEMOLUMENTOS\b','fee','Emolumentos'),
+        (r'\bTAXA\s+DE\s+TERMO\s*/\s*OPCOES\b','fee','Taxa de termo/opções'),
+        (r'\bTAXA\s+A\.?N\.?A\.?\b','fee','Taxa A.N.A.'),
+        (r'\bTAXA\s+DE\s+TRANSF\.?\s+DE\s+ATIVOS\b','fee','Taxa de transferência de ativos'),
+        (r'\bTAXA\s+OPERACIONAL\b','fee','Taxa operacional'),
+        (r'\bEXECU\w*\b','fee','Execução'),
+        (r'\bTAXA\s+DE\s+CUSTODIA\b','fee','Taxa de custódia'),
+        (r'\bCORRETAGEM\b','fee','Corretagem'),
+        (r'\bISS\b','fee','ISS'),
+        (r'\bTAXA\s+(?:DE\s+)?(?:NEGOCIACAO|BOVESPA|B3)\b','fee','Taxa Bovespa'),
+        (r'\bOUTRAS\s+BOVESPA\b','fee','Taxa Bovespa'),
+        (r'\bI\.?\s*R\.?\s*R\.?\s*F\.?\b','tax','IRRF'),
+    )
+    amount_pattern=re.compile(r'(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}(?!\d)')
+    handled_components=set()
     seen=set()
-    for index,line in enumerate(plain):
-        match=next((item for item in components if item[0] in line),None)
-        if not match or match[2] in seen:continue
-        debit_credit=None;value=None
-        for candidate in lines[index+1:index+5]:
-            code=_plain(candidate)
-            if code in {'C','D'}:debit_credit=code;continue
-            try:value=_money(candidate);break
-            except InvalidOperation:continue
-        if value is None or value<=0:continue
-        seen.add(match[2])
+
+    def component_at(index):
+        for component in components:
+            match=re.search(component[0],plain[index])
+            if match:return component,match
+        return None
+
+    def append_expense(component,value,debit_credit='D'):
+        if value<=0 or component[2] in seen:return
+        seen.add(component[2])
         rows.append(SourceRow({'page':page,'section':'resumo_financeiro','item':len(rows)+1},
-          {'kind':'expense','category':match[1],'label':match[2],'amount':value,
-           'debit_credit':debit_credit or 'D','trade_date':trade_date}))
+          {'kind':'expense','category':component[1],'label':component[2],'amount':value,
+           'debit_credit':debit_credit,'trade_date':trade_date}))
+
+    def map_columnar_block(value_start,value_end,label_start,label_end,skip_values=0):
+        labels=[]
+        for label_index in range(label_start,label_end):
+            found=component_at(label_index)
+            if found:labels.append((label_index,found[0]))
+        values=[]
+        for value_index in range(value_start,value_end):
+            values.extend(_money(value) for value in amount_pattern.findall(plain[value_index]))
+        values=values[skip_values:]
+        if len(values)!=len(labels):return
+        for (label_index,component),value in zip(labels,values):
+            handled_components.add(label_index)
+            append_expense(component,value)
+
+    summary_start=next((i for i,line in enumerate(plain)
+                        if 'RESUMO FINANCEIRO' in line),None)
+    if summary_start is not None:
+        operations_header=next((i for i in range(summary_start,len(plain))
+          if 'VALOR DAS OPERACOES' in plain[i] and 'LIQUIDO' not in plain[i]),None)
+        cblc_header=next((i for i in range(summary_start,len(plain))
+                          if plain[i]=='CBLC'),None)
+        cblc_total=next((i for i in range((cblc_header or summary_start)+1,len(plain))
+                         if 'TOTAL CBLC' in plain[i]),None)
+        bovespa_header=next((i for i in range((cblc_total or summary_start)+1,len(plain))
+          if 'BOVESPA / SOMA' in plain[i] and 'TOTAL' not in plain[i]),None)
+        bovespa_total=next((i for i in range((bovespa_header or summary_start)+1,len(plain))
+          if 'TOTAL BOVESPA / SOMA' in plain[i]),None)
+        brokerage_header=next((i for i in range((bovespa_total or summary_start)+1,len(plain))
+          if 'CORRETAGEM / DESPESAS' in plain[i]),None)
+        brokerage_total=next((i for i in range((brokerage_header or summary_start)+1,len(plain))
+          if 'TOTAL CORRETAGEM / DESPESAS' in plain[i]),None)
+
+        if operations_header is not None and cblc_header is not None and cblc_total is not None:
+            map_columnar_block(operations_header+1,cblc_header,
+                               cblc_header+1,cblc_total,skip_values=1)
+        if cblc_total is not None and bovespa_header is not None and bovespa_total is not None:
+            map_columnar_block(cblc_total+1,bovespa_header,
+                               bovespa_header+1,bovespa_total)
+        if bovespa_total is not None and brokerage_header is not None and brokerage_total is not None:
+            map_columnar_block(bovespa_total+1,brokerage_header,
+                               brokerage_header+1,brokerage_total)
+
+    for index,line in enumerate(plain):
+        if index in handled_components:continue
+        found=component_at(index)
+        if not found:continue
+        component,label_match=found
+        if component[2] in seen:continue
+        debit_credit=None;value=None
+        for candidate_index in range(index,min(index+5,len(plain))):
+            candidate=plain[candidate_index]
+            start=label_match.end() if candidate_index==index else 0
+            segment=candidate[start:]
+            next_component=next((re.search(item[0],segment) for item in components
+                                 if re.search(item[0],segment)),None)
+            if next_component:segment=segment[:next_component.start()]
+            code=re.search(r'(?<![A-Z])([CD])(?![A-Z])',segment)
+            if code:debit_credit=code.group(1)
+            amounts=list(amount_pattern.finditer(segment))
+            if 'BASE' in segment:
+                base_start=segment.index('BASE')
+                base_amount=next((amount for amount in amounts
+                                  if amount.start()>=base_start),None)
+                amounts=[amount for amount in amounts if amount.start()<base_start]
+                if base_amount:
+                    amounts.extend(amount for amount in amount_pattern.finditer(segment)
+                                   if amount.start()>base_amount.end())
+            if amounts:
+                try:value=_money(amounts[-1].group())
+                except InvalidOperation:value=None
+                if value is not None:break
+            if next_component:break
+        if value is not None:append_expense(component,value,debit_credit or 'D')
     return rows
 
 
 class ClearBrokerageNoteAdapter:
-    adapter_id='clear-brokerage-note';version='1';document_type='brokerage_note'
+    adapter_id='clear-brokerage-note';version='4';document_type='brokerage_note'
     def detect(self,filename,body):
         if b'%PDF-' not in body[:1024]:
             return 0
@@ -103,8 +189,8 @@ class ClearBrokerageNoteAdapter:
         reader=PdfReader(io.BytesIO(body));rows=[]
         for page_number,page in enumerate(reader.pages,1):
             page_rows=_rows_from_text(page.extract_text() or '',page_number)
-            rows.extend(SourceRow({**row.locator,'item':len(rows)+index},row.values)
-                        for index,row in enumerate(page_rows,1))
+            for row in page_rows:
+                rows.append(SourceRow({**row.locator,'item':len(rows)+1},row.values))
         if not rows:raise ValueError('A nota Clear foi reconhecida, mas nenhuma negociação pôde ser extraída')
         return rows
     def normalize(self,source,db,options=None):
@@ -115,8 +201,8 @@ class ClearBrokerageNoteAdapter:
                     'settlement_date':str(values['trade_date']) if values['trade_date'] else None,
                     'currency':'BRL','quantity':None,
                     'amount':str(-values['amount'] if values['debit_credit']=='D' else values['amount']),
-                    'description':f"Nota Clear: {values['label']}",
-                    'allocation_role':'expense' if values['category']=='fee' else None}
+                    'description':values['label'],
+                    'allocation_role':{'fee':'expense','tax':'withholding'}.get(values['category'])}
         else:
             normalized={'row_number':source.locator['item'],'source_locator':source.locator,
                     'event_type':'buy' if values['side']=='C' else 'sell',
@@ -124,7 +210,7 @@ class ClearBrokerageNoteAdapter:
                     'settlement_date':str(values['trade_date']) if values['trade_date'] else None,
                     'currency':'BRL','quantity':str(values['quantity']),
                     'amount':str(-values['amount'] if values['side']=='C' else values['amount']),
-                    'description':f"Nota Clear: {values['asset']} ({values['market']})",
+                    'description':f"{values['asset']} ({values['market']})",
                     'allocation_role':'trade','allocation_weight':str(values['amount'])}
         account=(options or {}).get('account_record')
         found=db.execute('select source_record_id,name,legacy_id from portfolio.account where source_record_id=?',[account]).fetchone() if account else None

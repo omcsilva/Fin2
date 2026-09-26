@@ -57,12 +57,12 @@
         </div>
         </form>
 
-        {% if r.projected_events %}
+        {% if r.preledger_entries %}
         <section class="panel review-projected-events">
-            <h4>Registros projetados a partir do documento</h4>
+            <h4>Lançamentos da nota no pré-ledger</h4>
             <div class="table-wrap"><table>
                 <thead><tr><th>Tipo</th><th>Aplicação</th><th>Quantidade</th><th>Datas</th><th class="number">Valor</th></tr></thead>
-                <tbody>{% for event in r.projected_events %}
+                <tbody>{% for event in r.preledger_entries %}
                 <tr><td>{{ event.event_type }}</td><td>{{ event.application|default:'—' }}</td><td>{{ event.quantity|default:'—' }}</td><td>{{ event.trade_date|short_date }} · {{ event.settlement_date|short_date }}</td><td class="number">{{ event.amount|money:'BRL' }}</td></tr>
                 {% endfor %}</tbody>
             </table></div>

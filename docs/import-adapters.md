@@ -33,17 +33,20 @@ O formato **XP** é preferencial para a importação por preservar melhor o tick
 e a estrutura financeira. O formato **SINACOR/B3** permanece como fallback
 compatível.
 
-`clear-brokerage-note` versão 1 reconhece notas PDF da Clear/XP pelo conteúdo,
+`clear-brokerage-note` versão 4 reconhece notas PDF da Clear/XP pelo conteúdo,
 extrai negócios à vista, data do pregão, ativo, lado, quantidade, preço e valor,
-taxas, emolumentos e IRRF, e registra página e item. A conta é escolhida na prévia e cada ativo precisa
+taxa de liquidação, corretagem, ISS, taxa Bovespa, emolumentos e IRRF, e registra página e item. A conta é escolhida na prévia e cada ativo precisa
 corresponder de forma única a uma aplicação dessa conta. Negócios não resolvidos
 permanecem com erro e bloqueiam a confirmação integral da nota.
 
-Taxas e emolumentos são eventos próprios e são rateados entre as negociações da
-nota pelo valor bruto, com o rateio persistido em
-`ledger.file_import_event_allocation`. Compras incorporam a despesa ao custo e
-vendas a deduzem do valor realizado. IRRF permanece como evento fiscal separado
-e não é incorporado ao custo do ativo.
+Taxas, emolumentos e IRRF são eventos próprios e são associados aos ativos pelas
+negociações identificadas. As parcelas são rateadas pelo valor bruto e persistidas
+em `ledger.file_import_event_allocation`, com método distinto para despesas e
+retenções; os eventos mantêm vínculo ao documento e ao localizador da linha da
+nota. Somente despesas (`gross_value_pro_rata`) entram no custo da compra ou são
+deduzidas do valor realizado da venda. O rateio do IRRF (`withholding_gross_value_pro_rata`)
+preserva a atribuição fiscal por ativo, mas não altera custo nem resultado da
+operação.
 
 `apex-account-statement` versão 1 reconhece extratos mensais da Apex Clearing
 em USD. Ele extrai aportes e retiradas (`JOURNAL`), juros (`INTEREST`) e compras
@@ -88,15 +91,21 @@ Veja [plano e validação XP](xp-account-statement-plan.md) para as regras e a
 auditoria isolada da amostra. O teste `tests/test_xp_statement.py` produz XLSX
 sintéticos; extratos pessoais não integram as fixtures versionadas.
 
-Ao abrir a revisão, o Fin2 **identifica cada linha sozinho** a partir do extrato e do
-banco: categoria/tipo, aplicação e vínculo com movimentos já existentes da conta.
-A identificação só vincula quando existe um único candidato de mesma conta,
-liquidação, valor e descrição normalizada, e só cria lançamento novo quando o tipo
-decorrente da categoria passa nas validações. A linha fica **Pronto** quando a
-identificação basta para registrar e **Pendente** quando falta dado; a coluna
-**Detalhe** traz a categoria identificada em português e, para as linhas
-pendentes, o que falta para ficar Pronto. A identificação é só prévia:
-nada é gravado antes do botão de gravação, que fica desabilitado enquanto nenhuma
-linha estiver Pronto. A decisão manual do revisor sempre prevalece. A confirmação
-financeira só conclui a importação quando nenhuma linha permanece Pendente;
+Na revisão, o Fin2 apresenta os registros do pré-ledger que serão gravados ou
+vinculados a movimentos existentes. Cada operação extraída de uma nota de
+corretagem aparece separadamente, com ativo, quantidade, tipo e valor; a linha
+líquida correspondente do extrato permanece como referência de conciliação, não
+como uma segunda operação. Taxas são rateadas entre as negociações pelo valor
+bruto. O total dos itens da nota precisa coincidir com o valor líquido relacionado.
+
+Para os demais lançamentos, o Fin2 **identifica cada linha sozinho** a partir do
+extrato e do banco: categoria/tipo, aplicação e vínculo com movimentos já
+existentes da conta. A identificação só vincula quando existe um único candidato
+de mesma conta, liquidação, valor e descrição normalizada, e só cria lançamento
+novo quando o tipo decorrente da categoria passa nas validações. O registro fica
+**Pronto** quando a identificação basta para gravar e **Pendente** quando falta
+dado; a coluna **Detalhe** informa o que falta. A identificação é só prévia:
+nada é gravado antes do botão de gravação, que fica desabilitado enquanto nenhum
+registro estiver Pronto. A decisão manual do revisor sempre prevalece. A confirmação
+financeira só conclui a importação quando nenhum registro permanece Pendente;
 nesse caso a etapa seguinte lista os registros criados.

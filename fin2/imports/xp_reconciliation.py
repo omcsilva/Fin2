@@ -46,7 +46,7 @@ def attachment_documents(db, import_id):
     """Return documents staged as evidence for this statement import."""
     return records(db, """select f.import_id attachment_import_id,
             f.original_filename,f.document_type,f.row_count,f.error_count,f.status,
-            f.document_id, s.account_record
+            f.document_id, s.account_record, x.related_lines
             from ledger.import_attachment x
             join ledger.file_import f on f.import_id=x.attachment_import_id
             left join ledger.xp_statement s on s.import_id=x.parent_import_id
@@ -59,7 +59,8 @@ def attachment_rows(db, import_id):
     result = {}
     for document in documents:
         rows = records(db, """select normalized from ledger.import_staging_line
-          where import_id=? order by row_number""", [document['attachment_import_id']])
+          where import_id=? and state<>'rejected' order by row_number""",
+                       [document['attachment_import_id']])
         result[document['document_id']] = [
             {**json.loads(row['normalized']),
              'document_name': document['original_filename']}
@@ -320,6 +321,13 @@ def detail(db, identifier):
     apps = applications(db, item['account_record'])
     item['attachment_documents'] = attachment_documents(db, identifier)
     projected_by_document = attachment_rows(db, identifier)
+    attachments_by_line = {}
+    for document in item['attachment_documents']:
+        related_lines = document.get('related_lines') or []
+        if isinstance(related_lines, str):
+            related_lines = json.loads(related_lines)
+        if document['document_type'] == 'brokerage_note' and len(related_lines) == 1:
+            attachments_by_line.setdefault(str(related_lines[0]), []).append(document)
     counts = {'new': 0, 'linked': 0, 'pending': 0, 'divergent': 0, 'excluded': 0}
     # Review state per row: ready = resolved, pending = still needs information,
     # excluded = the reviewer dropped the line from the load.
@@ -333,8 +341,17 @@ def detail(db, identifier):
         row['suggested_ids'] = [e['entry_id'] for e in row['candidates'] if e['amount'] == Decimal(row.get('amount', '0'))]
         row['applications'] = apps
         row['attachment_documents'] = item['attachment_documents']
-        row['projected_events'] = projected_by_document.get(
-            (row['decision'] or {}).get('document_id'), [])
+        selected_document_id = (row['decision'] or {}).get('document_id')
+        document = next((attachment for attachment in item['attachment_documents']
+                         if attachment['document_id'] == selected_document_id), None)
+        if not document:
+            related = attachments_by_line.get(
+                str(row['source_locator']['row']), [])
+            document = related[0] if len(related) == 1 else None
+        row['projected_document_id'] = document['document_id'] if document else None
+        row['projected_document_name'] = document['original_filename'] if document else ''
+        row['preledger_entries'] = projected_by_document.get(
+            row['projected_document_id'], [])
         _app_id, _match_method = identify_application(row, apps)
         row['suggested_application'] = _app_id or ''
         row['match_method'] = _match_method or ''
@@ -367,6 +384,102 @@ def detail(db, identifier):
         row['state'] = ('excluded' if action == 'excluded' else
                         'ready' if action in ('new', 'link') and not row['errors'] and bool(decision or complete) else 'pending')
         states[row['state']] += 1
+
+    review_entries = []
+    event_labels = {
+        'buy': 'Compra', 'sell': 'Venda', 'fee': 'Taxa', 'tax': 'Imposto',
+        'income': 'Provento', 'transfer': 'Transferência', 'deposit': 'Aporte',
+        'withdrawal': 'Retirada', 'redemption': 'Resgate',
+    }
+    for row in item['rows']:
+        source_line = row['source_locator']['row']
+        if row['category'] == 'brokerage' and row['preledger_entries']:
+            for index, event in enumerate(row['preledger_entries'], 1):
+                event_errors = event.get('errors') or []
+                state = ('excluded' if row['state'] == 'excluded' else
+                         'ready' if row['state'] == 'ready' and not event_errors else 'pending')
+                source_item = (event.get('source_locator') or {}).get('item', index)
+                review_entries.append({
+                    'display_number': f'{source_line}.{source_item}',
+                    'review_line_number': row['row_number'],
+                    'source_line_number': source_line,
+                    'source_locator': {'row': source_line, 'item': source_item},
+                    'document_name': row['projected_document_name'],
+                    'category': row['category'],
+                    'event_type': event.get('event_type'),
+                    'event_type_label': event_labels.get(event.get('event_type'), 'Lançamento'),
+                    'trade_date': event.get('trade_date'),
+                    'settlement_date': event.get('settlement_date'),
+                    'description': event.get('description') or row['description'],
+                    'application_record': event.get('application_record') or '',
+                    'effective_application_name': event.get('application') or '',
+                    'effective_quantity': event.get('quantity'),
+                    'amount': event.get('amount'),
+                    'errors': event_errors,
+                    'state': state,
+                    'prior_claim': row['prior_claim'],
+                    'decision': row['decision'] or {},
+                    'identified': row['identified'] or {},
+                    'table_detail': f"Linha {source_line} do extrato · {row['projected_document_name']}",
+                })
+            continue
+
+        effective = row['decision'] or row['identified'] or {}
+        linked_ids = effective.get('entry_ids') or []
+        linked = {entry['entry_id']: entry for entry in row['candidates']}
+        linked_entries = [linked[entry_id] for entry_id in linked_ids if entry_id in linked]
+        if effective.get('action') == 'link' and linked_entries:
+            for index, entry in enumerate(linked_entries, 1):
+                application_name = next(
+                    (app['name'] for app in apps
+                     if app['source_record_id'] == entry.get('application_record')), '')
+                review_entries.append({
+                    'display_number': f'{source_line}.{index}' if len(linked_entries) > 1 else str(source_line),
+                    'review_line_number': row['row_number'],
+                    'source_line_number': source_line,
+                    'source_locator': {'row': source_line, 'item': index},
+                    'document_name': '', 'category': row['category'],
+                    'event_type': 'link', 'event_type_label': 'Movimento existente',
+                    'trade_date': row['trade_date'],
+                    'settlement_date': entry['settlement_date'],
+                    'description': entry['description'],
+                    'application_record': entry.get('application_record') or '',
+                    'effective_application_name': application_name,
+                    'effective_quantity': None, 'amount': str(entry['amount']),
+                    'errors': [], 'state': row['state'], 'prior_claim': row['prior_claim'],
+                    'decision': row['decision'] or {}, 'identified': row['identified'] or {},
+                    'table_detail': 'Vinculado ao ledger existente',
+                })
+            continue
+
+        event_type = effective.get('event_type')
+        application_record = effective.get('application_record') or ''
+        application_name = next(
+            (app['name'] for app in apps if app['source_record_id'] == application_record), '')
+        review_entries.append({
+            'display_number': str(source_line),
+            'review_line_number': row['row_number'],
+            'source_line_number': source_line,
+            'source_locator': row['source_locator'],
+            'document_name': '', 'category': row['category'],
+            'event_type': event_type,
+            'event_type_label': event_labels.get(event_type, 'Pendente'),
+            'trade_date': row['trade_date'], 'settlement_date': row['settlement_date'],
+            'description': row['description'],
+            'application_record': application_record,
+            'effective_application_name': application_name or row['effective_application_name'],
+            'effective_quantity': effective.get('quantity') or row['effective_quantity'],
+            'amount': row['amount'], 'errors': row['errors'],
+            'state': row['state'], 'prior_claim': row['prior_claim'],
+            'decision': row['decision'] or {}, 'identified': row['identified'] or {},
+            'table_detail': 'Lançamento pendente de identificação' if row['state'] == 'pending' else '',
+        })
+    item['review_entries'] = review_entries
+    item['review_entry_count'] = len(review_entries)
+    item['preledger_states'] = {
+        state: sum(entry['state'] == state for entry in review_entries)
+        for state in REVIEW_STATES
+    }
     item['created_count'] = db.execute("select count(*) from ledger.audit_log where entity_type='manual_event' and action='create' and json_extract_string(payload,'$.import_id')=?", [identifier]).fetchone()[0]
     item['counts'] = counts
     item['states'] = states
@@ -387,7 +500,8 @@ def detail(db, identifier):
         metadata[f'{boundary}_difference'] = str(Decimal(metadata[f'{boundary}_balance']) - value) if metadata.get(f'{boundary}_balance') else None
     item['can_confirm'] = not metadata['errors'] and states['pending'] == 0 and item['status'] == 'preview'
     # The save button is only usable while there is something ready to record.
-    item['can_commit'] = not metadata['errors'] and states['ready'] > 0 and item['status'] == 'preview'
+    item['can_commit'] = (not metadata['errors'] and item['preledger_states']['ready'] > 0
+                          and item['status'] == 'preview')
     item['redemption_lines'] = [r for r in item['rows'] if r['category'] == 'redemption']
     item['transfer_accounts'] = [a for a in accounts(db) if a['source_record_id'] != item['account_record']]
     item['category_options'] = CATEGORY_OPTIONS
@@ -752,7 +866,14 @@ def _create(db, item, row, decision):
 
 def _create_attachment_events(db, item, row, decision):
     projected = _selected_attachment_rows(db, item, decision['document_id'])
+    attachment = next((document for document in attachment_documents(
+        db, item['import_id']) if document['document_id'] == decision['document_id']), None)
+    if not attachment:
+        raise ValueError('Documento complementar não pertence a este extrato')
+    attachment_import_id = attachment['attachment_import_id']
     ids = []
+    trades = []
+    allocatable = []
     for projected_row in projected:
         event_id = uuid4().hex
         db.execute('''insert into ledger.manual_event
@@ -769,14 +890,41 @@ def _create_attachment_events(db, item, row, decision):
         if projected_row['event_type'] == 'buy':
             db.execute(
                 "insert into ledger.purchase_funding values (?,'investment_balance')", [event_id])
+        db.execute('''insert into ledger.file_import_event
+          (import_id,row_number,event_id,source_locator) values (?,?,?,?)''',
+                   [attachment_import_id, projected_row['row_number'], event_id,
+                    json.dumps(projected_row.get('source_locator') or {}, ensure_ascii=False)])
         db.execute('insert into ledger.manual_event_document(event_id,document_id) values (?,?)',
                    [event_id, decision['document_id']])
         db.execute("""insert into ledger.audit_log
           (audit_id,entity_type,entity_id,action,payload) values (?,'manual_event',?,'create',?)""",
                    [uuid4().hex, event_id, json.dumps({'import_id': item['import_id'],
                     'line_number': row['row_number'], 'decision': decision,
-                    'subtype': row['category'], 'document_id': decision['document_id']})])
+                    'subtype': row['category'], 'document_id': decision['document_id'],
+                    'attachment_import_id': attachment_import_id,
+                    'attachment_row_number': projected_row['row_number'],
+                    'source_locator': projected_row.get('source_locator')})])
         ids.append(event_id)
+        if projected_row.get('allocation_role') == 'trade':
+            trades.append((event_id, Decimal(str(projected_row['allocation_weight']))))
+        elif projected_row.get('allocation_role') in {'expense','withholding'}:
+            method = ('gross_value_pro_rata'
+                      if projected_row['allocation_role'] == 'expense'
+                      else 'withholding_gross_value_pro_rata')
+            allocatable.append((event_id, Decimal(str(projected_row['amount'])), method))
+
+    total_weight = sum((weight for _event_id, weight in trades), Decimal('0'))
+    if total_weight:
+        for expense_id, expense_amount, method in allocatable:
+            total = abs(expense_amount)
+            remaining = total
+            for index, (trade_id, weight) in enumerate(trades):
+                allocated = (remaining if index == len(trades) - 1 else
+                             (total * weight / total_weight).quantize(Decimal('.0001')))
+                remaining -= allocated
+                db.execute("""insert into ledger.file_import_event_allocation
+                                    (expense_event_id,trade_event_id,amount,method) values (?,?,?,?)""",
+                                                     [expense_id, trade_id, allocated, method])
     return ids, len(ids)
 
 

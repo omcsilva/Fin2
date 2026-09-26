@@ -24,7 +24,7 @@ def review_page_size(value):
 
 def approval_table(request, selected, review=False):
     """Search and order the full statement before paginating its preview."""
-    rows = selected['rows']
+    rows = selected.get('review_entries', selected['rows']) if review else selected['rows']
     selected['has_reading_errors'] = any(row.get('errors') for row in rows)
     if review:
         for row in rows:
@@ -43,7 +43,7 @@ def approval_table(request, selected, review=False):
             missing = row.get('identification_missing') or []
             if missing:
                 detail.append('Falta: ' + ', '.join(missing))
-            row['table_detail'] = ' · '.join(filter(None, detail))
+            row['table_detail'] = row.get('table_detail') or ' · '.join(filter(None, detail))
             row['table_reason'] = effective.get('reason') or ''
             row['table_situation'] = {'ready': 'Pronto', 'excluded': 'Excluído'}.get(row.get('state'), 'Pendente')
     category = request.GET.get('categoria', '') if review else ''
@@ -54,8 +54,11 @@ def approval_table(request, selected, review=False):
         category = ''
     term = request.GET.get('q', '')[:200].strip()
     sort = request.GET.get('sort', 'line')
-    allowed = ('line', 'trade_date', 'settlement_date', 'description', 'amount', 'balance', 'errors')
-    if review: allowed += ('table_application', 'table_quantity', 'table_situation', 'table_detail')
+    allowed = ('line', 'trade_date', 'settlement_date', 'description', 'amount', 'errors')
+    if review:
+        allowed += ('table_application', 'table_quantity', 'table_situation', 'table_detail')
+    else:
+        allowed += ('balance',)
     if sort not in allowed:
         sort = 'line'
     direction = 'desc' if request.GET.get('dir') == 'desc' else 'asc'
@@ -72,8 +75,13 @@ def approval_table(request, selected, review=False):
             )).casefold()
         rows = [row for row in rows if term.casefold() in searchable(row)]
     def key(row):
-        value = row['source_locator']['row'] if sort == 'line' else row.get(sort)
-        if sort in ('line', 'amount', 'balance', 'table_quantity'):
+        if sort == 'line':
+            source_line = Decimal(str(row.get(
+                'source_line_number', row['source_locator']['row'])))
+            source_item = int((row.get('source_locator') or {}).get('item') or 0)
+            return source_line, source_item
+        value = row.get(sort)
+        if sort in ('amount', 'balance', 'table_quantity'):
             try:
                 value = Decimal(str(value))
                 if not value.is_finite(): value = None
@@ -88,7 +96,10 @@ def approval_table(request, selected, review=False):
     size = review_page_size(request.GET.get('por_pagina')) if review else None
     per_page = len(rows) if size == PAGE_SIZE_ALL else int(size or 20)
     selected['page'] = Paginator(rows, max(per_page, 1)).get_page(request.GET.get('page'))
-    selected['rows'] = selected['page'].object_list
+    if review and 'review_entries' in selected:
+        selected['review_entries'] = selected['page'].object_list
+    else:
+        selected['rows'] = selected['page'].object_list
     params = {'q': term, 'sort': sort, 'dir': direction}
     if review:
         params['por_pagina'] = size

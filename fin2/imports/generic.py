@@ -158,9 +158,10 @@ def reprocess(database,storage_root,import_id,options=None):
         raw=list(adapter.parse(original_filename,body))
         if not raw:raise ValueError('Arquivo sem lançamentos')
         preview=[adapter.normalize(source,db,options or {}) for source in raw]
-        db.execute("""update ledger.file_import set preview=?,row_count=?,error_count=?
+        db.execute("""update ledger.file_import set preview=?,row_count=?,error_count=?,adapter_version=?
           where import_id=?""",
-          [json.dumps(preview,ensure_ascii=False),len(preview),sum(bool(r['errors']) for r in preview),import_id])
+               [json.dumps(preview,ensure_ascii=False),len(preview),
+                sum(bool(r['errors']) for r in preview),adapter.version,import_id])
         db.execute('delete from ledger.import_staging_line where import_id=?',[import_id])
         from fin2.imports.staging import seed
         seed(db,import_id,preview)
@@ -207,14 +208,19 @@ def commit(database,import_id):
             trades=[(row,event_id,Decimal(row['allocation_weight'])) for row,event_id in created if row.get('allocation_role')=='trade']
             total_weight=sum((weight for _,_,weight in trades),Decimal('0'))
             if total_weight:
-                for expense,expense_id in ((row,event_id) for row,event_id in created if row.get('allocation_role')=='expense'):
+                allocatable=[(row,event_id,
+                    'gross_value_pro_rata' if row['allocation_role']=='expense'
+                    else 'withholding_gross_value_pro_rata')
+                    for row,event_id in created
+                    if row.get('allocation_role') in {'expense','withholding'}]
+                for expense,expense_id,method in allocatable:
                     total=abs(Decimal(expense['amount']));remaining=total
                     for index,(_,trade_id,weight) in enumerate(trades):
                         allocated=remaining if index==len(trades)-1 else (total*weight/total_weight).quantize(Decimal('.0001'))
                         remaining-=allocated
                         db.execute("""insert into ledger.file_import_event_allocation
-                          (expense_event_id,trade_event_id,amount) values (?,?,?)""",
-                          [expense_id,trade_id,allocated])
+                          (expense_event_id,trade_event_id,amount,method) values (?,?,?,?)""",
+                          [expense_id,trade_id,allocated,method])
             if metadata and document_id:
                 account=next((row.get('account_record') for row in rows if row.get('account_record')),None)
                 observation_id=hashlib.sha256(f'{import_id}:statement-balance'.encode()).hexdigest()

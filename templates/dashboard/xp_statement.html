@@ -3,7 +3,7 @@
 {% else %}
 <section class="panel">
 <h2>XP {{ selected_import.document_metadata.account_number }} · {{ selected_import.document_metadata.holder }} · {{ selected_import.document_metadata.period_start|short_date }} a {{ selected_import.document_metadata.period_end|short_date }} <a class="heading-action" href="{% url 'file-import-file' selected_import.import_id %}">Baixar arquivo</a></h2>
-<p>{{ selected_import.row_count }} movimentos · {{ selected_import.states.ready }} prontos · {{ selected_import.states.pending }} pendentes · {{ selected_import.states.excluded }} excluídos · {{ selected_import.created_count }} eventos criados</p>
+{% if wizard_step == 5 %}<p>{{ selected_import.review_entry_count }} lançamentos no pré-ledger · {{ selected_import.preledger_states.ready }} prontos · {{ selected_import.preledger_states.pending }} pendentes · {{ selected_import.preledger_states.excluded }} excluídos · {{ selected_import.created_count }} eventos criados</p>{% else %}<p>{{ selected_import.row_count }} movimentos · {{ selected_import.states.ready }} prontos · {{ selected_import.states.pending }} pendentes · {{ selected_import.states.excluded }} excluídos · {{ selected_import.created_count }} eventos criados</p>{% endif %}
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
 
 {% if wizard_step == 5 %}
@@ -23,18 +23,18 @@
         <button type="submit">Pesquisar</button><a href="{% url 'xp-statement-review' selected_import.import_id %}">Limpar</a>
         </form>
 
-        <div class="table-wrap" data-table="xp-review"><table id="xp-review-table"><thead><tr><th><div class="t"></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="line">L.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="trade_date">DT. MOV.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="settlement_date">DT. LIQ.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="description">Lançamento</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_application">Aplicação</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="table_quantity">Qtde</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="amount">Valor</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="balance">Saldo</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_situation">SIT.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_detail">Detalhe</button></div></th></tr></thead><tbody>
-        {% for r in selected_import.rows %}<tr class="row-{{ r.state }}"{% if selected_import.status == 'preview' and not r.prior_claim %} data-review-row{% endif %}>
+        <div class="table-wrap" data-table="xp-review"><table id="xp-review-table"><thead><tr><th><div class="t"></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="line">L.</button></div></th><th><div class="t">Tipo</div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="trade_date">DT. MOV.</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="settlement_date">DT. LIQ.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="description">Lançamento</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_application">Aplicação</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="table_quantity">Qtde</button></div></th><th class="number"><div class="t"><button class="sort-button" type="button" data-sort="amount">Valor</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_situation">SIT.</button></div></th><th><div class="t"><button class="sort-button" type="button" data-sort="table_detail">Detalhe</button></div></th></tr></thead><tbody>
+        {% for r in selected_import.review_entries %}<tr class="row-{{ r.state }}"{% if selected_import.status == 'preview' and not r.prior_claim %} data-review-row{% endif %}>
         <td><div class="t">
         {% if selected_import.status == 'preview' and not r.prior_claim %}
-            <a href="?review_line={{ r.row_number }}&amp;page={{ selected_import.page.number }}&amp;{{ selected_import.table_query }}" class="button review-open" data-review-modal data-review-line="{{ r.source_locator.row }}" title="Revisar linha {{ r.source_locator.row }}" aria-label="Revisar linha {{ r.source_locator.row }}">▸</a>
+            <a href="?review_line={{ r.review_line_number }}&amp;page={{ selected_import.page.number }}&amp;{{ selected_import.table_query }}" class="button review-open" data-review-modal data-review-line="{{ r.source_line_number }}" title="Revisar linha {{ r.source_line_number }} do extrato" aria-label="Revisar linha {{ r.source_line_number }} do extrato">▸</a>
         {% endif %}
         </div></td>
-        <td class="number"><div class="t">{{ r.source_locator.row }}</div></td><td class="number"><div class="t">{{ r.trade_date|short_date }}</div></td><td class="number"><div class="t">{{ r.settlement_date|short_date }}</div></td>
-        <td class="wrap-text"><div class="t" title="{{ r.description }}">{{ r.description }}{% if r.note_number %} · Nota {{ r.note_number }}{% endif %}</div></td>
+        <td class="number"><div class="t">{{ r.display_number }}</div></td><td><div class="t">{{ r.event_type_label }}</div></td><td class="number"><div class="t">{{ r.trade_date|short_date }}</div></td><td class="number"><div class="t">{{ r.settlement_date|short_date }}</div></td>
+        <td class="wrap-text"><div class="t" title="{{ r.description }}">{{ r.description }}{% if r.document_name %}<small class="muted">Linha {{ r.source_line_number }} do extrato · {{ r.document_name }}</small>{% endif %}</div></td>
         <td class="wrap-text"><div class="t">{% if r.effective_application_name %}{{ r.effective_application_name }}{% elif r.suggested_application_name %}<span class="suggested-tag">{{ r.suggested_application_name }} (sugerido)</span>{% endif %}</div></td>
         <td class="number"><div class="t">{% if r.effective_quantity %}{{ r.effective_quantity|number }}{% endif %}</div></td>
-        <td class="number"><div class="t">{{ r.amount|money:'BRL' }}</div></td><td class="number"><div class="t">{{ r.balance|money:'BRL' }}</div></td>
+        <td class="number"><div class="t">{{ r.amount|money:'BRL' }}</div></td>
         <td><div class="t">
         {% if r.state == 'ready' %}<span class="state-icon state-ready" role="img" aria-label="Pronto" title="Pronto">●</span>{% elif r.state == 'excluded' %}<span class="state-icon state-excluded" role="img" aria-label="Excluído" title="Excluído">⊘</span>{% else %}<span class="state-icon state-pending" role="img" aria-label="Pendente" title="Pendente">○</span>{% endif %}
         {% for error in r.errors %}<div class="cell-error">{{ error }}</div>{% endfor %}
@@ -45,7 +45,7 @@
         </tbody></table></div>
 
         <div class="table-pager">
-            <p class="pager-count">{{ selected_import.page.paginator.count }} movimentos encontrados</p>
+            <p class="pager-count">{{ selected_import.page.paginator.count }} lançamentos no pré-ledger encontrados</p>
             <form method="get" class="pager-size" data-auto-submit>
                 <input type="hidden" name="q" value="{{ selected_import.table_term }}"><input type="hidden" name="sort" value="{{ selected_import.table_sort }}"><input type="hidden" name="dir" value="{{ selected_import.table_direction }}"><input type="hidden" name="situacao" value="{{ request.GET.situacao|default:'' }}"><input type="hidden" name="categoria" value="{{ request.GET.categoria|default:'' }}">
                 <label>Mostrar<select name="por_pagina">{% for value, label in selected_import.page_sizes %}<option value="{{ value }}" {% if value == selected_import.page_size %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>por página</label>

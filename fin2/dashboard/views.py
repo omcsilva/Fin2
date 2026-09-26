@@ -1376,7 +1376,42 @@ def _statement_attachments(connection, identifier):
       where x.parent_import_id=? order by f.created_at""", [identifier])
     for attachment in attachments:
         preview = json.loads(attachment.pop('preview'))
-        attachment['error_rows'] = [row for row in preview if row.get('errors')]
+        staged = query(connection, """select normalized,state
+          from ledger.import_staging_line where import_id=? order by row_number""",
+                       [attachment['attachment_import_id']])
+        ledger_rows = [
+            {**json.loads(row['normalized']), 'staging_state': row['state']}
+            for row in staged
+        ] or [{**row, 'staging_state': 'pending' if row.get('errors') else 'ready'}
+              for row in preview]
+        event_labels = {
+            'buy': 'Compra', 'sell': 'Venda', 'fee': 'Taxa', 'tax': 'Imposto',
+            'income': 'Provento', 'transfer': 'Transferência', 'deposit': 'Aporte',
+            'withdrawal': 'Retirada', 'redemption': 'Resgate',
+        }
+        for row in ledger_rows:
+            row['errors'] = row.get('errors') or []
+            row['identified_asset'] = (row.get('application') or row.get('asset')
+                                       or row.get('symbol') or 'Não identificado')
+            row['ledger_line'] = ((row.get('source_locator') or {}).get('item')
+                                  or row.get('row_number') or '—')
+            row['ledger_description'] = (row.get('description') or 'Sem descrição').removeprefix('Nota Clear: ')
+            row['ledger_quantity'] = row.get('quantity') or '—'
+            raw_date = row.get('settlement_date') or row.get('trade_date')
+            try:
+              row['ledger_date'] = date.fromisoformat(str(raw_date)).strftime('%d/%m/%y')
+            except (TypeError, ValueError):
+              row['ledger_date'] = '—'
+            row['ledger_type_label'] = event_labels.get(
+                row.get('event_type'), 'Não identificado')
+            row['ledger_ready'] = row['staging_state'] == 'ready' and not row['errors']
+            row['ledger_observation'] = ('; '.join(row['errors']) if row['errors'] else
+              'Registro rejeitado' if row['staging_state'] == 'rejected' else
+              'Pendente de revisão' if row['staging_state'] != 'ready' else '')
+        attachment['ledger_rows'] = ledger_rows
+        attachment['error_rows'] = [row for row in ledger_rows if row['errors']]
+        attachment['error_count'] = len(attachment['error_rows'])
+        attachment['row_count'] = len(ledger_rows)
     return attachments
 
 
@@ -1580,7 +1615,7 @@ def xp_statement_review(request, connection, identifier):
         if not selected['rows']:
             raise Http404
     elif request.GET.get('situacao') in REVIEW_STATES:
-        selected['rows'] = [row for row in selected['rows']
+        selected['review_entries'] = [row for row in selected['review_entries']
                             if row['state'] == request.GET['situacao']]
     if request.GET.get('review_line'):
         selected['page'] = Paginator(selected['rows'], 20).get_page(1)
@@ -1755,7 +1790,8 @@ def application_cost_events(connection, batch, historical=False):
              ELSE abs(me.amount) END,abs(me.amount),true
       FROM ledger.manual_event me JOIN portfolio.application ap
         ON ap.source_record_id=me.application_source_record_id
-      LEFT JOIN (SELECT trade_event_id,sum(amount) expense FROM ledger.file_import_event_allocation GROUP BY 1) x
+      LEFT JOIN (SELECT trade_event_id,sum(amount) expense FROM ledger.file_import_event_allocation
+        WHERE method='gross_value_pro_rata' GROUP BY 1) x
         ON x.trade_event_id=me.event_id
       WHERE ap.batch_id=? AND NOT ?
       ORDER BY event_date""",[batch,batch,historical])

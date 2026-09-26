@@ -70,6 +70,29 @@ class GenericImportTests(unittest.TestCase):
                 self.assertEqual(db.execute('select count(*) from ledger.manual_event_document').fetchone()[0],1)
         finally:f.tearDown()
 
+    def test_reprocess_records_current_adapter_version(self):
+        from unittest.mock import patch
+        from fin2.imports.generic import GENERIC_ADAPTER, reprocess
+
+        f=fixtures.ImportTests();f.setUp()
+        try:
+            f.run_import()
+            with connect(f.database) as db:
+                account=db.execute('select source_record_id from portfolio.account').fetchone()[0]
+            body=HEADER+(account+',,deposit,,2026-08-31,BRL,,10,Aporte\n').encode()
+            identifier,_=stage(f.database,f.database.parent/'documents','events.csv',body)
+
+            with patch.object(GENERIC_ADAPTER,'version','test-version'):
+                reprocess(f.database,f.database.parent/'documents',identifier)
+
+            with connect(f.database) as db:
+                version,row_count,error_count,status=db.execute(
+                    'select adapter_version,row_count,error_count,status '
+                    'from ledger.file_import where import_id=?',[identifier]).fetchone()
+            self.assertEqual((version,row_count,error_count,status),
+                             ('test-version',1,0,'preview'))
+        finally:f.tearDown()
+
     def test_unknown_content_is_not_accepted_by_extension_alone(self):
         f=fixtures.ImportTests();f.setUp()
         try:
@@ -107,14 +130,24 @@ class GenericImportTests(unittest.TestCase):
                 rows=[
                   {'row_number':1,'source_locator':{'page':1,'item':1},'account_record':account,'application_record':application,'event_type':'buy','trade_date':'2026-01-01','settlement_date':'2026-01-01','currency':'BRL','quantity':'1','amount':'-100','description':'Compra 1','errors':[],'allocation_role':'trade','allocation_weight':'100'},
                   {'row_number':2,'source_locator':{'page':1,'item':2},'account_record':account,'application_record':application,'event_type':'buy','trade_date':'2026-01-01','settlement_date':'2026-01-01','currency':'BRL','quantity':'1','amount':'-300','description':'Compra 2','errors':[],'allocation_role':'trade','allocation_weight':'300'},
-                  {'row_number':3,'source_locator':{'page':1,'item':3},'account_record':account,'application_record':None,'event_type':'fee','trade_date':'2026-01-01','settlement_date':'2026-01-01','currency':'BRL','quantity':None,'amount':'-4','description':'Emolumentos','errors':[],'allocation_role':'expense'}]
+                  {'row_number':3,'source_locator':{'page':1,'item':3},'account_record':account,'application_record':None,'event_type':'fee','trade_date':'2026-01-01','settlement_date':'2026-01-01','currency':'BRL','quantity':None,'amount':'-4','description':'Emolumentos','errors':[],'allocation_role':'expense'},
+                  {'row_number':4,'source_locator':{'page':1,'item':4},'account_record':account,'application_record':None,'event_type':'tax','trade_date':'2026-01-01','settlement_date':'2026-01-01','currency':'BRL','quantity':None,'amount':'-2','description':'IRRF','errors':[],'allocation_role':'withholding'}]
                 db.execute("""insert into ledger.file_import
                   (import_id,sha256,original_filename,storage_key,media_type,status,row_count,error_count,preview,byte_size)
-                  values ('a','b','note.pdf','x','application/pdf','preview',3,0,?,1)""",[json.dumps(rows)])
-            self.assertEqual(commit(f.database,'a'),3)
+                  values ('a','b','note.pdf','x','application/pdf','preview',4,0,?,1)""",[json.dumps(rows)])
+            self.assertEqual(commit(f.database,'a'),4)
             with connect(f.database) as db:
-                allocations=db.execute('select amount from ledger.file_import_event_allocation order by amount').fetchall()
-            self.assertEqual(allocations,[(Decimal('1.0000'),),(Decimal('3.0000'),)])
+                allocations=db.execute('select method,amount from ledger.file_import_event_allocation order by method,amount').fetchall()
+                source_rows=db.execute('select row_number,source_locator from ledger.file_import_event order by row_number').fetchall()
+            self.assertEqual(allocations,[
+                ('gross_value_pro_rata',Decimal('1.0000')),
+                ('gross_value_pro_rata',Decimal('3.0000')),
+                ('withholding_gross_value_pro_rata',Decimal('0.5000')),
+                ('withholding_gross_value_pro_rata',Decimal('1.5000')),
+            ])
+            self.assertEqual([(row, json.loads(locator)['item'])
+                              for row, locator in source_rows],
+                             [(1,1),(2,2),(3,3),(4,4)])
         finally:f.tearDown()
 
     def test_statement_metadata_becomes_balance_observation(self):

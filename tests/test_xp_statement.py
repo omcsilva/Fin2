@@ -205,11 +205,29 @@ class XPFlowTests(unittest.TestCase):
         identifier = self.stage(workbook())
         xp.document(self.db, identifier)
         with connect(self.db) as db:
-            preview = json.dumps([{'row_number': 1, 'description': 'Compra SPXI11', 'errors': ['aplicação não encontrada de forma única: SPXI11']}])
-            db.execute("insert into ledger.file_import (import_id,sha256,original_filename,storage_key,media_type,status,row_count,error_count,preview,byte_size,adapter_id,adapter_version,document_type) values (?,?,?,?,?,'preview',1,1,?,1,'clear-brokerage-note','1','brokerage_note')", ['b' * 32, 'note-hash', 'nota.pdf', 'imports/note', 'application/pdf', preview])
+            preview = json.dumps([
+                {'row_number': 1, 'source_locator': {'page': 1, 'item': 1},
+                 'description': 'Compra SPXI11', 'event_type': 'buy',
+                 'quantity': '10', 'amount': '-100', 'application': '',
+                 'errors': ['aplicação não encontrada de forma única: SPXI11']},
+                {'row_number': 2, 'source_locator': {'page': 1, 'item': 2},
+                 'description': 'Nota Clear: Compra VALE3', 'event_type': 'buy',
+                 'trade_date': '2025-01-02', 'settlement_date': '2025-01-02',
+                 'quantity': '5', 'amount': '-50', 'application': 'Vale3',
+                 'errors': []},
+            ])
+            db.execute("insert into ledger.file_import (import_id,sha256,original_filename,storage_key,media_type,status,row_count,error_count,preview,byte_size,adapter_id,adapter_version,document_type) values (?,?,?,?,?,'preview',2,1,?,1,'clear-brokerage-note','1','brokerage_note')", ['b' * 32, 'note-hash', 'nota.pdf', 'imports/note', 'application/pdf', preview])
             db.execute("""insert into ledger.import_attachment
               (parent_import_id,attachment_import_id) values (?,?)""",
                        [identifier, 'b' * 32])
+            for row in json.loads(preview):
+                payload = json.dumps(row)
+                db.execute("""insert into ledger.import_staging_line
+                  (import_id,row_number,source_locator,raw,normalized,state)
+                  values (?,?,?,?,?,?)""",
+                           ['b' * 32, row['row_number'],
+                            json.dumps(row.get('source_locator') or {}), payload,
+                            payload, 'pending' if row['errors'] else 'ready'])
         with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
                                WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
             client = Client()
@@ -229,8 +247,23 @@ class XPFlowTests(unittest.TestCase):
             html = response.content.decode()
             self.assertIn('<h2>Conferir anexo</h2>', html)
             self.assertIn('Log de importação', html)
+            log_html = html.split('<section class="import-log"', 1)[1]
             self.assertIn('Compra SPXI11', html)
             self.assertIn('aplicação não encontrada de forma única: SPXI11', html)
+            self.assertIn('Ativo identificado', log_html)
+            self.assertIn('Registro para o ledger', log_html)
+            self.assertIn('<th class="number">QTD</th>', log_html)
+            self.assertIn('<th class="number">DATA</th>', log_html)
+            self.assertIn('<th>OBSERVAÇÃO</th>', log_html)
+            self.assertNotIn('<th>Situação</th>', log_html)
+            self.assertNotIn('<th>Erros</th>', log_html)
+            self.assertIn('Vale3', html)
+            self.assertIn('Compra VALE3', html)
+            self.assertIn('02/01/25', html)
+            self.assertRegex(log_html,
+                             r'<td class="number">5</td>\s*<td class="number">02/01/25</td>')
+            self.assertNotIn('Nota Clear', log_html)
+            self.assertNotIn('Pronto para criar', html)
             self.assertIn(
                 '<span class="import-step-number" aria-hidden="true">4</span>', html)
             self.assertIn('Lançamentos relacionados', html)
@@ -673,6 +706,123 @@ class XPFlowTests(unittest.TestCase):
         xp.review(self.db,identifier,1,self.decision(action='link',entry_ids=events))
         self.assertEqual(commit(self.db,identifier),0)
         with connect(self.db) as db: self.assertEqual(db.execute('select count(*) from ledger.xp_statement_link').fetchone()[0],2)
+
+    def test_brokerage_review_shows_preledger_events_not_statement_line(self):
+        import os
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        import django
+        django.setup()
+        from django.test import Client, override_settings
+        from django.urls import reverse
+
+        body = workbook([(
+            '2025-01-02', '2025-01-02',
+            'OPERAÇÕES EM BOLSA PR 02/01/2025 NOTA Nº 123', 86, 190)])
+        identifier = self.stage(body)
+        xp.document(self.db, identifier)
+        document_id = 'd' * 64
+        attachment_id = 'b' * 32
+        events = [
+            {'row_number': 1, 'source_locator': {'page': 1, 'item': 1},
+             'event_type': 'buy', 'trade_date': '2025-01-02',
+             'settlement_date': '2025-01-02', 'currency': 'BRL',
+             'quantity': '5', 'amount': '-50', 'description': 'Compra TEST3',
+             'account_record': self.account, 'application_record': self.application,
+             'application': 'Teste',
+             'allocation_role': 'trade', 'allocation_weight': '50', 'errors': []},
+            {'row_number': 2, 'source_locator': {'page': 1, 'item': 2},
+             'event_type': 'sell', 'trade_date': '2025-01-02',
+             'settlement_date': '2025-01-02', 'currency': 'BRL',
+             'quantity': '10', 'amount': '150', 'description': 'Venda TEST3',
+             'account_record': self.account, 'application_record': self.application,
+             'application': 'Teste',
+             'allocation_role': 'trade', 'allocation_weight': '150', 'errors': []},
+            {'row_number': 3, 'source_locator': {'page': 1, 'item': 3},
+             'event_type': 'fee', 'trade_date': '2025-01-02',
+             'settlement_date': '2025-01-02', 'currency': 'BRL',
+             'quantity': None, 'amount': '-10', 'description': 'Taxa da nota',
+             'account_record': self.account, 'application_record': None,
+             'application': '',
+             'allocation_role': 'expense', 'errors': []},
+            {'row_number': 4, 'source_locator': {'page': 1, 'item': 4},
+             'event_type': 'tax', 'trade_date': '2025-01-02',
+             'settlement_date': '2025-01-02', 'currency': 'BRL',
+             'quantity': None, 'amount': '-4', 'description': 'IRRF da nota',
+             'account_record': self.account, 'application_record': None,
+             'application': '', 'allocation_role': 'withholding', 'errors': []},
+        ]
+        with connect(self.db) as db:
+            db.execute("""insert into ledger.file_import
+              (import_id,sha256,original_filename,storage_key,media_type,status,
+               row_count,error_count,preview,byte_size,adapter_id,adapter_version,
+               document_type,document_id)
+              values (?,?,?,?,?,'preview',4,0,?,1,'clear-brokerage-note','1',
+                      'brokerage_note',?)""",
+                       [attachment_id, 'note-hash', 'nota.pdf', 'imports/note',
+                        'application/pdf', json.dumps(events), document_id])
+            for event in events:
+                payload = json.dumps(event)
+                db.execute("""insert into ledger.import_staging_line
+                  (import_id,row_number,source_locator,raw,normalized,state)
+                  values (?,?,?,?,?,'ready')""",
+                           [attachment_id, event['row_number'],
+                            json.dumps(event['source_locator']), payload, payload])
+            db.execute("""insert into ledger.import_attachment
+              (parent_import_id,attachment_import_id,related_lines)
+              values (?,?,?)""",
+                       [identifier, attachment_id, json.dumps([9])])
+
+        with override_settings(WAREHOUSE_PATH=self.db, DOCUMENT_ROOT=self.documents,
+                               WRITE_ENABLED=True, ALLOWED_HOSTS=['testserver']):
+            client = Client()
+            review_url = reverse('xp-statement-review', args=[identifier])
+            response = client.get(review_url)
+            self.assertEqual(response.status_code, 200)
+            linked_html = response.content.decode()
+            self.assertIn('Compra TEST3', linked_html)
+            self.assertIn('Venda TEST3', linked_html)
+            self.assertIn('Taxa da nota', linked_html)
+            self.assertNotIn('OPERAÇÕES EM BOLSA PR 02/01/2025 NOTA Nº 123', linked_html)
+
+            xp.review(self.db, identifier, 1, {
+                'action': 'new', 'category': 'brokerage', 'document_id': document_id,
+                'reason': 'Nota conciliada'})
+            response = client.get(review_url)
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('Compra TEST3', html)
+        self.assertIn('Venda TEST3', html)
+        self.assertIn('Taxa da nota', html)
+        self.assertNotIn('OPERAÇÕES EM BOLSA PR 02/01/2025 NOTA Nº 123', html)
+
+        self.assertEqual(commit(self.db, identifier), 4)
+        with connect(self.db) as db:
+            ledger_rows = db.execute("""select event_type,amount,description
+              from ledger.manual_event order by event_type,description""").fetchall()
+            self.assertEqual(ledger_rows, [
+                ('buy', Decimal('-50'), 'Compra TEST3'),
+                ('fee', Decimal('-10'), 'Taxa da nota'),
+                ('sell', Decimal('150'), 'Venda TEST3'),
+                ('tax', Decimal('-4'), 'IRRF da nota'),
+            ])
+            allocations = db.execute("""select expense.description,trade.description,
+                allocation.amount,allocation.method
+              from ledger.file_import_event_allocation allocation
+              join ledger.manual_event expense on expense.event_id=allocation.expense_event_id
+              join ledger.manual_event trade on trade.event_id=allocation.trade_event_id
+              order by expense.event_type,trade.description""").fetchall()
+            self.assertEqual(allocations, [
+                ('Taxa da nota', 'Compra TEST3', Decimal('2.5000'), 'gross_value_pro_rata'),
+                ('Taxa da nota', 'Venda TEST3', Decimal('7.5000'), 'gross_value_pro_rata'),
+                ('IRRF da nota', 'Compra TEST3', Decimal('1.0000'), 'withholding_gross_value_pro_rata'),
+                ('IRRF da nota', 'Venda TEST3', Decimal('3.0000'), 'withholding_gross_value_pro_rata'),
+            ])
+            source_rows = db.execute("""select row_number,source_locator
+              from ledger.file_import_event where import_id=? order by row_number""",
+                                     [attachment_id]).fetchall()
+            self.assertEqual([(number, json.loads(locator)['item'])
+                              for number, locator in source_rows],
+                             [(1,1),(2,2),(3,3),(4,4)])
 
     def test_duplicate_previews_revalidate_new_existing_event(self):
         first=self.stage(); second=self.stage(workbook(tag='outra consulta'))

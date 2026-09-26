@@ -54,6 +54,122 @@ D
         self.assertEqual([(row.values['category'],row.values['amount']) for row in rows[1:]],
                          [('fee',Decimal('1.20')),('fee',Decimal('0.80')),('tax',Decimal('0.50'))])
 
+    def test_extracts_all_summary_charges_and_ignores_zero_registration(self):
+        rows = _rows_from_text('''Resumo Financeiro
+Taxa de registro
+0,00
+D
+Taxa de liquidação D 7,64
+Corretagem
+4,90
+D
+ISS
+0,52
+D
+I.R.R.F. s/ operações, base R$ 10.000,00
+1,52
+D
+Taxa Bovespa D 0,83
+''')
+
+        self.assertEqual(
+            [(row.values['category'], row.values['label'], row.values['amount'])
+             for row in rows],
+            [
+                ('fee', 'Taxa de liquidação', Decimal('7.64')),
+                ('fee', 'Corretagem', Decimal('4.90')),
+                ('fee', 'ISS', Decimal('0.52')),
+                ('tax', 'IRRF', Decimal('1.52')),
+                ('fee', 'Taxa Bovespa', Decimal('0.83')),
+            ])
+
+    def test_maps_columnar_summary_values_to_their_fee_labels(self):
+        rows = _rows_from_text('''Resumo Financeiro
+Valor das operações
+30.560,00
+7,64
+0,00
+CBLC
+Valor líquido das operações
+Taxa de liquidação
+Taxa de Registro
+D
+D
+30.552,36
+Total CBLC
+D
+0,00
+0,00
+1,52
+0,00
+Bovespa / Soma
+Taxa de termo/opções
+Taxa A.N.A.
+Emolumentos
+Taxa de Transf. de Ativos
+D
+D
+1,52
+Total Bovespa / Soma
+D
+Especificações diversas
+4,90
+0,52
+1,52
+0,83
+Corretagem / Despesas
+Corretagem
+ISS*(SÃO PAULO)
+I.R.R.F. s/ operações, base R$0,00
+Outras Bovespa
+D
+D
+D
+D
+7,77
+Total Corretagem / Despesas
+D
+''')
+
+        self.assertEqual(
+            [(row.values['category'], row.values['label'], row.values['amount'])
+             for row in rows],
+            [
+                ('fee', 'Taxa de liquidação', Decimal('7.64')),
+                ('fee', 'Emolumentos', Decimal('1.52')),
+                ('fee', 'Corretagem', Decimal('4.90')),
+                ('fee', 'ISS', Decimal('0.52')),
+                ('tax', 'IRRF', Decimal('1.52')),
+                ('fee', 'Taxa Bovespa', Decimal('0.83')),
+            ])
+
+    def test_parse_assigns_unique_row_numbers_across_pdf_pages(self):
+        class Page:
+            def __init__(self, text): self.text = text
+            def extract_text(self): return self.text
+
+        class Reader:
+            def __init__(self, _body):
+                self.pages = [
+                    Page('''Data pregão
+11/08/2025
+1-BOVESPA C VISTA TESTE3 ON @ 1 10,00 10,00 D
+1-BOVESPA V VISTA TESTE3 ON @ 1 10,00 10,00 C'''),
+                    Page('''Data de Referência: 11/08/2025
+Taxa de liquidação
+1,00
+D
+Corretagem
+2,00
+D'''),
+                ]
+
+        with patch('fin2.imports.clear_brokerage.PdfReader', Reader):
+            rows = ClearBrokerageNoteAdapter().parse('nota.pdf', b'%PDF-fixture')
+
+        self.assertEqual([row.locator['item'] for row in rows], [1, 2, 3, 4])
+        self.assertEqual([row.locator['page'] for row in rows], [1, 1, 2, 2])
+
     def test_recognizes_and_extracts_xp_note_with_trade_on_one_line(self):
         text = '''Nota de Negociação
 Data de Referência: 11/08/2025
@@ -111,5 +227,20 @@ D
         self.assertEqual(database.assert_ticker,'LIGT3')
         self.assertEqual(normalized['application_record'],'application-record')
         self.assertEqual(normalized['errors'],[])
+        self.assertEqual(normalized['description'],'LIGHT S/A LIGT3 ON NM (VISTA)')
+        normalized_tax=ClearBrokerageNoteAdapter().normalize(SourceRow(
+            {'page':2,'section':'resumo_financeiro','item':3},
+            {'kind':'expense','category':'tax','label':'IRRF','amount':Decimal('1.52'),
+             'debit_credit':'D','trade_date':date(2025,8,11)}),
+            database,{'account_record':'account-record'})
+        self.assertEqual(normalized_tax['event_type'],'tax')
+        self.assertEqual(normalized_tax['allocation_role'],'withholding')
+        self.assertEqual(normalized_tax['description'],'IRRF')
+        normalized_fee=ClearBrokerageNoteAdapter().normalize(SourceRow(
+            {'page':2,'section':'resumo_financeiro','item':2},
+            {'kind':'expense','category':'fee','label':'Taxa de liquidação',
+             'amount':Decimal('7.64'),'debit_credit':'D','trade_date':date(2025,8,11)}),
+            database,{'account_record':'account-record'})
+        self.assertEqual(normalized_fee['description'],'Taxa de liquidação')
 
 if __name__=='__main__':unittest.main()
