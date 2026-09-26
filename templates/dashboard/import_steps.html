@@ -1,9 +1,17 @@
-{% with current_step=wizard_step|default:1 %}
+{% load fin2_format %}
+{% with current_step=wizard_step|default:1 import_id=selected_import.import_id %}
+{% import_step_url 1 import_id as step1_url %}
+{% import_step_url 2 import_id as step2_url %}
+{% import_step_url 3 import_id as step3_url %}
+{% import_step_url 4 import_id selected_attachment as step4_url %}
+{% import_step_url 5 import_id as step5_url %}
+{% import_step_url 6 import_id as step6_url %}
 <ol class="import-steps" aria-label="Etapas da importação">
-{% include 'dashboard/import_step.html' with number=1 label='Carregar extrato de conta' description='Selecione o extrato' %}
-{% include 'dashboard/import_step.html' with number=2 label='Aprovar/Excluir extrato' description='Confira os dados carregados' %}
-{% include 'dashboard/import_step.html' with number=3 label='Carregar anexos' description='Associe notas e comprovantes' %}
-{% include 'dashboard/import_step.html' with number=4 label='Revisão' description='Resolva os movimentos pendentes' %}
-{% include 'dashboard/import_step.html' with number=5 label='Concluído' description='Confira o resultado' %}
+{% include 'dashboard/import_step.html' with number=1 label='Carregar extrato' description='Selecione o extrato' url=step1_url %}
+{% include 'dashboard/import_step.html' with number=2 label='Conferir extrato' description='Confira os dados carregados' url=step2_url %}
+{% include 'dashboard/import_step.html' with number=3 label='Carregar anexos' description='Associe notas e comprovantes' url=step3_url %}
+{% include 'dashboard/import_step.html' with number=4 label='Conferir anexo' description='Confira o log de importação' url=step4_url %}
+{% include 'dashboard/import_step.html' with number=5 label='Revisar' description='Resolva os movimentos pendentes' url=step5_url %}
+{% include 'dashboard/import_step.html' with number=6 label='Conclusão' description='Confira o resultado' url=step6_url %}
 </ol>
 {% endwith %}

@@ -1,5 +1,28 @@
 {% load fin2_format %}
 <div class="record-heading">
-<div>{% if account_header or compact_header %}<p class="account-back"><a class="back" href="{{ detail_header.catalog_url }}">← {{ detail_header.catalog_label }}</a></p><div class="account-title-row"><h1><span class="eyebrow">{{ detail_header.label }} #{{ detail_header.identifier }}</span><br>{{ detail_header.title }}</h1><a href="{{ detail_header.edit_url }}">Editar</a>{% if account_header and account_import_url %}<a href="{{ account_import_url }}">Importar extrato</a>{% endif %}</div>{% else %}<a class="back" href="{{ detail_header.catalog_url }}">← {{ detail_header.catalog_label }}</a><h1>{{ detail_header.title }}</h1>{% endif %}</div>
+  <div>
+    {% if account_header or compact_header %}
+      <div class="account-header-block">
+        <div class="account-title-row">
+          <span class="eyebrow"><a href="{{ detail_header.catalog_url }}" title="Voltar para a lista">{{ detail_header.label }} #{{ detail_header.identifier }} ←</a></span>
+        </div>
+        <div class="account-subtitle-row">
+          <span class="account-title-name"><h1>{{ detail_header.title }} <a class="edit-link back" href="{{ detail_header.edit_url }}" aria-label="Editar {{ detail_header.label|lower }}" title="Editar">✎</a></h1></span>
+        </div>
+      </div>
+    {% else %}
+      <a class="back" href="{{ detail_header.catalog_url }}" title="Voltar para a lista">← {{ detail_header.catalog_label }}</a><h1>{{ detail_header.title }}</h1>
+    {% endif %}
+  </div>
 </div>
-<nav class="record-parents" aria-label="Registros relacionados">{% for parent in detail_header.parents %}<span><strong>{{ parent.label }}:</strong> <a href="{{ parent.url }}">{{ parent.name }}</a></span>{% endfor %}<span><strong>Status:</strong> {{ detail_header.status }}</span>{% if account_header and account_balance %}<span><strong>Saldo em {{ analysis_cutoff|date:'d/m/Y' }}:</strong> {{ account_balance.balance|money:account_balance.currency }}{% if account_balance.pending %} <small>· {{ account_balance.pending }} valores incompletos</small>{% endif %}</span>{% endif %}</nav>
+<nav class="record-parents" aria-label="Registros relacionados">
+  {% for parent in detail_header.parents %}
+    <span><strong>{{ parent.label }}:</strong> <a href="{{ parent.url }}">{{ parent.name }}</a></span>
+  {% endfor %}<span><strong>Status:</strong> {{ detail_header.status }}</span>{% if account_header and account_balance %}
+    <span>
+      <strong>Saldo em {{ analysis_cutoff|date:'d/m/Y' }}:</strong> {{ account_balance.balance|money:account_balance.currency }}{% if account_balance.pending %}
+        <small>· {{ account_balance.pending }} valores incompletos</small>
+      {% endif %}
+    </span>
+  {% endif %}
+</nav>

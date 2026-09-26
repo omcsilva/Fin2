@@ -1,4 +1,6 @@
-<li class="import-step{% if current_step == number %} is-current{% elif current_step > number %} is-complete{% endif %}"{% if current_step == number %} aria-current="step"{% endif %}>
-<span class="import-step-number" aria-hidden="true">{% if current_step > number %}✓{% else %}{{ number }}{% endif %}</span>
-<span class="import-step-text"><strong>{{ number }}. {{ label }}</strong><small>{% if current_step > number %}Etapa concluída{% elif current_step == number %}{{ description }}{% else %}A seguir{% endif %}</small></span>
+<li class="import-step{% if current_step == number %} is-current{% endif %}"{% if current_step == number %} aria-current="step"{% endif %}>
+{% if url %}<a href="{{ url }}" class="import-step-link" title="{{ description }}">{% else %}<span class="import-step-link" title="{{ description }}">{% endif %}
+<span class="import-step-number" aria-hidden="true">{{ number }}</span>
+<span class="import-step-text"><strong>{{ label }}</strong></span>
+{% if url %}</a>{% else %}</span>{% endif %}
 </li>

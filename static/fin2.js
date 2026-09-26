@@ -80,6 +80,15 @@ document.querySelectorAll('.table-wrap').forEach(panel => {
   panel.setAttribute('aria-label', 'Tabela com rolagem horizontal');
 });
 
+// Rows carrying data-href are fully clickable, except for their own links
+// (e.g. the attachment's own download link), which keep their normal target.
+document.querySelectorAll('tr[data-href]').forEach(row => {
+  row.addEventListener('click', event => {
+    if (event.target.closest('a')) return;
+    window.location = row.dataset.href;
+  });
+});
+
 document.querySelectorAll('form[data-confirm-submit]').forEach(form => {
   form.addEventListener('submit',event => {
     if (!window.confirm(form.dataset.confirmSubmit)) event.preventDefault();

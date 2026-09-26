@@ -1312,7 +1312,7 @@ def file_imports(request):
             data['accounts']=[a for a in import_accounts(connection) if a['batch_id']==data['batch']['batch_id']]
             data['selected_upload_account']=request.GET.get('account','')
             data['selected_upload_adapter']=request.GET.get('adapter','')
-            data['imports']=query(connection,'select * exclude(preview) from ledger.file_import order by created_at desc limit 50')
+            data['imports']=query(connection,"select * exclude(preview) from ledger.file_import where document_type='account_statement' order by created_at desc limit 50")
             identifier=request.GET.get('preview','');selected=None
             if identifier:
                 if not re.fullmatch(r'[a-f0-9]{32}',identifier):raise Http404
@@ -1334,8 +1334,8 @@ def file_imports(request):
             wizard_step = 1
             if identifier and selected:
               if selected['status'] in ('committed', 'completed'):
-                wizard_step = 5 if selected.get(
-                    'adapter_id') == 'xp-account-statement' else 4
+                wizard_step = 6 if selected.get(
+                    'adapter_id') == 'xp-account-statement' else 5
               elif selected['status'] == 'preview':
                 # Re-uploaded files retain their documentary history, but
                 # their preview must still let the user approve the load.
@@ -1360,7 +1360,7 @@ def file_imports(request):
                   'confirm_identity') == 'on'
                 data['selected_identity_reason'] = request.POST.get(
                   'identity_reason', '')
-                data.update(imports=query(connection, 'select * exclude(preview) from ledger.file_import order by created_at desc limit 50'),
+                data.update(imports=query(connection, "select * exclude(preview) from ledger.file_import where document_type='account_statement' order by created_at desc limit 50"),
                             import_error=str(exc), selected_import=None)
                 return render(request, 'dashboard/file_imports.html', data, status=400)
         except Unavailable:
@@ -1380,6 +1380,34 @@ def _statement_attachments(connection, identifier):
     return attachments
 
 
+def _resolve_related_lines(attachments, statement_rows):
+    """Replace each attachment's raw related-line numbers with the matching
+    statement rows, so the UI can show the actual entry text instead of a
+    bare row number."""
+    lookup = {str(row['source_locator']['row']): row for row in statement_rows}
+    for attachment in attachments:
+        numbers = [str(n) for n in json.loads(attachment.get('related_lines') or '[]')]
+        attachment['related_line_numbers'] = numbers
+        attachment['related_line_rows'] = [
+            lookup[n] for n in numbers if n in lookup]
+    return attachments
+
+
+def _notes_view_state(request, attachments):
+    """Decide which anexos sub-step (3 or 4) applies and which attachment
+    row(s) the table/log should show. Step 4 only activates for an
+    explicitly selected attachment; the top-nav step-4 link without one
+    bounces back to step 3 with a hint to pick a row."""
+    attachment_param = request.GET.get('attachment')
+    selected_item = next(
+        (a for a in attachments if a['attachment_import_id'] == attachment_param),
+        None) if attachment_param else None
+    if selected_item:
+        return 4, selected_item, [selected_item], None
+    note_info = 'Selecione um anexo na lista.' if request.GET.get('review') else None
+    return 3, None, attachments, note_info
+
+
 @require_http_methods(['GET', 'POST'])
 def xp_statement_notes(request, identifier):
     if not settings.WRITE_ENABLED:
@@ -1388,6 +1416,9 @@ def xp_statement_notes(request, identifier):
         raise Http404
     try:
         pending_upload = None
+        pending_update = None
+        pending_delete = None
+        pending_reprocess = None
         with reader(settings.WAREHOUSE_PATH) as connection:
             parent = query(connection, """select f.*,s.account_record,s.documented_at
               from ledger.file_import f join ledger.xp_statement s using(import_id)
@@ -1399,23 +1430,39 @@ def xp_statement_notes(request, identifier):
                 return redirect('/fin2/importar/?' + urlencode({'preview': identifier}))
             from fin2.imports.xp_reconciliation import detail
             if request.method == 'POST':
-                upload = request.FILES.get('documents')
-                if not upload:
-                    raise ValueError('Selecione pelo menos um documento')
-                description = ' '.join(
-                    request.POST.get('description', '').split())
-                if len(description) > 500:
-                    raise ValueError(
-                        'A descrição deve ter no máximo 500 caracteres')
-                selected_lines = request.POST.getlist('related_lines')
-                available_lines = {
-                    str(row['source_locator']['row'])
-                    for row in detail(connection, identifier)['rows']
-                }
-                if any(line not in available_lines for line in selected_lines):
-                    raise ValueError('Lançamento relacionado inválido')
-                pending_upload = (upload.name, upload.read(), upload.content_type,
-                                  selected['account_record'], description, selected_lines)
+                form_action = request.POST.get('form_action', 'create')
+                if form_action in ('delete', 'reprocess'):
+                    attachment_id = request.POST.get('attachment_id', '')
+                    if not re.fullmatch(r'[a-f0-9]{32}', attachment_id or ''):
+                        raise ValueError('Anexo inválido')
+                    if form_action == 'delete':
+                        pending_delete = attachment_id
+                    else:
+                        pending_reprocess = attachment_id
+                else:
+                    description = ' '.join(
+                        request.POST.get('description', '').split())
+                    if len(description) > 500:
+                        raise ValueError(
+                            'A descrição deve ter no máximo 500 caracteres')
+                    selected_lines = request.POST.getlist('related_lines')
+                    available_lines = {
+                        str(row['source_locator']['row'])
+                        for row in detail(connection, identifier)['rows']
+                    }
+                    if any(line not in available_lines for line in selected_lines):
+                        raise ValueError('Lançamento relacionado inválido')
+                    if form_action == 'update':
+                        attachment_id = request.POST.get('attachment_id', '')
+                        if not re.fullmatch(r'[a-f0-9]{32}', attachment_id or ''):
+                            raise ValueError('Anexo inválido')
+                        pending_update = (attachment_id, description, selected_lines)
+                    else:
+                        upload = request.FILES.get('documents')
+                        if not upload:
+                            raise ValueError('Selecione pelo menos um documento')
+                        pending_upload = (upload.name, upload.read(), upload.content_type,
+                                          selected['account_record'], description, selected_lines)
             else:
                 attachments = _statement_attachments(connection, identifier)
                 selected['document_metadata'] = json.loads(
@@ -1429,14 +1476,46 @@ def xp_statement_notes(request, identifier):
                   row['attachment_trade_date'] = date.fromisoformat(
                       str(row['trade_date'])).strftime('%d/%m')
                 approval_table(request, selected)
+                _resolve_related_lines(attachments, related_lines)
+                wizard_step, selected_item, table_attachments, note_info = _notes_view_state(
+                    request, attachments)
                 data = context(request, connection)
-                data.update(selected_import=selected, attachments=attachments,
+                data.update(selected_import=selected, attachments=table_attachments,
+                            selected_attachment=selected_item['attachment_import_id'] if selected_item else None,
+                            selected_item=selected_item,
                             related_lines=related_lines,
-                            wizard_step=3, note_error=None)
+                            wizard_step=wizard_step, note_error=None, note_info=note_info)
                 return render(request, 'dashboard/xp_statement_notes.html', data)
+        from warehouse.database import connect
+        if pending_delete:
+            with connect(settings.WAREHOUSE_PATH) as writable:
+                writable.execute(
+                    """delete from ledger.import_attachment
+                       where parent_import_id=? and attachment_import_id=?""",
+                    [identifier, pending_delete])
+            from fin2.imports.generic import reject as reject_attachment
+            reject_attachment(settings.WAREHOUSE_PATH,
+                               settings.DOCUMENT_ROOT, pending_delete)
+            return redirect(reverse('xp-statement-notes', args=[identifier]))
+        if pending_reprocess:
+            from fin2.imports.generic import reprocess as reprocess_attachment
+            reprocess_attachment(settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
+                                  pending_reprocess,
+                                  options={'account_record': selected['account_record']})
+            return redirect(reverse('xp-statement-notes', args=[identifier]) +
+                             '?' + urlencode({'attachment': pending_reprocess}))
+        if pending_update:
+            attachment_id, description, selected_lines = pending_update
+            with connect(settings.WAREHOUSE_PATH) as writable:
+                writable.execute(
+                    """update ledger.import_attachment
+                       set description=?, related_lines=?
+                       where parent_import_id=? and attachment_import_id=?""",
+                    [description, json.dumps(selected_lines), identifier, attachment_id])
+            return redirect(reverse('xp-statement-notes', args=[identifier]) +
+                             '?' + urlencode({'attachment': attachment_id}))
         name, body, content_type, account_record, description, selected_lines = pending_upload
         from fin2.imports.generic import stage as stage_file_import
-        from warehouse.database import connect
         attachment, _status = stage_file_import(
             settings.WAREHOUSE_PATH, settings.DOCUMENT_ROOT,
             name, body, content_type,
@@ -1466,10 +1545,15 @@ def xp_statement_notes(request, identifier):
               row['attachment_trade_date'] = date.fromisoformat(
                   str(row['trade_date'])).strftime('%d/%m')
             approval_table(request, selected)
+            _resolve_related_lines(attachments, related_lines)
+            wizard_step, selected_item, table_attachments, note_info = _notes_view_state(
+                request, attachments)
             data = context(request, connection)
-            data.update(selected_import=selected, attachments=attachments,
+            data.update(selected_import=selected, attachments=table_attachments,
+                        selected_attachment=selected_item['attachment_import_id'] if selected_item else None,
+                        selected_item=selected_item,
                         related_lines=related_lines,
-                        wizard_step=3, note_error=str(exc))
+                        wizard_step=wizard_step, note_error=str(exc), note_info=note_info)
             return render(request, 'dashboard/xp_statement_notes.html', data, status=400)
 
 
@@ -1503,7 +1587,7 @@ def xp_statement_review(request, connection, identifier):
     else:
         from fin2.dashboard.xp_statement_views import approval_table
         approval_table(request, selected, review=True)
-    data.update(selected_import=selected, wizard_step=4,
+    data.update(selected_import=selected, wizard_step=5,
                 import_error=request.GET.get('error'))
     return render(request, 'dashboard/xp_statement_review.html', data, status=400 if request.GET.get('error') else 200)
 

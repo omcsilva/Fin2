@@ -6,7 +6,7 @@
 <p>{{ selected_import.row_count }} movimentos · {{ selected_import.states.ready }} prontos · {{ selected_import.states.pending }} pendentes · {{ selected_import.states.excluded }} excluídos · {{ selected_import.created_count }} eventos criados</p>
 {% for error in selected_import.document_metadata.errors %}<div class="note">{{ error }}</div>{% endfor %}
 
-{% if wizard_step == 4 %}
+{% if wizard_step == 5 %}
     {% if request.GET.review_line %}
         {% include 'dashboard/xp_statement_review_form.html' %}
 
@@ -62,7 +62,7 @@
     {% endif %}
 {% endif %}
 
-{% if wizard_step == 5 %}
+{% if wizard_step == 6 %}
     <div class="note note-success">Importação de extrato concluída. Novos lançamentos gerados no ledger: {{ selected_import.created_entries|length }}.</div>
     <div class="table-wrap"><table id="xp-import-done-table" class="table-fixed"><thead><tr><th class="number"><div class="t">Mov.</div></th><th class="number"><div class="t">Liq.</div></th><th><div class="t">Tipo</div></th><th><div class="t">Aplicação</div></th><th class="number"><div class="t">Qtde</div></th><th class="number"><div class="t">Valor</div></th><th class="wrap-text"><div class="t">Lançamento</div></th></tr></thead><tbody>
     {% for e in selected_import.created_entries %}<tr>
@@ -75,7 +75,7 @@
     </tbody></table></div>
 {% endif %}
 
-{% if wizard_step == 5 %}
+{% if wizard_step == 6 %}
 <div class="table-wrap"><table class="table-fixed reconciliation-table"><thead><tr><th>Conciliação</th><th class="number">Extrato</th><th class="number">Fin2</th><th class="number">Diferença</th></tr></thead><tbody>
 <tr><td>Saldo inicial (inferido)</td><td class="number">{{ selected_import.document_metadata.opening_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_opening|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.opening_difference|money:'BRL' }}</td></tr>
 <tr><td>Saldo final</td><td class="number">{{ selected_import.document_metadata.closing_balance|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.ledger_closing|money:'BRL' }}</td><td class="number">{{ selected_import.document_metadata.closing_difference|money:'BRL' }}</td></tr>

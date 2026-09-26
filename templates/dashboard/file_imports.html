@@ -1,6 +1,6 @@
-{% extends 'dashboard/base.html' %}{% load fin2_format %}{% block title %}{% if wizard_step == 2 %}Aprovar/Excluir extrato{% else %}Carregar extrato de conta{% endif %} · Fin2{% endblock %}{% block content %}
+{% extends 'dashboard/base.html' %}{% load fin2_format %}{% block title %}{% if wizard_step == 2 %}Conferir extrato{% elif wizard_step == 6 %}Conclusão{% else %}Carregar extrato{% endif %} · Fin2{% endblock %}{% block content %}
 <p class="eyebrow">INGESTÃO / PRÉ-VISUALIZAÇÃO</p>
-<div class="import-page-title"><h1>{% if wizard_step == 2 %}Aprovar/Excluir extrato{% else %}Carregar extrato de conta{% endif %}</h1><p class="lead">{% if wizard_step == 2 %}Confira os lançamentos identificados e aprove ou exclua o extrato inteiro.{% else %}Carregue o documento, revise os movimentos e confirme os lançamentos novos. Extratos XP permitem registrar a evidência enquanto a conciliação está pendente.{% endif %}</p></div>
+<div class="import-page-title"><h1>{% if wizard_step == 2 %}Conferir extrato{% elif wizard_step == 6 %}Conclusão{% else %}Carregar extrato{% endif %}</h1><p class="lead">{% if wizard_step == 2 %}Confira os lançamentos identificados e aprove ou exclua o extrato inteiro.{% else %}Carregue o documento, revise os movimentos e confirme os lançamentos novos. Extratos XP permitem registrar a evidência enquanto a conciliação está pendente.{% endif %}</p></div>
 
 {% include 'dashboard/import_steps.html' %}
 

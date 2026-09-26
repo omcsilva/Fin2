@@ -136,6 +136,37 @@ def stage(database,storage_root,filename,body,media_type='application/octet-stre
         seed(db, import_id, preview)
     return import_id,'preview'
 
+def reprocess(database,storage_root,import_id,options=None):
+    """Re-run the adapter against the already-stored bytes of a staged
+    import, refreshing its preview/row/error counts in place. Useful when an
+    attachment was staged before an adapter fix and needs a fresh read
+    without re-uploading the file."""
+    from fin2.imports.clear_brokerage import CLEAR_ADAPTER  # register built-in PDF adapter
+    from fin2.imports.apex_statement import APEX_ADAPTER
+    from fin2.imports.bb_fixed_income import BB_FIXED_INCOME_ADAPTER
+    from fin2.imports.xp_statement import XP_ADAPTER
+    with connect(Path(database).resolve(strict=True)) as db:
+        migrate(db)
+        item=db.execute("""select status,storage_key,adapter_id,original_filename
+          from ledger.file_import where import_id=?""",[import_id]).fetchone()
+        if not item or item[0]!='preview':raise ValueError('Pré-visualização indisponível')
+        status,storage_key,adapter_id,original_filename=item
+        root=Path(storage_root).resolve();path=(root/storage_key).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            raise ValueError('Arquivo armazenado não encontrado')
+        body=path.read_bytes();adapter=get(adapter_id)
+        raw=list(adapter.parse(original_filename,body))
+        if not raw:raise ValueError('Arquivo sem lançamentos')
+        preview=[adapter.normalize(source,db,options or {}) for source in raw]
+        db.execute("""update ledger.file_import set preview=?,row_count=?,error_count=?
+          where import_id=?""",
+          [json.dumps(preview,ensure_ascii=False),len(preview),sum(bool(r['errors']) for r in preview),import_id])
+        db.execute('delete from ledger.import_staging_line where import_id=?',[import_id])
+        from fin2.imports.staging import seed
+        seed(db,import_id,preview)
+    return import_id
+
+
 def commit(database,import_id):
     with connect(Path(database).resolve(strict=True)) as db:
         migrate(db)

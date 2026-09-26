@@ -1,15 +1,38 @@
 {% extends 'dashboard/base.html' %}{% load fin2_format %}
-{% block title %}Carregar anexos · Fin2{% endblock %}
+{% block title %}{% if wizard_step == 4 %}Conferir anexo{% else %}Carregar anexos{% endif %} · Fin2{% endblock %}
 {% block content %}
 {% include 'dashboard/import_steps.html' %}
 <section class="panel">
     <div class="section-title">
-        <h2>Carregar anexos</h2>
+        <h2>{% if wizard_step == 4 %}Conferir anexo{% else %}Carregar anexos{% endif %}</h2>
         <span>{{ selected_import.original_filename }}</span>
     </div>
     <p>Carregue as notas e comprovantes disponíveis para as movimentações. Eles ficarão em uma tabela de trabalho até a revisão financeira.</p>
     {% if note_error %}<div class="note">{{ note_error }}</div>{% endif %}
+    {% if note_info %}<div class="note">{{ note_info }}</div>{% endif %}
+    {% if wizard_step == 4 %}
+    <form method="post" class="attachment-upload-form">{% csrf_token %}
+        <input type="hidden" name="form_action" value="update">
+        <input type="hidden" name="attachment_id" value="{{ selected_item.attachment_import_id }}">
+        <label for="attachment-documents">Arquivo:</label>
+        <input id="attachment-documents" type="text" value="{{ selected_item.original_filename }}" disabled>
+        <span class="attachment-upload-help">O arquivo não pode ser trocado; carregue um novo anexo para isso</span>
+
+        <label for="attachment-related-lines">Lançamentos relacionados:</label>
+        <select id="attachment-related-lines" name="related_lines" multiple size="10">
+            {% for row in related_lines %}<option value="{{ row.source_locator.row }}"{% if row.source_locator.row|stringformat:"s" in selected_item.related_line_numbers %} selected{% endif %}>L{{ row.source_locator.row }} - {{ row.attachment_trade_date }} {{ row.description|truncatechars:90 }} {{ row.amount|money:'BRL' }}</option>{% endfor %}
+        </select>
+        <span class="attachment-upload-help">Selecione um ou mais lançamentos relacionados</span>
+
+        <label for="attachment-description">Descrição:</label>
+        <textarea id="attachment-description" name="description" maxlength="500" rows="2">{{ selected_item.description }}</textarea>
+        <span class="attachment-upload-help">Identificador opcional do anexo</span>
+
+        <button type="submit" class="attachment-upload-submit">Atualizar</button>
+    </form>
+    {% else %}
     <form method="post" enctype="multipart/form-data" class="attachment-upload-form">{% csrf_token %}
+        <input type="hidden" name="form_action" value="create">
         <label for="attachment-documents">Arquivo:</label>
         <input id="attachment-documents" type="file" name="documents" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv" required>
         <span class="attachment-upload-help">Indique o arquivo com o anexo a ser carregado</span>
@@ -26,25 +49,39 @@
 
         <button type="submit" class="attachment-upload-submit">Carregar arquivo</button>
     </form>
+    {% endif %}
     <div class="table-wrap">
         <table>
-            <thead><tr><th>Arquivo</th><th>Descrição</th><th>Lançamentos</th><th>Tipo</th><th>Linhas extraídas</th><th>Erros</th><th>Estado</th></tr></thead>
+            <thead><tr><th>Tipo</th><th>Arquivo</th><th>Descrição</th><th>Lançamentos</th><th>Linhas extraídas</th><th>Erros</th></tr></thead>
             <tbody>
             {% for item in attachments %}
-            <tr><td><a href="{% url 'file-import-file' item.attachment_import_id %}">{{ item.original_filename }}</a></td><td>{{ item.description|default:'—' }}</td><td>{{ item.related_lines|default:'[]' }}</td><td>{{ item.document_type }}</td><td>{{ item.row_count }}</td><td>{{ item.error_count }}</td><td>{{ item.status }}</td></tr>
-            {% empty %}<tr><td colspan="7">Nenhum documento associado.</td></tr>{% endfor %}
+            <tr class="log-row{% if item.attachment_import_id == selected_attachment %} active{% endif %}" data-href="?attachment={{ item.attachment_import_id }}" title="Ver log de importação"><td><span role="img" aria-label="{{ item.document_type|document_type_label }}" title="{{ item.document_type|document_type_label }}">{{ item.document_type|document_type_symbol }}</span></td><td><a href="{% url 'file-import-file' item.attachment_import_id %}" title="Baixar arquivo">{{ item.original_filename }}</a></td><td>{{ item.description|default:'—' }}</td><td>{% for row in item.related_line_rows %}{{ row.attachment_trade_date }} {{ row.description }} {{ row.amount|money:'BRL' }}{% if not forloop.last %}<br>{% endif %}{% empty %}—{% endfor %}</td><td>{{ item.row_count }}</td><td>{{ item.error_count }}</td></tr>
+            {% empty %}<tr><td colspan="6">Nenhum documento associado.</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
-    {% if attachments %}<section class="import-log" aria-labelledby="import-log-title">
+    {% if wizard_step == 4 %}
+    <div class="attachment-file-actions">
+        <form method="post" data-confirm-submit="Excluir este anexo? O arquivo será removido permanentemente.">{% csrf_token %}
+            <input type="hidden" name="form_action" value="delete">
+            <input type="hidden" name="attachment_id" value="{{ selected_item.attachment_import_id }}">
+            <button type="submit" class="button-danger">Excluir arquivo</button>
+        </form>
+        <form method="post" data-confirm-submit="Reprocessar este anexo com o adaptador atual?">{% csrf_token %}
+            <input type="hidden" name="form_action" value="reprocess">
+            <input type="hidden" name="attachment_id" value="{{ selected_item.attachment_import_id }}">
+            <button type="submit">Reprocessar arquivo</button>
+        </form>
+    </div>
+    <section class="import-log" aria-labelledby="import-log-title">
         <h3 id="import-log-title">Log de importação</h3>
-        {% for item in attachments %}<div class="note">
-            <strong>{{ item.original_filename }}</strong> — {{ item.row_count }} linha{{ item.row_count|pluralize }} extraída{{ item.row_count|pluralize }}; {{ item.error_count }} erro{{ item.error_count|pluralize }}; estado {{ item.status }}.
-            {% if item.error_rows %}<ul>{% for row in item.error_rows %}<li>Linha {{ row.row_number }} — {{ row.description|default:'Sem descrição' }}: {% for error in row.errors %}{{ error }}{% if not forloop.last %}; {% endif %}{% endfor %}</li>{% endfor %}</ul>{% else %}<p>Nenhum erro de validação.</p>{% endif %}
-        </div>{% endfor %}
+        <div class="note">
+            <strong>{{ selected_item.original_filename }}</strong> — {{ selected_item.row_count }} linha{{ selected_item.row_count|pluralize }} extraída{{ selected_item.row_count|pluralize }}; {{ selected_item.error_count }} erro{{ selected_item.error_count|pluralize }}; estado {{ selected_item.status }}.
+            {% if selected_item.error_rows %}<ul>{% for row in selected_item.error_rows %}<li>Linha {{ row.row_number }} — {{ row.description|default:'Sem descrição' }}: {% for error in row.errors %}{{ error }}{% if not forloop.last %}; {% endif %}{% endfor %}</li>{% endfor %}</ul>{% else %}<p>Nenhum erro de validação.</p>{% endif %}
+        </div>
     </section>{% endif %}
     <div class="review-form-actions" id="review-form-actions">
-        <a class="button review-cancel" href="{% url 'file-imports' %}?preview={{ selected_import.import_id }}">Voltar</a>
+        <a class="button review-cancel" href="{% if wizard_step == 4 %}{% url 'xp-statement-notes' selected_import.import_id %}{% else %}{% url 'file-imports' %}?preview={{ selected_import.import_id }}{% endif %}">Voltar</a>
         <a class="button review-save" href="{% url 'xp-statement-review' selected_import.import_id %}">Continuar para revisão</a>
     </div>
 </section>

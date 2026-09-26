@@ -27,7 +27,7 @@
 {% if wizard_step == 2 and selected_import.status == 'preview' %}
 <form id="import-approval-actions" class="import-approval-actions" method="post" action="{% url 'xp-statement-update' selected_import.import_id %}">{% csrf_token %}
 <input type="hidden" name="operation" value="document">
-<button class="approve-import" type="submit">Aprovar carga</button>
+<button class="approve-import" type="submit">Continuar para anexos</button>
 <button class="reject-import" type="submit" formaction="{% url 'file-import-reject' selected_import.import_id %}">Rejeitar arquivo</button>
 </form>
 {% endif %}
